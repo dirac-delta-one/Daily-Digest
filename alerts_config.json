@@ -1,0 +1,44 @@
+{
+  "alerts": [
+    {
+      "name": "Large Chapter 11",
+      "trigger": "Any new Chapter 11 bankruptcy filing with over $500M in liabilities",
+      "priority": "high"
+    },
+    {
+      "name": "Insider selling",
+      "trigger": "Any Form 4 showing insider selling over $1M in watchlist names",
+      "priority": "high"
+    },
+    {
+      "name": "HY spread blowout",
+      "trigger": "HY OAS widens more than 25bps in a single day",
+      "priority": "high"
+    },
+    {
+      "name": "Fed surprise",
+      "trigger": "Any unexpected Fed action or emergency meeting",
+      "priority": "high"
+    },
+    {
+      "name": "Distressed exchange",
+      "trigger": "Any distressed exchange, liability management exercise, or cooperation agreement mentioned",
+      "priority": "medium"
+    },
+    {
+      "name": "Rating downgrade",
+      "trigger": "Any downgrade of a watchlist company or any downgrade to junk/speculative grade (fallen angel)",
+      "priority": "high"
+    },
+    {
+      "name": "Fed stress signal",
+      "trigger": "Discount window borrowing exceeds $5B or increases by more than $2B week-over-week",
+      "priority": "high"
+    },
+    {
+      "name": "Bank failure",
+      "trigger": "Any FDIC bank failure detected",
+      "priority": "high"
+    }
+  ]
+}

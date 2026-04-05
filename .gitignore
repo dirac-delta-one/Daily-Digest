@@ -1,0 +1,30 @@
+# Secrets / credentials
+token.json
+credentials.json
+env.bat
+substack_cookie.txt
+substack_session.json
+octus_session.json
+thirteen_d_session.json
+
+# Cache / state
+market_data_cache.json
+fred_cache.json
+trace_cache.json
+pacer_seen.json
+memory.json
+
+# Archive / generated data
+archive/
+digests/
+logs/
+__pycache__/
+*.pyc
+
+# Debug files
+octus_debug*.png
+octus_debug*.html
+
+# Temp files
+wiltw_temp.pdf
+test_send.py
