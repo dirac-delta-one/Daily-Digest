@@ -7,7 +7,7 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ## Phase 1 — Cost-pricing fix, model centralization, HTML escaping
 
-- **Commit:** _(uncommitted — pending review)_
+- **Commit:** `f78ef45` — "Phase 1 done, tested with no secrets"
 - **Status:** ✅ Code complete; verified offline (no secrets). Optional end-to-end render check
   deferred to a credentialed run.
 

@@ -27,8 +27,8 @@ validated without any secrets** — `ruff` clean, all 24 modules import/compile,
 plus `pacer` pure-function asserts and a `search` index round-trip (incl. the 0.3 re-index path). The
 LLM/Gmail/paid-scraper paths are import/compile-verified only and await a credentialed run — see §11
 "Needs Testing." **Phase 1** (cost-pricing fix + model centralization in `config.py`, plus
-HTML-escaping the pre-built sections) is also code-complete and unit-tested offline (uncommitted).
-Per-change history is in `WORKLOG.md`.
+HTML-escaping the pre-built sections) is also code-complete and unit-tested offline (committed
+`f78ef45`). Per-change history is in `WORKLOG.md`.
 
 **End goal:** Stop depending on jared's personal computer. Migrate to a **dedicated, always-on
 standalone Windows machine acting as a server** that runs the digest, midday alert, and reply
@@ -290,8 +290,8 @@ used). Confirm with user; it's inert either way.
 
 ### Phase 1 — Low-complexity correctness/observability fixes
 
-> ✅ **DONE (offline)** — `config.py` added; 1.1 + 1.2 applied and unit-tested without secrets
-> (uncommitted). The optional end-to-end render check awaits credentials (see §11).
+> ✅ **DONE (offline)** — `config.py` added; 1.1 + 1.2 applied and unit-tested without secrets,
+> committed `f78ef45`. The optional end-to-end render check awaits credentials (see §11).
 
 1.1 **Fix cost-estimate pricing + centralize model** — `digest.py:607–608` uses `15`/`75` per MTok
 (stale original-Opus pricing); Opus 4.6 is **$5 / $25**. Create `config.py`:
@@ -429,7 +429,7 @@ re-index branch), `sec_filings.py`, `fund_tracking.py`, `earnings.py`, `treasury
 `fdic_monitor.py`, `trace_data.py`, `ratings.py`, `fed_research.py`. `cftc_cot.py` ran but skipped on
 weekday; `macro_data.py`/`fed_balance_sheet.py` ran but skip without a FRED key (§8 deferred note).
 
-### Phase 1 (uncommitted)
+### Phase 1 (committed `f78ef45`)
 
 1.1 (cost pricing + model centralization) and 1.2 (HTML escaping) are **fully unit-tested offline** —
 no deferred verification of their own logic. Two notes for the eventual credentialed run:
