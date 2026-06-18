@@ -8,7 +8,6 @@ PDFs are sent directly to Claude's vision/document API — no text extraction ne
 This handles scanned PDFs, image-heavy reports, etc.
 """
 
-import os
 import sys
 import base64
 import json
@@ -40,7 +39,7 @@ from thirteen_d import fetch_wiltw
 from fed_research import fetch_research_articles, format_research_for_prompt
 from treasury_auctions import fetch_treasury_auctions, format_auctions_for_prompt, build_auctions_table_html
 from cftc_cot import fetch_cot_data, format_cot_for_prompt
-from fed_balance_sheet import fetch_fed_balance_sheet, format_fed_bs_for_prompt, build_fed_bs_table_html, check_fed_stress
+from fed_balance_sheet import fetch_fed_balance_sheet, format_fed_bs_for_prompt, build_fed_bs_table_html
 from fdic_monitor import fetch_failed_banks, format_fdic_for_prompt
 from archive import archive_daily_content
 from search import index_daily_content

@@ -46,7 +46,6 @@ def fetch_market_data():
 
     print("  Fetching market data...")
 
-    prior_cache = _load_cache()
     results = []
 
     tickers_str = " ".join(YAHOO_TICKERS.keys())
@@ -76,8 +75,6 @@ def fetch_market_data():
             prev_1w = None
             if len(series) >= 6:
                 prev_1w = float(series.iloc[-6])
-            elif label in prior_cache and "value_1w" in prior_cache[label]:
-                prev_1w = prior_cache[label]["value_1w"]
 
             # 1M change: ~21 trading days ago (or earliest in the series)
             prev_1m = None

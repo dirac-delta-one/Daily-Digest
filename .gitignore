@@ -3,7 +3,6 @@ token.json
 credentials.json
 env.bat
 substack_cookie.txt
-substack_session.json
 octus_session.json
 thirteen_d_session.json
 
@@ -20,6 +19,10 @@ digests/
 logs/
 __pycache__/
 *.pyc
+
+# Virtual environment
+.venv/
+venv/
 
 # Debug files
 octus_debug*.png

@@ -95,7 +95,7 @@ def fetch_earnings_calendar(extra_tickers=None):
                 })
                 print(f"    {ticker_str} ({company_name}): earnings {ed}")
 
-        except Exception as e:
+        except Exception:
             # Silently skip — many tickers won't have calendar data
             continue
 

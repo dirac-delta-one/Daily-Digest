@@ -88,7 +88,7 @@ def fetch_trace_data():
                 "enddate": datetime.date.today().strftime("%m/%d/%Y"),
             }
 
-            url = f"https://finra-markets.morningstar.com/BondCenter/BondTradeActivitySearchResult.jsp"
+            url = "https://finra-markets.morningstar.com/BondCenter/BondTradeActivitySearchResult.jsp"
             query = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
             full_url = f"{url}?{query}"
 

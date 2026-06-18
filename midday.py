@@ -18,7 +18,7 @@ from pathlib import Path
 
 import anthropic
 
-from digest import get_gmail_service, DIGEST_RECIPIENTS, fetch_recent_emails
+from digest import get_gmail_service, DIGEST_RECIPIENTS
 from news import fetch_wsj_ft_articles
 from sec_filings import fetch_recent_filings
 from ratings import fetch_rating_actions
@@ -164,9 +164,6 @@ def evaluate_materiality(emails, articles, filings, rating_actions):
 
 def send_alert_email(service, subject_desc, alert_html):
     """Send the midday alert email."""
-    day = datetime.date.today().day
-    today = datetime.date.today().strftime(f"%A, %B {day}")
-
     message = MIMEText(alert_html, "html")
     message["to"] = ", ".join(DIGEST_RECIPIENTS)
     message["subject"] = f"\U0001f6a8 Midday Alert — {subject_desc}"

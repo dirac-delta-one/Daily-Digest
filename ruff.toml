@@ -1,0 +1,13 @@
+# Ruff configuration (added in Phase 0.5).
+target-version = "py312"
+line-length = 100
+exclude = [".venv", "__pycache__", "archive", "digests", "logs"]
+
+[lint]
+# Pyflakes (F) + pycodestyle errors (E). Whitespace/formatting and import
+# ordering are intentionally left to `ruff format` (run as a separate,
+# whitespace-only commit) so behavior diffs stay clean.
+select = ["E", "F"]
+ignore = [
+    "E501",  # long lines: inline-style HTML strings are intentional
+]

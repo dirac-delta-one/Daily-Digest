@@ -69,7 +69,6 @@ def _get_latest_13f(cik):
     forms = recent.get("form", [])
     dates = recent.get("filingDate", [])
     accessions = recent.get("accessionNumber", [])
-    primary_docs = recent.get("primaryDocument", [])
 
     cutoff = (datetime.date.today() - datetime.timedelta(days=DAYS_LOOKBACK)).isoformat()
 
@@ -321,7 +320,7 @@ def fetch_fund_holdings():
         # Find and fetch the infotable
         infotable_url = _find_infotable_url(filing["index_url"])
         if not infotable_url:
-            print(f"      Could not find infotable XML")
+            print("      Could not find infotable XML")
             continue
 
         xml_text = _make_request(infotable_url)
@@ -330,7 +329,7 @@ def fetch_fund_holdings():
 
         holdings = _parse_infotable(xml_text)
         if not holdings:
-            print(f"      No holdings parsed from infotable")
+            print("      No holdings parsed from infotable")
             continue
 
         print(f"      {len(holdings)} positions, ${sum(h['value'] for h in holdings):,.0f} total")

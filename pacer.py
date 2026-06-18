@@ -11,7 +11,6 @@ Two modes:
 
 import json
 import re
-import datetime
 import time
 import xml.etree.ElementTree as ET
 import urllib.request
@@ -237,11 +236,6 @@ def _is_corporate_entity(name):
 
 def _search_company_size(debtor_name):
     """Web search for the company to get context about its size."""
-    try:
-        from search import search as _unused  # just to verify imports work
-    except Exception:
-        pass
-
     # Use urllib to hit a search API — we'll use the WebSearch tool via
     # a simple Google search and pass results to Sonnet
     query = f"{debtor_name} company revenue assets size"

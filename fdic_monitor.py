@@ -52,7 +52,7 @@ def fetch_failed_banks():
     if isinstance(records, dict) and "data" in records:
         records = records["data"]
     if not isinstance(records, list):
-        print(f"    Unexpected FDIC response format.")
+        print("    Unexpected FDIC response format.")
         return []
 
     failures = []

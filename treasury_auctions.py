@@ -9,7 +9,6 @@ import json
 import ssl
 import datetime
 import urllib.request
-from pathlib import Path
 
 HOURS_LOOKBACK = 24
 

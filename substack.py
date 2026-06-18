@@ -11,7 +11,6 @@ Login renewal is fully automated via magic link + Gmail API.
 
 import os
 import re
-import json
 import time
 import datetime
 import html
@@ -164,7 +163,6 @@ def _request_magic_link(session):
 
 def _find_magic_link_in_gmail(gmail_service, max_wait=60):
     """Search Gmail for the Substack magic link."""
-    import base64
 
     start = time.time()
 
@@ -234,7 +232,7 @@ def _login_via_magic_link(session, gmail_service):
 
     print("  Following magic link...")
     try:
-        r = session.get(link, allow_redirects=True, timeout=30)
+        session.get(link, allow_redirects=True, timeout=30)
 
         # Extract the new substack.sid cookie
         for cookie in session.cookies:

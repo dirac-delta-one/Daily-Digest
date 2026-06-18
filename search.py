@@ -15,7 +15,6 @@ Usage:
 import json
 import re
 import sys
-import os
 import html as html_module
 from html.parser import HTMLParser
 from pathlib import Path
@@ -558,7 +557,6 @@ def index_daily_content(date_str):
         old_metadata = [m for m in metadata if m.get("date") != date_str]
         if old_metadata:
             # Rebuild index from remaining metadata embeddings
-            model = _get_model()
             old_texts = [m["text"] for m in old_metadata]
             old_embeddings = model.encode(old_texts, show_progress_bar=False, normalize_embeddings=True)
             old_embeddings = np.array(old_embeddings, dtype=np.float32)
@@ -651,7 +649,6 @@ def search(query, top_k=10, date_filter=None):
     Returns:
         List of (metadata_dict, similarity_score) tuples, sorted by combined score.
     """
-    import faiss
 
     index, metadata = _load_index()
     if index.ntotal == 0:
@@ -738,6 +735,6 @@ if __name__ == "__main__":
                     print(f"  URL: {meta['url']}")
                 if meta.get("page_number"):
                     print(f"  Page: {meta['page_number']}")
-                print(f"  ---")
+                print("  ---")
                 preview = meta["text"][:300].replace("\n", " ")
                 print(f"  {preview.encode('ascii', 'replace').decode()}...")

@@ -82,7 +82,7 @@ def _download_pdf(playwright, report_url, force_login=False):
     if force_login or not _has_session():
         _do_manual_login(playwright)
 
-    print(f"  Loading session...")
+    print("  Loading session...")
     session_state = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
 
     browser = playwright.chromium.launch(headless=True)
@@ -185,7 +185,7 @@ def _download_pdf(playwright, report_url, force_login=False):
                 with page.expect_download(timeout=15000) as download_info:
                     el.click()
                 download = download_info.value
-                pdf_path = SCRIPT_DIR / f"wiltw_temp.pdf"
+                pdf_path = SCRIPT_DIR / "wiltw_temp.pdf"
                 download.save_as(str(pdf_path))
                 pdf_bytes = pdf_path.read_bytes()
                 pdf_path.unlink()  # clean up temp

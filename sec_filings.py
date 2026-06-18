@@ -255,7 +255,6 @@ def _fetch_filings_for_cik(cik_info, ticker, since_override=None):
 
         filing_url = ""
         if accession and doc:
-            accession_dashed = accession_numbers[i] if i < len(accession_numbers) else ""
             filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik.lstrip('0')}/{accession}/{doc}"
 
         filings.append({

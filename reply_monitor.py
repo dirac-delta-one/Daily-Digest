@@ -530,7 +530,7 @@ def process_replies(service):
     processed = 0
     for msg_id, thread_id, subject, question, digest_date, rfc_message_id in replies:
         if len(_replies_this_hour) >= MAX_REPLIES_PER_HOUR:
-            print(f"  Rate limit reached. Deferring remaining replies.")
+            print("  Rate limit reached. Deferring remaining replies.")
             break
 
         print(f"\n  Q: {question[:100]}...")
@@ -542,11 +542,11 @@ def process_replies(service):
             success = send_reply(service, thread_id, msg_id, subject, answer, rfc_message_id)
 
             if success:
-                print(f"  Replied successfully.")
+                print("  Replied successfully.")
                 processed += 1
                 _replies_this_hour.append(time.time())
             else:
-                print(f"  Reply send failed.")
+                print("  Reply send failed.")
 
         except Exception as e:
             print(f"  Error answering question: {e}")
@@ -585,7 +585,7 @@ def main():
             if n:
                 print(f"  Processed {n} replies.")
             else:
-                print(f"  No pending replies.")
+                print("  No pending replies.")
 
         except Exception as e:
             print(f"  Error in poll cycle: {e}")
