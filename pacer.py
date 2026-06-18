@@ -19,6 +19,8 @@ from pathlib import Path
 
 import anthropic
 
+from config import esc, safe_href
+
 SCRIPT_DIR = Path(__file__).parent
 SEEN_FILE = SCRIPT_DIR / "pacer_seen.json"
 
@@ -576,7 +578,7 @@ def build_pacer_html(entries):
             link_html = ""
             if e.get("link"):
                 link_html = (
-                    f' <a href="{e["link"]}" style="color: #1a5276; font-size: 12px;">'
+                    f' <a href="{safe_href(e["link"])}" style="color: #1a5276; font-size: 12px;">'
                     f'[PACER]</a>'
                 )
 
@@ -584,12 +586,12 @@ def build_pacer_html(entries):
             if e.get("description"):
                 desc = (
                     f'<br><span style="color: #555; font-size: 12px;">'
-                    f'{e["description"][:200]}</span>'
+                    f'{esc(e["description"][:200])}</span>'
                 )
 
             html += (
                 f'<li style="margin-bottom: 8px; font-size: 14px;">'
-                f'<strong>{debtor}</strong> — {court_label} Case {case_num}{link_html}'
+                f'<strong>{esc(debtor)}</strong> — {court_label} Case {esc(case_num)}{link_html}'
                 f'{desc}</li>\n'
             )
         html += '</ul>\n</div>\n'
@@ -604,7 +606,7 @@ def build_pacer_html(entries):
         for company, cases in by_company.items():
             html += (
                 f'<li style="margin-bottom: 12px; font-size: 14px;">'
-                f'<strong>{company}</strong> (Case {cases[0]["case_number"]})'
+                f'<strong>{esc(company)}</strong> (Case {esc(cases[0]["case_number"])})'
                 f'<ul style="margin: 4px 0 0; padding-left: 16px;">'
             )
             for e in cases:
@@ -612,14 +614,14 @@ def build_pacer_html(entries):
                 link_html = ""
                 if e.get("link"):
                     link_html = (
-                        f' <a href="{e["link"]}" style="color: #1a5276; '
+                        f' <a href="{safe_href(e["link"])}" style="color: #1a5276; '
                         f'font-size: 12px;">[docket]</a>'
                     )
                 html += (
                     f'<li style="margin-bottom: 6px; font-size: 13px;">'
-                    f'{e["title"]}{link_html}'
+                    f'{esc(e["title"])}{link_html}'
                     f'<br><span style="color: #888; font-size: 12px;">'
-                    f'Flagged: {kw_tags}</span></li>'
+                    f'Flagged: {esc(kw_tags)}</span></li>'
                 )
             html += '</ul></li>\n'
         html += '</ul>\n'

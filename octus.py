@@ -22,6 +22,8 @@ from pathlib import Path
 
 import anthropic
 
+from config import esc
+
 SCRIPT_DIR = Path(__file__).parent
 SESSION_FILE = SCRIPT_DIR / "octus_session.json"
 
@@ -465,13 +467,13 @@ def build_deals_table_html(deals):
     for d in deals:
         rows += (
             f'<tr>'
-            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; font-weight: 600;">{d["entity"]}</td>'
-            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{d.get("launch_date", "")}</td>'
-            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{d.get("coupon", "")}</td>'
-            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{d.get("yield", "")}</td>'
-            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{d.get("price_talk", "")}</td>'
-            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{d.get("rating", "")}</td>'
-            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee;">{", ".join(d.get("bookrunners", "").split(", ")[:3])}</td>'
+            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; font-weight: 600;">{esc(d["entity"])}</td>'
+            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{esc(d.get("launch_date", ""))}</td>'
+            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{esc(d.get("coupon", ""))}</td>'
+            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{esc(d.get("yield", ""))}</td>'
+            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{esc(d.get("price_talk", ""))}</td>'
+            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{esc(d.get("rating", ""))}</td>'
+            f'<td style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee;">{esc(", ".join(d.get("bookrunners", "").split(", ")[:3]))}</td>'
             f'</tr>\n'
         )
 

@@ -22,6 +22,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+from config import OPUS_MODEL, OPUS_PRICE_IN, OPUS_PRICE_OUT, esc, safe_href
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
@@ -60,7 +61,7 @@ DIGEST_RECIPIENTS = [
     "jtramontano@acorninv.com",
     "jaredtramontano@gmail.com",
 ]
-CLAUDE_MODEL = "claude-opus-4-6"
+CLAUDE_MODEL = OPUS_MODEL
 
 # Paths (relative to this script)
 SCRIPT_DIR = Path(__file__).parent
@@ -603,8 +604,8 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
 
     total_input = p1_input + p2_input
     total_output = p1_output + p2_output
-    input_cost = (total_input / 1_000_000) * 15
-    output_cost = (total_output / 1_000_000) * 75
+    input_cost = (total_input / 1_000_000) * OPUS_PRICE_IN
+    output_cost = (total_output / 1_000_000) * OPUS_PRICE_OUT
     total_cost = input_cost + output_cost
 
     print(f"  Total: {total_input:,} in + {total_output:,} out")
@@ -706,21 +707,21 @@ def build_news_html(articles):
 
         if url:
             headline = (
-                f'<a href="{url}" style="color: #1a5276; text-decoration: none; '
-                f'border-bottom: 1px solid #ccc;">{title}</a>'
+                f'<a href="{safe_href(url)}" style="color: #1a5276; text-decoration: none; '
+                f'border-bottom: 1px solid #ccc;">{esc(title)}</a>'
             )
         else:
-            headline = title
+            headline = esc(title)
 
         html += (
             f'<li style="margin-bottom: 10px; font-size: 14px;">'
             f'{headline} '
             f'<span style="color: {src_color}; font-weight: 700; font-size: 11px;">'
-            f'({source})</span>'
+            f'({esc(source)})</span>'
         )
 
         if summary:
-            html += f'<br><span style="color: #555; font-size: 13px;">{summary}</span>'
+            html += f'<br><span style="color: #555; font-size: 13px;">{esc(summary)}</span>'
 
         html += '</li>\n'
 

@@ -21,6 +21,15 @@ the current machine (operator `acohen@acorninv.com`, Windows user `KimCohen`). G
 around every source, sensible secret hygiene. No rewrite is warranted — only incremental,
 low-risk improvements.
 
+**Status (updated — Phases 0–1 done, offline):** The dev machine is stood up (Python 3.12 venv at `.venv`, all
+deps + Playwright chromium installed) and **Phase 0 cleanup is complete, committed (`1f400f6`), and
+validated without any secrets** — `ruff` clean, all 24 modules import/compile, 13 free fetchers run,
+plus `pacer` pure-function asserts and a `search` index round-trip (incl. the 0.3 re-index path). The
+LLM/Gmail/paid-scraper paths are import/compile-verified only and await a credentialed run — see §11
+"Needs Testing." **Phase 1** (cost-pricing fix + model centralization in `config.py`, plus
+HTML-escaping the pre-built sections) is also code-complete and unit-tested offline (uncommitted).
+Per-change history is in `WORKLOG.md`.
+
 **End goal:** Stop depending on jared's personal computer. Migrate to a **dedicated, always-on
 standalone Windows machine acting as a server** that runs the digest, midday alert, and reply
 monitor unattended 24/7. The work happens in three stages: (1) get it running on the current dev
@@ -247,6 +256,11 @@ Within a phase, items are ordered simplest-first. Priorities reflect the final r
 
 ### Phase 0 — Cleanup (zero output change, no LLM needed)
 
+> ✅ **DONE** — committed `1f400f6`. All of 0.1–0.6 applied, plus `ruff.toml`, pinned
+> `requirements.txt`, and `.venv/` gitignored. Validated without secrets (see §11 + `WORKLOG.md`).
+> The `ruff format` whitespace pass in 0.5 was intentionally **not** run (only `ruff check` + fixes),
+> so no separate format commit was needed.
+
 0.1 **Remove vestigial import** — `pacer.py:240–241` `from search import search as _unused`.
 Delete the two lines.
 *Verify:* `python -c "import pacer"` succeeds; ruff clean.
@@ -275,6 +289,9 @@ used). Confirm with user; it's inert either way.
 **Test Phase 0:** ruff clean + free standalone fetchers run. No LLM, no email.
 
 ### Phase 1 — Low-complexity correctness/observability fixes
+
+> ✅ **DONE (offline)** — `config.py` added; 1.1 + 1.2 applied and unit-tested without secrets
+> (uncommitted). The optional end-to-end render check awaits credentials (see §11).
 
 1.1 **Fix cost-estimate pricing + centralize model** — `digest.py:607–608` uses `15`/`75` per MTok
 (stale original-Opus pricing); Opus 4.6 is **$5 / $25**. Create `config.py`:
@@ -373,3 +390,51 @@ Only then decide to gate them behind a fragmentation heuristic and/or switch PyP
   free to test; see the §2 cost tiers); don't loop LLM calls.
 - **End state ("done"):** running unattended 24/7 on a dedicated always-on Windows server, not
   jared's PC (§7.2) — deploy after Phases 0–3.
+
+---
+
+## 11. Needs Testing (deferred verification)
+
+A running tracker of changes that are verified by inspection + import/compile but whose **runtime**
+paths still need a credentialed/permissioned run to confirm. Add a subsection per phase; clear items
+once a live run exercises them. The natural catch-all is the single permissioned end-to-end
+`digest.py` run (drives `digest`, `substack`, `octus`, `pacer`, `thirteen_d` in one shot), plus
+separate `midday.py` and `reply_monitor.py` runs.
+
+### Phase 0 (committed `1f400f6`)
+
+Import/compile-clean, but live execution not yet run (needs Claude key / Gmail creds / paid-scraper
+sessions):
+
+- **`digest.py`** — removed unused `os` import + `check_fed_stress` from the import line. Confirm a
+  full digest still builds + sends. *(Aside: `check_fed_stress` was imported but never called — Fed
+  stress signals aren't wired into the digest; pre-existing, candidate for a later phase.)*
+- **`midday.py`** — removed unused imports + dead `today`/`day` locals in `send_alert_email`. Confirm
+  a midday run (Sonnet + Gmail) still builds + sends the alert.
+- **`reply_monitor.py`** — 4 f-string-prefix cleanups. Confirm a reply-bot run (Opus + Gmail) still
+  answers and threads correctly.
+- **`octus.py`** — removed unused `time` import. Confirm an Octus scrape + Sonnet ranking still runs
+  (needs `octus_session.json`).
+- **`substack.py`** — removed unused `json`/`base64` imports + dropped the unused `r =` binding (kept
+  the side-effecting `session.get`). Confirm Substack fetch + magic-link login still works (needs
+  `substack_cookie.txt`).
+- **`thirteen_d.py`** — 2 f-string-prefix cleanups. Confirm a 13D fetch (session + Opus PDF summary)
+  still works.
+- **`pacer.py`** — removed a dead no-op `try/except` import block in `_search_company_size` + unused
+  `datetime` import. Pure parsers are unit-tested; the permission-gated discovery → `_filter_by_size`
+  (Sonnet) path was not run live (edit is provably behavior-neutral — just an unexercised path).
+
+**Fully tested in Phase 0, no follow-up needed:** `market_data.py`, `search.py` (incl. the 0.3
+re-index branch), `sec_filings.py`, `fund_tracking.py`, `earnings.py`, `treasury_auctions.py`,
+`fdic_monitor.py`, `trace_data.py`, `ratings.py`, `fed_research.py`. `cftc_cot.py` ran but skipped on
+weekday; `macro_data.py`/`fed_balance_sheet.py` ran but skip without a FRED key (§8 deferred note).
+
+### Phase 1 (uncommitted)
+
+1.1 (cost pricing + model centralization) and 1.2 (HTML escaping) are **fully unit-tested offline** —
+no deferred verification of their own logic. Two notes for the eventual credentialed run:
+
+- **Optional end-to-end render check** (per §9 Phase 1 test): one small permissioned `digest.py` run
+  to `acohen@` to confirm the assembled email still renders with the now-escaped sections.
+- `digest.py`, `memory.py`, `alerts.py`, `reply_monitor.py`, `thirteen_d.py` now `import config`; the
+  live run will also exercise that wiring in the credentialed paths (already listed under Phase 0).

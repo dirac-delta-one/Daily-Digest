@@ -12,6 +12,8 @@ import urllib.request
 import urllib.error
 from email.utils import parsedate_to_datetime
 
+from config import esc, safe_href
+
 HOURS_LOOKBACK = 24
 USER_AGENT = "DailyDigest/1.0"
 
@@ -231,19 +233,19 @@ def build_ratings_html(actions):
 
         if url:
             headline = (
-                f'<a href="{url}" style="color: #1a5276; text-decoration: none; '
-                f'border-bottom: 1px solid #ccc;">{title}</a>'
+                f'<a href="{safe_href(url)}" style="color: #1a5276; text-decoration: none; '
+                f'border-bottom: 1px solid #ccc;">{esc(title)}</a>'
             )
         else:
-            headline = title
+            headline = esc(title)
 
         items += (
             f'<li style="margin-bottom: 10px; font-size: 14px;">'
             f'{indicator}{headline} '
-            f'<span style="color: #888; font-size: 11px;">({source})</span>'
+            f'<span style="color: #888; font-size: 11px;">({esc(source)})</span>'
         )
         if desc:
-            items += f'<br><span style="color: #555; font-size: 13px;">{desc}</span>'
+            items += f'<br><span style="color: #555; font-size: 13px;">{esc(desc)}</span>'
         items += '</li>\n'
 
     html = (

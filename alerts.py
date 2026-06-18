@@ -9,9 +9,11 @@ from pathlib import Path
 
 import anthropic
 
+from config import OPUS_MODEL, esc
+
 SCRIPT_DIR = Path(__file__).parent
 ALERTS_CONFIG_FILE = SCRIPT_DIR / "alerts_config.json"
-CLAUDE_MODEL = "claude-opus-4-6"
+CLAUDE_MODEL = OPUS_MODEL
 
 
 def _load_alerts_config():
@@ -123,11 +125,11 @@ def build_alerts_html(triggered_alerts):
         detail = alert.get("detail", "")
         source = alert.get("source", "")
 
-        source_tag = f' <span style="color: #888;">({source})</span>' if source else ""
+        source_tag = f' <span style="color: #888;">({esc(source)})</span>' if source else ""
 
         items += (
             f'<li style="margin-bottom: 8px; font-size: 14px;">'
-            f'<strong>{name}:</strong> {detail}{source_tag}'
+            f'<strong>{esc(name)}:</strong> {esc(detail)}{source_tag}'
             f'</li>\n'
         )
 

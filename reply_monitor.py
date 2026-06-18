@@ -26,13 +26,14 @@ import anthropic
 from digest import get_gmail_service
 
 from search import search
+from config import OPUS_MODEL
 
 ARCHIVE_DIR = Path(__file__).parent / "archive"
 
 # --- Configuration ---
 POLL_INTERVAL_SECONDS = 300    # check every 5 minutes
 SEARCH_TOP_K = 20              # retrieve top 20 chunks for context
-REPLY_MODEL = "claude-opus-4-6"
+REPLY_MODEL = OPUS_MODEL
 MAX_CONTEXT_CHARS = 80000      # cap context to control Opus costs
 MAX_REPLIES_PER_HOUR = 10      # rate limit
 

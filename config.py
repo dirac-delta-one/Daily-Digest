@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""
+Shared configuration: Claude model IDs, Opus pricing, and small HTML-escaping
+helpers. Centralizes values that were previously hardcoded across modules.
+"""
+
+import html
+
+# --- Claude models ---
+# Keep Opus at 4.6 for now; upgradeable to claude-opus-4-8 (same API surface,
+# same $5/$25 pricing) when ready.
+OPUS_MODEL = "claude-opus-4-6"
+SONNET_MODEL = "claude-sonnet-4-6"
+HAIKU_MODEL = "claude-haiku-4-5"
+
+# --- Opus pricing ($ per million tokens) ---
+OPUS_PRICE_IN = 5.0
+OPUS_PRICE_OUT = 25.0
+
+
+def esc(s):
+    """HTML-escape a text value for safe interpolation into emailed HTML."""
+    return html.escape(s or "", quote=True)
+
+
+def safe_href(u):
+    """Only http(s) URLs pass through (escaped); anything else becomes '#'."""
+    u = u or ""
+    return esc(u) if u.startswith(("http://", "https://")) else "#"

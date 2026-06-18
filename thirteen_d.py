@@ -20,12 +20,14 @@ from pathlib import Path
 
 import anthropic
 
+from config import OPUS_MODEL
+
 SCRIPT_DIR = Path(__file__).parent
 SESSION_FILE = SCRIPT_DIR / "thirteen_d_session.json"
 
 WILTW_BASE = "https://client.13d.com/report.php?id=WILTW_"
 LOGIN_URL = "https://client.13d.com/login.php"
-CLAUDE_MODEL = "claude-opus-4-6"
+CLAUDE_MODEL = OPUS_MODEL
 
 
 def _save_session(context):

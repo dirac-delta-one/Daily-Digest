@@ -11,9 +11,11 @@ from pathlib import Path
 
 import anthropic
 
+from config import OPUS_MODEL
+
 SCRIPT_DIR = Path(__file__).parent
 MEMORY_FILE = SCRIPT_DIR / "memory.json"
-CLAUDE_MODEL = "claude-opus-4-6"
+CLAUDE_MODEL = OPUS_MODEL
 
 
 def _load_memory():
