@@ -5,6 +5,38 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Stage 1 — §7.1 machine de-hardcoding (location + test-recipient)
+
+- **Status:** ✅ Code/doc changes applied; **untested** (no secrets on this machine — nothing
+  runs end-to-end yet). Not yet committed.
+
+### Changes
+- **`run_digest.bat` / `run_midday.bat` / `run_reply_monitor.bat`** — replaced
+  `cd /d C:\Users\jared\Daily-Digest` with `cd /d "%~dp0"`, the hardcoded jared `python.exe`
+  with `"%~dp0.venv\Scripts\python.exe"`, added `set PYTHONUTF8=1` (cp1252 log-crash fix) and
+  `if not exist logs mkdir logs`.
+- **`setup_tasks.bat`** — the three `schtasks /TR` targets now use `"%~dp0run_*.bat"`, so the
+  registered tasks point at wherever the repo lives.
+- **`digest.py`** — `DIGEST_RECIPIENTS` is now `DIGEST_TO`-env-driven (comma-split, stripped),
+  defaulting to the production list (jared). Re-added `import os`. `midday.py` imports this, so
+  the override applies there too — no midday edit needed.
+- **`reply_monitor.py`** — added `acohen@acorninv.com` to the `from:` reply allow-list; reply
+  recipient is now `", ".join(DIGEST_RECIPIENTS)` (imported from `digest`) so it follows `DIGEST_TO`.
+- **`README.md`** — Task Scheduler section now points at the shipped `.bat`s / `setup_tasks.bat`;
+  dropped the stale `SUBSTACK_PASSWORD` + Playwright-Substack instructions; documented `env.bat`
+  (incl. `DIGEST_TO`) and `PYTHONUTF8`; fixed the Files list (`substack_cookie.txt`, not
+  `substack_session.json`).
+- **User-Agent contact** — intentionally **left as `jtramontano@acorninv.com`** in
+  `sec_filings.py` / `pacer.py` / `trace_data.py` / `fund_tracking.py` (decision 2026-06-19,
+  overrides HANDOFF §7.1.6 — courtesy contact for SEC/PACER admins, not a credential).
+
+### Still pending (operator/manual)
+- Create `env.bat` with real keys + `DIGEST_TO=acohen@acorninv.com`.
+- Copy the gitignored secret files (jared's `credentials.json` / `token.json` + session files).
+- Any end-to-end / credentialed run (blocked until the above).
+
+---
+
 ## Phase 1 — Cost-pricing fix, model centralization, HTML escaping
 
 - **Commit:** `f78ef45` — "Phase 1 done, tested with no secrets"

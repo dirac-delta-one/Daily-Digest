@@ -28,7 +28,13 @@ plus `pacer` pure-function asserts and a `search` index round-trip (incl. the 0.
 LLM/Gmail/paid-scraper paths are import/compile-verified only and await a credentialed run — see §11
 "Needs Testing." **Phase 1** (cost-pricing fix + model centralization in `config.py`, plus
 HTML-escaping the pre-built sections) is also code-complete and unit-tested offline (committed
-`f78ef45`). Per-change history is in `WORKLOG.md`.
+`f78ef45`).
+
+**Stage-1 §7.1 machine de-hardcoding (offline, no secrets — uncommitted):** the `.bat` wrappers
+and `setup_tasks.bat` now use `%~dp0` + the project `.venv` + `PYTHONUTF8=1`; `DIGEST_RECIPIENTS`
+is `DIGEST_TO`-env-driven (defaults to jared); acohen is on the reply-bot allow-list and reply
+recipient; README paths/Substack notes updated. The User-Agent contact string is intentionally
+**kept as jared** (see §7.1.6). Per-change history is in `WORKLOG.md`.
 
 **End goal:** Stop depending on jared's personal computer. Migrate to a **dedicated, always-on
 standalone Windows machine acting as a server** that runs the digest, midday alert, and reply
@@ -171,8 +177,11 @@ The project is wired to jared's machine. Required to run here:
    `octus_session.json`, `thirteen_d_session.json` from jared's machine, OR re-provision (Gmail
    OAuth re-consent, Substack magic-link, Octus/13D manual login). These bind to *accounts*, not the
    machine.
-6. **`EDGAR_USER_AGENT`** (`sec_filings.py:27`) and `pacer.py:26` — SEC/PACER require a real contact;
-   update to `acohen@acorninv.com`.
+6. **`EDGAR_USER_AGENT` / `USER_AGENT` contact string** (`sec_filings.py:27`, `pacer.py:27`,
+   `trace_data.py:17`, `fund_tracking.py:19`) — SEC/PACER want a real contact. **Decision
+   (2026-06-19): KEEP `jtramontano@acorninv.com`.** It's only a courtesy contact for the scraped
+   servers' admins (SEC/PACER fair-access), not a credential, and jared stays the account
+   identity anyway. This item is a **no-op** — do not switch it to acohen.
 7. **Test-recipient override — send FROM jared, TO `acohen@acorninv.com`.** Gmail sends as the
    *authenticated* account (`service.users().messages().send(userId="me", ...)`), so mail goes out
    **from whichever Google account `token.json` belongs to**. The agreed test setup copies **jared's**
@@ -187,6 +196,11 @@ The project is wired to jared's machine. Required to run here:
    so tests set `DIGEST_TO` without editing code. To exercise the reply-bot, also add
    `acohen@acorninv.com` to the `from:` allow-list in `reply_monitor.py` (`check_for_replies`,
    ~line 182) and the recipient in `send_reply` (~line 463).
+
+**Status (2026-06-19):** Items 1–3 and 7 are applied in code (offline, uncommitted). Item 6 is a
+no-op (User-Agent contact kept as jared). Items 4 (`env.bat` with keys + `DIGEST_TO=acohen`) and 5
+(copy the gitignored secret files) remain manual operator steps — still pending (no secrets on
+this machine yet).
 
 **Verify migration:** run a free standalone fetcher (e.g. `python news.py`) and confirm Gmail auth
 works via a metadata-only call before anything else.

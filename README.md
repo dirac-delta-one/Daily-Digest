@@ -26,14 +26,20 @@ playwright install chromium
 
 ### 3. Set environment variables
 
-```bash
-# Required
-set ANTHROPIC_API_KEY=sk-ant-...
+Create `env.bat` in the project root (gitignored). The `run_*.bat` wrappers `call` it:
 
-# Required for Substack (skip if you don't want Substack scraping)
-set SUBSTACK_EMAIL=your@email.com
-set SUBSTACK_PASSWORD=your-password
+```bat
+set ANTHROPIC_API_KEY=sk-ant-...
+set FRED_API_KEY=...                  REM optional: Macro Dashboard + Fed balance sheet
+set SUBSTACK_EMAIL=your@email.com     REM Substack auto-logs in via magic link (no password)
+REM On a test machine, route ALL digest/alert/reply email to yourself instead of the
+REM production recipients (defaults to the production list if unset):
+set DIGEST_TO=you@example.com
 ```
+
+`PYTHONUTF8=1` is already set by the `run_*.bat` wrappers (the logs contain Unicode and crash
+under the default Windows cp1252 console). When running a script manually, set it yourself:
+`set PYTHONUTF8=1`.
 
 On Mac/Linux, use `export` instead of `set`. To make permanent, add to your
 `~/.zshrc`, `~/.bash_profile`, or Windows system environment variables.
@@ -46,20 +52,24 @@ python digest.py
 
 The first run:
 - Opens a browser for Google OAuth — log in and authorize
-- Logs into Substack and saves the session for future runs
+- Authenticates Substack via magic link (delivered to your Gmail) and saves `substack_cookie.txt`
 - Sends you a test digest email
 
 ## Scheduling
 
 ### Windows (Task Scheduler)
-1. Open Task Scheduler
-2. Create Basic Task → name it "Daily Digest"
-3. Trigger: Daily, set your preferred time (e.g. 7:30 AM)
-4. Action: Start a Program
-   - Program: `C:\Users\jared\AppData\Local\Programs\Python\Python312\python.exe`
-   - Arguments: `digest.py`
-   - Start in: `C:\Users\jared\Daily-Digest`
-5. Make sure environment variables are set system-wide (not just in your terminal)
+
+The repo ships `run_digest.bat`, `run_midday.bat`, `run_reply_monitor.bat` (each `cd`s to its
+own folder via `%~dp0`, sets `PYTHONUTF8=1`, calls `env.bat`, and runs the project `.venv`
+Python) plus `setup_tasks.bat` to register all three tasks — no hardcoded paths.
+
+1. Create `env.bat` in the project root (see "Set environment variables" above).
+2. Run `setup_tasks.bat` — registers MorningDigest (8 AM), MiddayAlert (1 PM), and ReplyMonitor
+   (at startup). It uses `%~dp0`, so the tasks point at wherever the repo lives.
+3. Verify: `schtasks /Query /TN "DailyDigest\*"`.
+
+To register a task manually instead, set the action to the relevant `run_*.bat` with "Start in"
+= the project folder.
 
 ### Mac/Linux (cron)
 
@@ -70,7 +80,7 @@ crontab -e
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 SUBSTACK_EMAIL=your@email.com
-SUBSTACK_PASSWORD=your-password
+PYTHONUTF8=1
 30 7 * * * cd /path/to/Daily-Digest && /path/to/python digest.py >> digest.log 2>&1
 ```
 
@@ -79,7 +89,7 @@ SUBSTACK_PASSWORD=your-password
 Edit the top of `digest.py`:
 - `HOURS_LOOKBACK` — how far back to fetch (default: 24 hours)
 - `MAX_EMAILS` — cap on emails to summarize (default: 50)
-- `DIGEST_RECIPIENTS` — list of email addresses to send the digest to
+- `DIGEST_RECIPIENTS` — recipients; defaults to the production list, override with the `DIGEST_TO` env var
 - `CLAUDE_MODEL` — which Claude model to use (default: opus)
 - `MAX_PDF_SIZE_MB` — skip PDFs larger than this (default: 5MB)
 
@@ -90,10 +100,11 @@ Edit the top of `substack.py`:
 ## Files
 
 - `digest.py` — main script (Gmail + Claude + send)
-- `substack.py` — Substack scraper (Playwright)
+- `substack.py` — Substack scraper (internal API + session cookie)
+- `env.bat` — your environment variables (gitignored; you create it)
 - `credentials.json` — Google OAuth credentials (you provide)
 - `token.json` — auto-generated Gmail auth token
-- `substack_session.json` — auto-generated Substack browser session
+- `substack_cookie.txt` — auto-generated Substack session cookie
 
 ## Cost
 

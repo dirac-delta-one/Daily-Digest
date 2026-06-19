@@ -8,6 +8,7 @@ PDFs are sent directly to Claude's vision/document API — no text extraction ne
 This handles scanned PDFs, image-heavy reports, etc.
 """
 
+import os
 import sys
 import base64
 import json
@@ -57,9 +58,15 @@ for _arg in sys.argv[1:]:
             pass
 MAX_EMAILS = 50  # max emails to include in digest
 MAX_PDF_SIZE_MB = 5  # skip PDFs larger than this (to control token usage)
+# Recipients default to production (jared); override with the DIGEST_TO env var
+# (e.g. set DIGEST_TO=acohen@acorninv.com on a test machine). midday.py and
+# reply_monitor.py import this, so the override applies there too.
 DIGEST_RECIPIENTS = [
-    "jtramontano@acorninv.com",
-    "jaredtramontano@gmail.com",
+    r.strip()
+    for r in os.environ.get(
+        "DIGEST_TO", "jtramontano@acorninv.com,jaredtramontano@gmail.com"
+    ).split(",")
+    if r.strip()
 ]
 CLAUDE_MODEL = OPUS_MODEL
 

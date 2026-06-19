@@ -23,7 +23,7 @@ from pathlib import Path
 import anthropic
 
 # Reuse Gmail auth from digest.py
-from digest import get_gmail_service
+from digest import get_gmail_service, DIGEST_RECIPIENTS
 
 from search import search
 from config import OPUS_MODEL
@@ -180,7 +180,8 @@ def check_for_replies(service):
         f'subject:"Re: {DIGEST_SUBJECT_PREFIX}" '
         f'is:unread '
         f'newer_than:1d '
-        f'(from:jtramontano@acorninv.com OR from:jaredtramontano@gmail.com)'
+        f'(from:jtramontano@acorninv.com OR from:jaredtramontano@gmail.com '
+        f'OR from:acohen@acorninv.com)'
     )
 
     try:
@@ -461,7 +462,7 @@ def send_reply(service, thread_id, original_msg_id, subject, answer_html, rfc_me
         subject = f"Re: {subject}"
 
     message = MIMEText(answer_html, "html")
-    message["to"] = "jtramontano@acorninv.com, jaredtramontano@gmail.com"
+    message["to"] = ", ".join(DIGEST_RECIPIENTS)
     message["subject"] = subject
 
     # Use RFC Message-ID for proper threading in Outlook and other clients
