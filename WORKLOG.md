@@ -5,10 +5,54 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Phase 2 — Quality/cost refactors (2.2, 2.3, 2.4 done; 2.1 deferred)
+
+- **Status:** ✅ 2.2 / 2.3 / 2.4 code-complete and **offline-tested** (ruff + py_compile clean,
+  unit tests + live free-RSS runs green). **2.1 (prompt caching) dropped** by decision (2026-06-19) —
+  verified counterproductive as specced (see below). Not yet committed.
+
+### Done
+- **2.2 — `claude_utils.parse_json_response()` (new `claude_utils.py`)** — one helper that strips an
+  optional ```json fence and `json.loads()` the body. Replaced the duplicated block in `digest.py`
+  (`_rank_news_articles`), `octus.py` (`_rank_articles`), `alerts.py`, `memory.py`, `pacer.py`
+  (`_filter_by_size`), `reply_monitor.py` (`_extract_search_queries`). Removed the now-unused
+  `import json` from `digest.py` and `reply_monitor.py`. Still raises `json.JSONDecodeError`, so the
+  existing try/except paths are unchanged.
+- **2.3 — `feeds.py` (new)** — shared `fetch_feed` / `parse_date` / `is_recent`, used by `news.py`
+  and `ratings.py` (their private copies removed). `pacer.py` / `fed_research.py` intentionally NOT
+  folded in (different feed shapes). Only behavioral delta is the fetch-error log string.
+- **2.4 — `search._get_model()` singleton** — module-level lazy `_model`; the long-running
+  `reply_monitor` now loads the sentence-transformer once per process instead of per `search()`.
+
+### Tested (offline, no secrets / no Claude)
+- `ruff check` clean; `py_compile` of all touched + new modules.
+- 2.2: `parse_json_response` unit tests — fenced / plain-fence / unfenced / whitespace / object /
+  garbage / empty (garbage + empty raise `JSONDecodeError`).
+- 2.3: `parse_date` / `is_recent` unit tests; `python news.py` → 119 WSJ/FT articles,
+  `python ratings.py` → 8 rating actions (live free RSS, via `feeds`).
+- 2.4: `_get_model()` returns the same object on the 2nd call; `_model` is None before first use.
+
+### 2.1 (prompt caching across the two Opus passes) — NOT implemented; decision needed
+Verified against the Anthropic prompt-caching docs — caching is a strict **prefix** match over
+`tools → system → messages`. As specced it can't produce a cache hit and would *raise* cost:
+- Pass 1 uses `system=SYSTEM_PROMPT`; pass 2 uses a different review `system` AND prepends a review
+  block before the shared content. The prefix diverges at the system prompt, so pass 2 shares no
+  cacheable prefix with pass 1 → 0 cache reads, while pass 1 still pays the ~1.25× cache-write
+  premium = net cost increase.
+- Making it actually cache needs an identical `system` + the shared content as a leading prefix in
+  both passes, with per-pass instructions moved after the breakpoint. That changes pass 2's behavior
+  and touches the load-bearing `SYSTEM_PROMPT` / `_assemble_digest_html` coupling (§6), so it can't
+  be guaranteed output-neutral without a permissioned before/after digest comparison.
+- **Decision (2026-06-19): dropped.** The naive version is a net cost increase; the cache-correct
+  version would change pass 2's output and touch the §6 SYSTEM_PROMPT — not worth it. Phase 2 is
+  complete with 2.2 / 2.3 / 2.4.
+
+---
+
 ## Stage 1 — §7.1 machine de-hardcoding (location + test-recipient)
 
-- **Status:** ✅ Code/doc changes applied; **untested** (no secrets on this machine — nothing
-  runs end-to-end yet). Not yet committed.
+- **Status:** ✅ Code/doc changes applied and **offline-tested** (see "Tested" below). Full
+  end-to-end (credentialed) run still pending — tracked as a TODO in HANDOFF §11. Not yet committed.
 
 ### Changes
 - **`run_digest.bat` / `run_midday.bat` / `run_reply_monitor.bat`** — replaced
@@ -30,10 +74,22 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
   `sec_filings.py` / `pacer.py` / `trace_data.py` / `fund_tracking.py` (decision 2026-06-19,
   overrides HANDOFF §7.1.6 — courtesy contact for SEC/PACER admins, not a credential).
 
+### Tested (offline, no secrets)
+- `ruff check` clean; `py_compile` of digest / reply_monitor / midday.
+- `DIGEST_TO`: unset → jared; `=acohen@acorninv.com` → acohen; comma+spaces stripped;
+  `reply_monitor` inherits it (imported from `digest`).
+- Ran `run_digest.bat` to the credential check: `%~dp0` cd, `mkdir logs`, missing `env.bat`
+  non-fatal, venv-python resolves, `digest.py` fails fast at missing `credentials.json` (no
+  network / no Claude). `PYTHONUTF8=1` verified — the `→` in the log is valid UTF-8 (bytes
+  `E2 86 92`), no `UnicodeEncodeError`. (`run_midday.bat` / `run_reply_monitor.bat` are
+  byte-identical wrappers — not separately run; `setup_tasks.bat` not run — it registers real
+  scheduled tasks.)
+
 ### Still pending (operator/manual)
 - Create `env.bat` with real keys + `DIGEST_TO=acohen@acorninv.com`.
 - Copy the gitignored secret files (jared's `credentials.json` / `token.json` + session files).
-- Any end-to-end / credentialed run (blocked until the above).
+- **Full end-to-end de-hardcoding test** (all three wrappers + `setup_tasks.bat`) — blocked until
+  the above; acceptance criteria in HANDOFF §11.
 
 ---
 

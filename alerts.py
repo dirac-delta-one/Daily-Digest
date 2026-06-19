@@ -10,6 +10,7 @@ from pathlib import Path
 import anthropic
 
 from config import OPUS_MODEL, esc
+from claude_utils import parse_json_response
 
 SCRIPT_DIR = Path(__file__).parent
 ALERTS_CONFIG_FILE = SCRIPT_DIR / "alerts_config.json"
@@ -89,14 +90,7 @@ def evaluate_alerts(source_text):
             messages=[{"role": "user", "content": prompt}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        results = json.loads(text)
+        results = parse_json_response(response.content[0].text)
 
         tokens_in = response.usage.input_tokens
         tokens_out = response.usage.output_tokens

@@ -8,10 +8,8 @@ Opus handles the filtering for credit/distressed relevance in the digest.
 """
 
 import datetime
-import xml.etree.ElementTree as ET
-import urllib.request
-import urllib.error
-from email.utils import parsedate_to_datetime
+
+from feeds import fetch_feed, parse_date, is_recent
 
 # --- Configuration ---
 # Add or remove feeds as needed. Each entry: (url, source_label)
@@ -29,55 +27,6 @@ RSS_FEEDS = [
 
 HOURS_LOOKBACK = 24
 USER_AGENT = "DailyDigest/1.0"
-
-
-def _fetch_feed(url):
-    """Fetch and parse a single RSS feed."""
-    req = urllib.request.Request(url)
-    req.add_header("User-Agent", USER_AGENT)
-
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return ET.parse(resp)
-    except Exception as e:
-        print(f"    Failed to fetch {url}: {e}")
-        return None
-
-
-def _parse_date(date_str):
-    """Try to parse an RSS date string into a datetime."""
-    if not date_str:
-        return None
-
-    # Try RFC 2822 format (standard RSS)
-    try:
-        return parsedate_to_datetime(date_str)
-    except Exception:
-        pass
-
-    # Try ISO format
-    try:
-        return datetime.datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-    except Exception:
-        pass
-
-    return None
-
-
-def _is_recent(date_str, hours=HOURS_LOOKBACK):
-    """Check if a date string is within the lookback window."""
-    parsed = _parse_date(date_str)
-    if not parsed:
-        return True  # include if we can't parse
-
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cutoff = now - datetime.timedelta(hours=hours)
-
-    # Make offset-aware if needed
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
-
-    return parsed >= cutoff
 
 
 def _clean_html(text):
@@ -103,7 +52,7 @@ def fetch_wsj_ft_articles(since_datetime=None):
     seen_urls = set()
 
     for feed_url, source in RSS_FEEDS:
-        tree = _fetch_feed(feed_url)
+        tree = fetch_feed(feed_url, USER_AGENT)
         if tree is None:
             continue
 
@@ -146,7 +95,7 @@ def fetch_wsj_ft_articles(since_datetime=None):
 
             # Date filter
             if since_datetime:
-                parsed = _parse_date(pub_date)
+                parsed = parse_date(pub_date)
                 if parsed:
                     if parsed.tzinfo is None:
                         parsed = parsed.replace(tzinfo=datetime.timezone.utc)
@@ -155,7 +104,7 @@ def fetch_wsj_ft_articles(since_datetime=None):
                         since_aware = since_aware.replace(tzinfo=datetime.timezone.utc)
                     if parsed < since_aware:
                         continue
-            elif not _is_recent(pub_date):
+            elif not is_recent(pub_date, HOURS_LOOKBACK):
                 continue
 
             description = _clean_html(description)

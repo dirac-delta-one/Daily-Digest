@@ -12,7 +12,6 @@ Usage:
 """
 
 import base64
-import json
 import re
 import sys
 import time
@@ -27,6 +26,7 @@ from digest import get_gmail_service, DIGEST_RECIPIENTS
 
 from search import search
 from config import OPUS_MODEL
+from claude_utils import parse_json_response
 
 ARCHIVE_DIR = Path(__file__).parent / "archive"
 
@@ -272,14 +272,7 @@ def _extract_search_queries(reply_text):
             messages=[{"role": "user", "content": reply_text}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        queries = json.loads(text)
+        queries = parse_json_response(response.content[0].text)
         if isinstance(queries, list) and queries:
             print(f"  Extracted {len(queries)} search queries from reply")
             for q in queries:

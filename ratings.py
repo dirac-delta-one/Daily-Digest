@@ -7,11 +7,8 @@ as a reliable proxy (direct agency feeds are paywalled/broken).
 
 import datetime
 import re
-import xml.etree.ElementTree as ET
-import urllib.request
-import urllib.error
-from email.utils import parsedate_to_datetime
 
+from feeds import fetch_feed, parse_date, is_recent
 from config import esc, safe_href
 
 HOURS_LOOKBACK = 24
@@ -51,44 +48,6 @@ ACTION_KEYWORDS = [
 ]
 
 
-def _fetch_feed(url):
-    """Fetch and parse a single RSS feed."""
-    req = urllib.request.Request(url)
-    req.add_header("User-Agent", USER_AGENT)
-
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return ET.parse(resp)
-    except Exception as e:
-        print(f"    Ratings RSS error: {e}")
-        return None
-
-
-def _parse_date(date_str):
-    if not date_str:
-        return None
-    try:
-        return parsedate_to_datetime(date_str)
-    except Exception:
-        pass
-    try:
-        return datetime.datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-    except Exception:
-        pass
-    return None
-
-
-def _is_recent(date_str, hours=HOURS_LOOKBACK):
-    parsed = _parse_date(date_str)
-    if not parsed:
-        return True
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cutoff = now - datetime.timedelta(hours=hours)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
-    return parsed >= cutoff
-
-
 def _is_rating_action(title, description):
     """Check if the headline is about an actual rating action."""
     text = f"{title} {description}".lower()
@@ -111,7 +70,7 @@ def fetch_rating_actions(since_datetime=None):
     seen_titles = set()
 
     for feed_url, source in RATING_FEEDS:
-        tree = _fetch_feed(feed_url)
+        tree = fetch_feed(feed_url, USER_AGENT)
         if tree is None:
             continue
 
@@ -137,14 +96,14 @@ def fetch_rating_actions(since_datetime=None):
 
             # Date filter
             if since_datetime:
-                parsed = _parse_date(pub_date)
+                parsed = parse_date(pub_date)
                 if parsed and parsed.tzinfo is None:
                     parsed = parsed.replace(tzinfo=datetime.timezone.utc)
                 if since_datetime.tzinfo is None:
                     since_datetime = since_datetime.replace(tzinfo=datetime.timezone.utc)
                 if parsed and parsed < since_datetime:
                     continue
-            elif not _is_recent(pub_date):
+            elif not is_recent(pub_date, HOURS_LOOKBACK):
                 continue
 
             # Must be an actual rating action

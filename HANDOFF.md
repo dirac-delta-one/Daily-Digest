@@ -30,7 +30,7 @@ LLM/Gmail/paid-scraper paths are import/compile-verified only and await a creden
 HTML-escaping the pre-built sections) is also code-complete and unit-tested offline (committed
 `f78ef45`).
 
-**Stage-1 §7.1 machine de-hardcoding (offline, no secrets — uncommitted):** the `.bat` wrappers
+**Stage-1 §7.1 machine de-hardcoding (offline-tested, no secrets — uncommitted):** the `.bat` wrappers
 and `setup_tasks.bat` now use `%~dp0` + the project `.venv` + `PYTHONUTF8=1`; `DIGEST_RECIPIENTS`
 is `DIGEST_TO`-env-driven (defaults to jared); acohen is on the reply-bot allow-list and reply
 recipient; README paths/Substack notes updated. The User-Agent contact string is intentionally
@@ -197,10 +197,15 @@ The project is wired to jared's machine. Required to run here:
    `acohen@acorninv.com` to the `from:` allow-list in `reply_monitor.py` (`check_for_replies`,
    ~line 182) and the recipient in `send_reply` (~line 463).
 
-**Status (2026-06-19):** Items 1–3 and 7 are applied in code (offline, uncommitted). Item 6 is a
-no-op (User-Agent contact kept as jared). Items 4 (`env.bat` with keys + `DIGEST_TO=acohen`) and 5
-(copy the gitignored secret files) remain manual operator steps — still pending (no secrets on
-this machine yet).
+**Status (2026-06-19):** Items 1–3 and 7 applied in code and **offline-tested** — `ruff` +
+`py_compile` clean; `DIGEST_TO` override confirmed (default→jared, override→acohen,
+whitespace-stripped, inherited by `midday.py`/`reply_monitor.py`); and `run_digest.bat` executed up
+to the credential check (`%~dp0` + project `.venv` + `mkdir logs` + non-fatal missing `env.bat` all
+work, `PYTHONUTF8=1` verified — the `→` in the log is valid UTF-8, no cp1252 crash). Uncommitted.
+Item 6 is a no-op (User-Agent contact kept as jared). Items 4 (`env.bat` with keys +
+`DIGEST_TO=acohen`) and 5 (copy the gitignored secret files) remain manual operator steps — still
+pending (no secrets yet). The remaining **full end-to-end (credentialed) verification is tracked in
+§11**.
 
 **Verify migration:** run a free standalone fetcher (e.g. `python news.py`) and confirm Gmail auth
 works via a metadata-only call before anything else.
@@ -338,6 +343,15 @@ confirm the assembled email still renders.
 
 ### Phase 2 — Medium-complexity quality / cost (each independent)
 
+> **Status (2026-06-19, uncommitted):** 2.2 / 2.3 / 2.4 ✅ done + offline-tested (see `WORKLOG.md`).
+> **2.1 NOT done** — verified counterproductive as specced. Prompt caching is a strict prefix match
+> over `tools → system → messages`; pass 1 and pass 2 use *different* `system` prompts (and pass 2
+> puts the shared content after a review block), so they share no cacheable prefix → 0 cache reads
+> plus a wasted ~1.25× cache-write on pass 1 = **net cost increase**. Making it cache needs an
+> identical system + shared-content-first restructure that changes pass 2 and touches the §6
+> load-bearing `SYSTEM_PROMPT`. **Decision (2026-06-19): 2.1 dropped.** Phase 2 is complete with
+> 2.2 / 2.3 / 2.4.
+
 2.1 **Prompt caching across passes** — `digest.py:summarize_with_claude`. Pass 1 and pass 2 send the
 same `content` (text + PDFs); add `cache_control: {"type":"ephemeral"}` to the last shared content
 block so pass 2 reads the prefix from cache. Output is unchanged (caching only affects cost/latency).
@@ -395,10 +409,12 @@ Only then decide to gate them behind a fragmentation heuristic and/or switch PyP
 
 ## 10. Quick reference — verdict summary
 
-- **Genuine, do:** 0.1–0.5, 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, (3.1 de-risk args, 3.4 tests).
+- **Genuine, do:** 0.1–0.5, 1.1, 1.2, 2.2, 2.3, 2.4, (3.1 de-risk args, 3.4 tests).
 - **Conditional / measure first:** 3.2, 3.3, 3.5.
 - **Withdrawn (intentional — see §6):** module-level argv parse; `_clean_pdf_text` blind edits;
-  `build_ratings_html`; `_is_recent` true-on-unparseable; reply-monitor daemon; FAISS index type.
+  `build_ratings_html`; `_is_recent` true-on-unparseable; reply-monitor daemon; FAISS index type;
+  **2.1 prompt caching (dropped 2026-06-19 — counterproductive as specced; the cache-correct version
+  would change output / touch §6)**.
 - **Constraint:** keep Opus 4.6 (mark upgradeable); test to `acohen@acorninv.com`; ask permission
   before any **Claude** call (the only pay-per-query cost — Octus/Substack/13D are flat subscriptions,
   free to test; see the §2 cost tiers); don't loop LLM calls.
@@ -452,3 +468,24 @@ no deferred verification of their own logic. Two notes for the eventual credenti
   to `acohen@` to confirm the assembled email still renders with the now-escaped sections.
 - `digest.py`, `memory.py`, `alerts.py`, `reply_monitor.py`, `thirteen_d.py` now `import config`; the
   live run will also exercise that wiring in the credentialed paths (already listed under Phase 0).
+
+### Stage 1 — §7.1 machine de-hardcoding (uncommitted)
+
+**Offline-verified (done 2026-06-19):** `ruff` + `py_compile` clean; `DIGEST_TO` env override
+(default→jared, override→acohen, whitespace-stripped, inherited by `midday.py`/`reply_monitor.py`);
+`run_digest.bat` executed to the credential check (`%~dp0` + project `.venv` + `mkdir logs` +
+non-fatal missing `env.bat`; `digest.py` fails fast at missing `credentials.json` — no network/no
+Claude); `PYTHONUTF8=1` confirmed (UTF-8 log, no cp1252 crash).
+
+**TODO — full end-to-end de-hardcoding test (needs secrets; one permissioned run each):** once
+`env.bat` (incl. `DIGEST_TO=acohen@acorninv.com`) and the secret files are installed, run each
+wrapper for real and confirm:
+- `run_digest.bat` → builds + sends a digest **to acohen** (FROM jared), writes `logs\digest.log`,
+  archives + indexes, no path/encoding errors. *(Permissioned — Claude calls.)*
+- `run_midday.bat` → midday check runs and emails **to acohen** only if material (or `--force`).
+- `run_reply_monitor.bat` → starts headless, picks up an acohen reply (allow-list), answers **to
+  acohen** and threads correctly; confirm the `while True` loop survives under the scheduled task.
+- `setup_tasks.bat` → registers the three tasks with `%~dp0` paths (run on the target machine —
+  not executed anywhere yet; it creates real scheduled tasks).
+- Confirm non-interactive scheduled runs see `PYTHONUTF8`/env vars and that Playwright/Chromium
+  runs headless under Task Scheduler (Octus / 13D).

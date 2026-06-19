@@ -11,7 +11,6 @@ This handles scanned PDFs, image-heavy reports, etc.
 import os
 import sys
 import base64
-import json
 import time
 import datetime
 from email.mime.text import MIMEText
@@ -24,6 +23,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from config import OPUS_MODEL, OPUS_PRICE_IN, OPUS_PRICE_OUT, esc, safe_href
+from claude_utils import parse_json_response
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
@@ -664,14 +664,7 @@ def _rank_news_articles(articles, max_articles=8):
             )}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        indices = json.loads(text)
+        indices = parse_json_response(response.content[0].text)
         ranked = []
         for idx in indices:
             if isinstance(idx, int) and 0 <= idx < len(articles):

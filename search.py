@@ -161,10 +161,20 @@ def _extract_pdf_text(pdf_path):
 # INDEXING
 # ======================================================================
 
+_model = None
+
+
 def _get_model():
-    """Load the sentence-transformer embedding model."""
-    from sentence_transformers import SentenceTransformer
-    return SentenceTransformer(EMBEDDING_MODEL_NAME)
+    """Load (once) and return the sentence-transformer embedding model.
+
+    Module-level singleton so the long-running reply_monitor loads the model
+    a single time per process instead of on every search() call (Phase 2.4).
+    """
+    global _model
+    if _model is None:
+        from sentence_transformers import SentenceTransformer
+        _model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+    return _model
 
 
 def _load_index():

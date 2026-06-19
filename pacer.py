@@ -20,6 +20,7 @@ from pathlib import Path
 import anthropic
 
 from config import esc, safe_href
+from claude_utils import parse_json_response
 
 SCRIPT_DIR = Path(__file__).parent
 SEEN_FILE = SCRIPT_DIR / "pacer_seen.json"
@@ -317,14 +318,7 @@ def _filter_by_size(filings):
             )}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        indices = json.loads(text)
+        indices = parse_json_response(response.content[0].text)
 
         kept = [filings[i] for i in indices if isinstance(i, int) and 0 <= i < len(filings)]
 

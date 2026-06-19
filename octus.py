@@ -23,6 +23,7 @@ from pathlib import Path
 import anthropic
 
 from config import esc
+from claude_utils import parse_json_response
 
 SCRIPT_DIR = Path(__file__).parent
 SESSION_FILE = SCRIPT_DIR / "octus_session.json"
@@ -266,14 +267,7 @@ def _rank_articles(articles):
             )}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        indices = json.loads(text)
+        indices = parse_json_response(response.content[0].text)
         ranked = [articles[i] for i in indices if isinstance(i, int) and 0 <= i < len(articles)]
 
         print(f"  Ranked: kept {len(ranked)}/{len(articles)} articles "

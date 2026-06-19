@@ -12,6 +12,7 @@ from pathlib import Path
 import anthropic
 
 from config import OPUS_MODEL
+from claude_utils import parse_json_response
 
 SCRIPT_DIR = Path(__file__).parent
 MEMORY_FILE = SCRIPT_DIR / "memory.json"
@@ -114,16 +115,7 @@ def update_memory(digest_html):
             print(f"  Memory update truncated (stop_reason={response.stop_reason}). Keeping existing memory.")
             return memory
 
-        text = response.content[0].text.strip()
-
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        updated = json.loads(text)
+        updated = parse_json_response(response.content[0].text)
 
         # Validate basic structure
         if "active_stories" not in updated:
