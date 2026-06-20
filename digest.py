@@ -25,6 +25,7 @@ from googleapiclient.discovery import build
 from config import OPUS_MODEL, OPUS_PRICE_IN, OPUS_PRICE_OUT, esc, safe_href
 from claude_utils import parse_json_response
 import cost
+from html_utils import extract_gmail_body
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
@@ -174,7 +175,7 @@ def fetch_recent_emails(service, hours=HOURS_LOOKBACK, max_results=MAX_EMAILS):
             pdfs = get_pdf_attachments(service, msg_meta["id"], parts)
 
         # Extract full body text for archiving/RAG (not sent to Opus — too large)
-        body_text = _extract_email_body(msg["payload"])
+        body_text = extract_gmail_body(msg["payload"], cap=50000)
 
         emails.append({
             "from": headers.get("From", "Unknown"),
@@ -186,28 +187,6 @@ def fetch_recent_emails(service, hours=HOURS_LOOKBACK, max_results=MAX_EMAILS):
         })
 
     return emails
-
-
-def _extract_email_body(payload):
-    """Recursively extract plain text body from Gmail message payload."""
-    body = ""
-    mime_type = payload.get("mimeType", "")
-
-    if payload.get("body", {}).get("data"):
-        decoded = base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="replace")
-        if "plain" in mime_type:
-            body += decoded
-        elif "html" in mime_type and not body:
-            # Strip HTML tags as fallback
-            import re
-            body += re.sub(r'<[^>]+>', ' ', decoded)
-
-    for part in payload.get("parts", []):
-        part_body = _extract_email_body(part)
-        if part_body:
-            body += part_body
-
-    return body[:50000]  # cap at 50K chars per email
 
 
 SYSTEM_PROMPT = """\

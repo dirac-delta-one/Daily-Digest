@@ -5,6 +5,41 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Phase 3 — 3.4 tests + 3.2 HTML/Gmail consolidation (done)
+
+- **Status:** ✅ 3.4 + 3.2 done + green (34 tests), ruff clean. Not yet committed. **3.1
+  (digest-core arg refactor) deferred to the credentialed phase** — its acceptance needs a
+  byte-identical end-to-end baseline, which needs secrets (workflow decision 2026-06-19).
+
+### 3.4 — pytest for the bug-prone pure functions
+- New `tests/` (pytest): `test_pacer.py`, `test_reply_monitor.py`, `test_search.py`,
+  `test_market_macro.py`. Covers `pacer._extract_case_info` / `_is_corporate_entity` /
+  `_is_chapter_11_filing`, `reply_monitor._extract_question` / `_extract_digest_date` (subject
+  path), `search._chunk_text`, and the market/macro formatters + the rate→bps conversion. 25 tests.
+- `pytest==9.1.1` installed into the venv; pinned in a new `requirements-dev.txt` (kept out of the
+  production `requirements.txt`). Run: `python -m pytest -q`.
+- **Finding (not a bug):** the tests pin that `_extract_case_info` strips trailing punctuation, so
+  "JOANN Inc." → "JOANN Inc" — intended cleanup, harmless (corp detection still matches `\bInc\b`).
+- **Tested:** `python -m pytest tests/ -q` → 25 passed; ruff clean.
+
+### 3.2 — consolidate HTML strippers + Gmail body extractors (new `html_utils.py`)
+- New `html_utils.py`: `HTMLStripper` + `strip_html()` (the byte-identical stripper shared by
+  `search.py` and `sec_filings.py`) and `extract_gmail_body(payload, cap=None)` (merges
+  `digest._extract_email_body` [cap=50000] and `reply_monitor._extract_body` [uncapped] — the
+  `cap` param reproduces the prior per-recursion truncation exactly).
+- Rewired: `search.py` (`strip_html`), `sec_filings.py` (`HTMLStripper`), `digest.py`
+  (`extract_gmail_body(..., cap=50000)`), `reply_monitor.py` (`extract_gmail_body` + `strip_html`,
+  dropping the cross-module `from search import _strip_html`). Removed the now-unused
+  `html`/`HTMLParser` imports from search/sec_filings.
+- **Left intentionally divergent (NOT folded in):** `substack._HTMLStripper` / `_html_to_text`
+  (different tag set, no whitespace collapse) and `substack._extract_gmail_body` (no text/html
+  split — used for magic-link scraping).
+- **Tested (offline):** new `tests/test_html_utils.py` (9 tests pinning the stripper + extractor,
+  incl. the 50K cap) written + green **before** rewiring; full suite 34 passed; ruff clean; all
+  modules import; `python sec_filings.py` runs clean (live EDGAR, no key).
+
+---
+
 ## Cost/efficiency — A1 (cost instrumentation) done; A2 (structured outputs) paused
 
 - **Status:** ✅ A1 code-complete + offline-tested (ruff/compile clean, unit tests pass). Not yet

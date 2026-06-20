@@ -13,8 +13,8 @@ import datetime
 import time
 import urllib.request
 import urllib.error
-from html.parser import HTMLParser
 import html as html_module
+from html_utils import HTMLStripper
 
 # --- Configuration ---
 HOURS_LOOKBACK = 24
@@ -77,37 +77,6 @@ def _make_request(url):
         return None
 
 
-class _HTMLStripper(HTMLParser):
-    """Strip HTML tags and extract readable text."""
-    def __init__(self):
-        super().__init__()
-        self.result = []
-        self._skip = False
-
-    def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style", "noscript", "head"):
-            self._skip = True
-        if tag in ("p", "br", "div", "tr", "h1", "h2", "h3", "h4", "li", "td"):
-            self.result.append("\n")
-
-    def handle_endtag(self, tag):
-        if tag in ("script", "style", "noscript", "head"):
-            self._skip = False
-        if tag in ("p", "tr", "table"):
-            self.result.append("\n")
-
-    def handle_data(self, data):
-        if not self._skip:
-            self.result.append(data)
-
-    def get_text(self):
-        text = html_module.unescape("".join(self.result))
-        # Collapse whitespace
-        text = re.sub(r'[ \t]+', ' ', text)
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        return text.strip()
-
-
 def _fetch_filing_content(filing_url, form_type):
     """Fetch the actual filing document and extract text content."""
     if not filing_url:
@@ -135,7 +104,7 @@ def _fetch_filing_content(filing_url, form_type):
         return f"[Could not fetch filing: {e}]"
 
     # Strip HTML to get readable text
-    stripper = _HTMLStripper()
+    stripper = HTMLStripper()
     try:
         stripper.feed(html_text)
         text = stripper.get_text()

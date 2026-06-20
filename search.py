@@ -15,11 +15,11 @@ Usage:
 import json
 import re
 import sys
-import html as html_module
-from html.parser import HTMLParser
 from pathlib import Path
 
 import numpy as np
+
+from html_utils import strip_html
 
 SCRIPT_DIR = Path(__file__).parent
 ARCHIVE_DIR = SCRIPT_DIR / "archive"
@@ -31,50 +31,6 @@ EMBEDDING_DIM = 384
 
 CHUNK_SIZE = 800       # chars (~150-200 tokens) — larger for better context
 CHUNK_OVERLAP = 150    # more overlap to avoid splitting key details across chunks
-
-
-# ======================================================================
-# HTML STRIPPING
-# ======================================================================
-
-class _HTMLStripper(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.result = []
-        self._skip = False
-
-    def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style", "noscript", "head"):
-            self._skip = True
-        if tag in ("p", "br", "div", "tr", "h1", "h2", "h3", "h4", "li", "td"):
-            self.result.append("\n")
-
-    def handle_endtag(self, tag):
-        if tag in ("script", "style", "noscript", "head"):
-            self._skip = False
-        if tag in ("p", "tr", "table"):
-            self.result.append("\n")
-
-    def handle_data(self, data):
-        if not self._skip:
-            self.result.append(data)
-
-    def get_text(self):
-        text = html_module.unescape("".join(self.result))
-        text = re.sub(r'[ \t]+', ' ', text)
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        return text.strip()
-
-
-def _strip_html(text):
-    if not text:
-        return ""
-    stripper = _HTMLStripper()
-    try:
-        stripper.feed(text)
-        return stripper.get_text()
-    except Exception:
-        return re.sub(r'<[^>]+>', ' ', text)
 
 
 # ======================================================================
@@ -224,7 +180,7 @@ def _chunks_for_date(date_str):
     # --- Digest HTML ---
     digest_file = day_dir / "digest.html"
     if digest_file.exists():
-        text = _strip_html(digest_file.read_text(encoding="utf-8"))
+        text = strip_html(digest_file.read_text(encoding="utf-8"))
         for i, chunk in enumerate(_chunk_text(text)):
             chunks.append((chunk, {
                 "chunk_id": f"{date_str}_digest_{i:04d}",

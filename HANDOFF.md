@@ -377,6 +377,16 @@ module-level lazy singleton so the long-running `reply_monitor` loads it once pe
 
 ### Phase 3 — Larger / conditional (do only if justified; tests recommended first)
 
+> **Status (2026-06-19, uncommitted):** 3.4 ✅ done — `tests/` + `pytest` (`requirements-dev.txt`).
+> 3.2 ✅ done — new `html_utils.py` consolidates the search/sec_filings stripper + the
+> digest/reply_monitor Gmail extractor (substack's divergent ones left alone); pinned by
+> `tests/test_html_utils.py`. Suite now 34 tests.
+> **3.1 deferred to the credentialed phase** — its acceptance criterion (byte-identical end-to-end
+> digest baseline) needs secrets, and it touches the load-bearing core, so it lands *with* the first
+> credentialed run rather than on the pre-validation stack.
+> Blocked on data/secrets: 3.3 (needs real archived PDFs), 3.5 (`_assemble_digest_html`: no evidence;
+> PACER sizing swap: path calls Claude).
+
 3.1 **De-risk the 19-arg functions** — `_build_source_prompt` / `summarize_with_claude` take 19
 positional args (misroute footgun). Convert to keyword-only or a single dict. This is the
 high-value, low-risk slice of the original "source registry" idea; the **full registry refactor of

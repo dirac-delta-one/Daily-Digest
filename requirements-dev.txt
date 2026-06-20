@@ -1,0 +1,4 @@
+# Dev/test-only dependencies (kept out of the pinned production requirements.txt).
+# Install with:  pip install -r requirements-dev.txt
+# Run tests with: python -m pytest -q
+pytest==9.1.1

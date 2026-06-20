@@ -28,6 +28,7 @@ from search import search
 from config import OPUS_MODEL
 from claude_utils import parse_json_response
 import cost
+from html_utils import extract_gmail_body, strip_html
 
 ARCHIVE_DIR = Path(__file__).parent / "archive"
 
@@ -49,28 +50,6 @@ SCRIPT_DIR = Path(__file__).parent
 # ======================================================================
 # GMAIL HELPERS
 # ======================================================================
-
-def _extract_body(payload):
-    """Recursively extract plain text body from Gmail message payload."""
-    body = ""
-
-    mime_type = payload.get("mimeType", "")
-
-    if payload.get("body", {}).get("data"):
-        decoded = base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="replace")
-        if "plain" in mime_type:
-            body += decoded
-        elif "html" in mime_type and not body:
-            # Strip HTML as fallback
-            body += re.sub(r'<[^>]+>', ' ', decoded)
-
-    for part in payload.get("parts", []):
-        part_body = _extract_body(part)
-        if part_body:
-            body += part_body
-
-    return body
-
 
 def _extract_question(body):
     """
@@ -209,7 +188,7 @@ def check_for_replies(service):
             thread_id = msg.get("threadId", "")
 
             # Extract the question from the reply body
-            body = _extract_body(msg["payload"])
+            body = extract_gmail_body(msg["payload"])
             question = _extract_question(body)
 
             if not question or len(question) < 3:
@@ -359,8 +338,7 @@ def answer_question(question, digest_date=None):
         digest_html = _load_digest_for_date(digest_date)
         if digest_html:
             # Strip HTML for the prompt
-            from search import _strip_html
-            digest_text = _strip_html(digest_html)
+            digest_text = strip_html(digest_html)
             # Cap at 20K chars to leave room for RAG chunks
             if len(digest_text) > 20000:
                 digest_text = digest_text[:20000] + "\n[...digest truncated]"
