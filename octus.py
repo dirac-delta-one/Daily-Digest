@@ -24,6 +24,7 @@ import anthropic
 
 from config import esc
 from claude_utils import parse_json_response
+import cost
 
 SCRIPT_DIR = Path(__file__).parent
 SESSION_FILE = SCRIPT_DIR / "octus_session.json"
@@ -272,6 +273,7 @@ def _rank_articles(articles):
 
         print(f"  Ranked: kept {len(ranked)}/{len(articles)} articles "
               f"({response.usage.input_tokens:,} in + {response.usage.output_tokens:,} out)")
+        cost.record("octus ranking", SONNET_MODEL, response.usage)
         return ranked if ranked else articles[:MAX_ARTICLES_FINAL]
 
     except Exception as e:

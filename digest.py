@@ -24,6 +24,7 @@ from googleapiclient.discovery import build
 
 from config import OPUS_MODEL, OPUS_PRICE_IN, OPUS_PRICE_OUT, esc, safe_href
 from claude_utils import parse_json_response
+import cost
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
@@ -557,6 +558,7 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
     p1_input = response.usage.input_tokens
     p1_output = response.usage.output_tokens
     print(f"  Pass 1 tokens: {p1_input:,} in + {p1_output:,} out")
+    cost.record("digest pass 1", CLAUDE_MODEL, response.usage)
 
     # ---- PASS 2: Review and enhance ----
     print("  Pass 2: Reviewing for missed content...")
@@ -608,6 +610,7 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
     p2_input = review_response.usage.input_tokens
     p2_output = review_response.usage.output_tokens
     print(f"  Pass 2 tokens: {p2_input:,} in + {p2_output:,} out")
+    cost.record("digest pass 2", CLAUDE_MODEL, review_response.usage)
 
     total_input = p1_input + p2_input
     total_output = p1_output + p2_output
@@ -674,6 +677,7 @@ def _rank_news_articles(articles, max_articles=8):
         tokens_out = response.usage.output_tokens
         print(f"  Ranked: kept {len(ranked)}/{len(articles)} articles "
               f"({tokens_in:,} in + {tokens_out:,} out)")
+        cost.record("news ranking", "claude-haiku-4-5-20251001", response.usage)
 
         return ranked if ranked else articles[:max_articles]
 
@@ -859,6 +863,7 @@ def generate_weekly_summary(digests):
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  Weekly summary tokens: {tokens_in:,} in + {tokens_out:,} out")
+    cost.record("weekly summary", CLAUDE_MODEL, response.usage)
 
     return weekly
 
@@ -1170,6 +1175,11 @@ def main():
                 print(f"Only {len(week_digests)} digest(s) this week — skipping weekly summary.")
         except Exception as e:
             print(f"Weekly summary failed: {e}")
+
+    # --- Per-run Claude cost (every call, not just the two Opus passes) ---
+    cost_text, _ = cost.summary()
+    print("Claude usage this run:")
+    print(cost_text)
 
     print("Done.")
 

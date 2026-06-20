@@ -13,6 +13,7 @@ import anthropic
 
 from config import OPUS_MODEL
 from claude_utils import parse_json_response
+import cost
 
 SCRIPT_DIR = Path(__file__).parent
 MEMORY_FILE = SCRIPT_DIR / "memory.json"
@@ -133,6 +134,7 @@ def update_memory(digest_html):
         tokens_in = response.usage.input_tokens
         tokens_out = response.usage.output_tokens
         print(f"  Memory pass tokens: {tokens_in:,} in + {tokens_out:,} out")
+        cost.record("memory update", CLAUDE_MODEL, response.usage)
 
         return updated
 

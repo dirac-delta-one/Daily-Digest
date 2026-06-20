@@ -11,6 +11,7 @@ import anthropic
 
 from config import OPUS_MODEL, esc
 from claude_utils import parse_json_response
+import cost
 
 SCRIPT_DIR = Path(__file__).parent
 ALERTS_CONFIG_FILE = SCRIPT_DIR / "alerts_config.json"
@@ -95,6 +96,7 @@ def evaluate_alerts(source_text):
         tokens_in = response.usage.input_tokens
         tokens_out = response.usage.output_tokens
         print(f"  Alerts pass tokens: {tokens_in:,} in + {tokens_out:,} out")
+        cost.record("alert eval", CLAUDE_MODEL, response.usage)
 
         triggered = [r for r in results if r.get("triggered")]
         print(f"  {len(triggered)} alert(s) triggered out of {len(alerts)}.")

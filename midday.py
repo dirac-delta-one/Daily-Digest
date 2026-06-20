@@ -22,6 +22,7 @@ from digest import get_gmail_service, DIGEST_RECIPIENTS
 from news import fetch_wsj_ft_articles
 from sec_filings import fetch_recent_filings
 from ratings import fetch_rating_actions
+import cost
 
 SCRIPT_DIR = Path(__file__).parent
 ARCHIVE_DIR = SCRIPT_DIR / "archive"
@@ -158,6 +159,7 @@ def evaluate_materiality(emails, articles, filings, rating_actions):
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  Materiality check: {tokens_in:,} in + {tokens_out:,} out")
+    cost.record("midday materiality", SONNET_MODEL, response.usage)
 
     return result
 
@@ -228,6 +230,8 @@ def main():
 
     print(f"  Evaluating materiality ({total} items)...")
     result = evaluate_materiality(new_emails, new_articles, new_filings, new_ratings)
+    cost_text, _ = cost.summary()
+    print(cost_text)
 
     if result.strip() == "NO_ALERT" and not force:
         print("  Nothing material. No alert sent.")

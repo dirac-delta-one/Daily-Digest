@@ -489,3 +489,19 @@ wrapper for real and confirm:
   not executed anywhere yet; it creates real scheduled tasks).
 - Confirm non-interactive scheduled runs see `PYTHONUTF8`/env vars and that Playwright/Chromium
   runs headless under Task Scheduler (Octus / 13D).
+
+### Cost/efficiency optimizations (A1 done offline; A2 deferred)
+
+- **A1 — per-run cost accounting (`cost.py`)** — code-complete + offline-tested (pricing math +
+  multi-tier aggregation). The live behavior (the end-of-run cost summary printed by `digest.py` /
+  `midday.py` / `reply_monitor.py`) will be exercised by the eventual credentialed run — just
+  confirm the printed totals look sane. Measurement only, no logic risk.
+- **A2 — structured outputs (`output_config.format`) — DEFERRED to the credentialed phase
+  (decision 2026-06-19).** When secrets land: (1) confirm opus-4-6 support via
+  `client.models.retrieve("claude-opus-4-6").capabilities["structured_outputs"]`; (2) iterate the
+  JSON schemas (array-vs-object top level, `additionalProperties:false`, nullable `detail`/`source`)
+  against the live API for alerts/memory + the 4 ranker calls; (3) apply + test. Value is
+  concentrated in alerts/memory (which silently drop on a parse failure today).
+- **Bigger cost cuts still on the table (need a permissioned A/B):** Group B — move the embedded
+  Opus calls (memory, alerts, 13D summary, reply answer) to Sonnet (~40%/call) after a quality
+  check; Group C — the dropped 2.1 caching restructure / conditional pass 2 (§3/§6-constrained).

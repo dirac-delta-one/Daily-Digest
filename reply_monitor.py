@@ -27,6 +27,7 @@ from digest import get_gmail_service, DIGEST_RECIPIENTS
 from search import search
 from config import OPUS_MODEL
 from claude_utils import parse_json_response
+import cost
 
 ARCHIVE_DIR = Path(__file__).parent / "archive"
 
@@ -272,6 +273,7 @@ def _extract_search_queries(reply_text):
             messages=[{"role": "user", "content": reply_text}],
         )
 
+        cost.record("reply query-extract", "claude-sonnet-4-6", response.usage)
         queries = parse_json_response(response.content[0].text)
         if isinstance(queries, list) and queries:
             print(f"  Extracted {len(queries)} search queries from reply")
@@ -428,6 +430,7 @@ def answer_question(question, digest_date=None):
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  Answer tokens: {tokens_in:,} in + {tokens_out:,} out")
+    cost.record("reply answer", REPLY_MODEL, response.usage)
 
     # Wrap in container div if not already
     if not answer.strip().startswith("<div"):
@@ -533,7 +536,10 @@ def process_replies(service):
             print(f"  Digest date: {digest_date}")
 
         try:
+            cost.reset()
             answer = answer_question(question, digest_date=digest_date)
+            cost_text, _ = cost.summary()
+            print(cost_text)
             success = send_reply(service, thread_id, msg_id, subject, answer, rfc_message_id)
 
             if success:

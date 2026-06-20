@@ -21,6 +21,7 @@ from pathlib import Path
 import anthropic
 
 from config import OPUS_MODEL
+import cost
 
 SCRIPT_DIR = Path(__file__).parent
 SESSION_FILE = SCRIPT_DIR / "thirteen_d_session.json"
@@ -257,6 +258,7 @@ def _summarize_pdf(pdf_bytes):
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  WILTW summary: {tokens_in:,} in + {tokens_out:,} out")
+    cost.record("13D WILTW summary", CLAUDE_MODEL, response.usage)
     print(f"  Summary length: {len(summary):,} chars")
 
     return summary

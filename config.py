@@ -13,9 +13,13 @@ OPUS_MODEL = "claude-opus-4-6"
 SONNET_MODEL = "claude-sonnet-4-6"
 HAIKU_MODEL = "claude-haiku-4-5"
 
-# --- Opus pricing ($ per million tokens) ---
+# --- Pricing ($ per million tokens) ---
 OPUS_PRICE_IN = 5.0
 OPUS_PRICE_OUT = 25.0
+SONNET_PRICE_IN = 3.0
+SONNET_PRICE_OUT = 15.0
+HAIKU_PRICE_IN = 1.0
+HAIKU_PRICE_OUT = 5.0
 
 
 def esc(s):

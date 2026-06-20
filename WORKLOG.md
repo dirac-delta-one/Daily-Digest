@@ -5,6 +5,35 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Cost/efficiency — A1 (cost instrumentation) done; A2 (structured outputs) paused
+
+- **Status:** ✅ A1 code-complete + offline-tested (ruff/compile clean, unit tests pass). Not yet
+  committed. **A2 paused pending a decision** — see below.
+
+### A1 — full per-run Claude cost accounting (new `cost.py`)
+- Before: `digest.py` priced only the two Opus passes; memory / alerts / 13D / weekly and the
+  Sonnet/Haiku ranker calls were uncounted, so the reported per-run cost understated reality.
+- New `cost.py`: a module-level `record(label, model, usage)` accumulator + `cost_of()` +
+  `summary()`. Added Sonnet (3/15) and Haiku (1/5) price constants to `config.py` alongside Opus.
+- Instrumented all 12 call sites (digest passes ×2 + news rank + weekly; memory; alerts; octus;
+  pacer; 13D; midday; reply ×2). Entry points print a per-run total: `digest.main()` at the end,
+  `midday.main()` after the materiality check, `reply_monitor` per reply (reset + print).
+- Measurement only — no behavior change, no API calls added.
+- **Tested (offline):** `cost_of` vs known counts (2M in + 1M out Opus = $35; Sonnet 1M+1M = $18;
+  Haiku = $6; unknown model → opus tier; cache read 0.1× / write 1.25×); `record`+`summary`
+  aggregation across opus/sonnet/haiku with a None-usage skip; ruff + py_compile clean; all entry
+  points import with `cost` wired.
+
+### A2 — structured outputs: paused, needs the key
+Getting `output_config.format` right (array-vs-object top level, `additionalProperties: false`,
+nullable fields) needs iteration against the live API, and confirming **opus-4-6 even supports
+structured outputs** needs a Models API call — both require credentials. So A2 can't be safely
+shipped + verified offline. **Decision (2026-06-19): deferred to the credentialed phase** — when
+secrets land, confirm opus-4-6 support via the Models API, iterate the schemas against the live API,
+then apply + test. Tracked in HANDOFF §11.
+
+---
+
 ## Phase 2 — Quality/cost refactors (2.2, 2.3, 2.4 done; 2.1 deferred)
 
 - **Status:** ✅ 2.2 / 2.3 / 2.4 code-complete and **offline-tested** (ruff + py_compile clean,

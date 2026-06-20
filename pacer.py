@@ -21,6 +21,7 @@ import anthropic
 
 from config import esc, safe_href
 from claude_utils import parse_json_response
+import cost
 
 SCRIPT_DIR = Path(__file__).parent
 SEEN_FILE = SCRIPT_DIR / "pacer_seen.json"
@@ -326,6 +327,7 @@ def _filter_by_size(filings):
         tokens_out = response.usage.output_tokens
         print(f"  Size filter: kept {len(kept)}/{len(filings)} "
               f"({tokens_in:,} in + {tokens_out:,} out)")
+        cost.record("pacer size filter", "claude-sonnet-4-6", response.usage)
 
         return kept
 
