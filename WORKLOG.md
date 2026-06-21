@@ -5,9 +5,23 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Current state (2026-06-19)
+
+All refactor work to date is **committed** and validated **without secrets**; the integrated
+pipeline has not yet run end-to-end. Commits in order: Phase 0 `1f400f6` → Phase 1 `f78ef45` →
+de-hardcoding `e7b9a6c` → Phase 2 `d9dfd50` → A1 `a04f892` → Phase 3 `004722b`. Offline state:
+`ruff` clean, all modules import/compile, free fetchers run, `pytest` 34 green.
+
+**Everything doable + verifiable offline is done.** What's left is gated on secrets — see
+`HANDOFF.md` §11 (ordered test plan once secrets land) and §12 (path to "done"). Headline remaining:
+the first credentialed `digest.py` run (validates the whole stack), then the do-and-test items
+(A2, 3.1, 3.3, Group B cost A/B), then §7.2 deploy.
+
+---
+
 ## Phase 3 — 3.4 tests + 3.2 HTML/Gmail consolidation (done)
 
-- **Status:** ✅ 3.4 + 3.2 done + green (34 tests), ruff clean. Not yet committed. **3.1
+- **Status:** ✅ 3.4 + 3.2 done + green (34 tests), ruff clean — committed `004722b`. **3.1
   (digest-core arg refactor) deferred to the credentialed phase** — its acceptance needs a
   byte-identical end-to-end baseline, which needs secrets (workflow decision 2026-06-19).
 
@@ -42,8 +56,8 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ## Cost/efficiency — A1 (cost instrumentation) done; A2 (structured outputs) paused
 
-- **Status:** ✅ A1 code-complete + offline-tested (ruff/compile clean, unit tests pass). Not yet
-  committed. **A2 paused pending a decision** — see below.
+- **Status:** ✅ A1 code-complete + offline-tested (ruff/compile clean, unit tests pass) — committed
+  `a04f892`. **A2 deferred to the credentialed phase** — see below.
 
 ### A1 — full per-run Claude cost accounting (new `cost.py`)
 - Before: `digest.py` priced only the two Opus passes; memory / alerts / 13D / weekly and the
@@ -73,7 +87,7 @@ then apply + test. Tracked in HANDOFF §11.
 
 - **Status:** ✅ 2.2 / 2.3 / 2.4 code-complete and **offline-tested** (ruff + py_compile clean,
   unit tests + live free-RSS runs green). **2.1 (prompt caching) dropped** by decision (2026-06-19) —
-  verified counterproductive as specced (see below). Not yet committed.
+  verified counterproductive as specced (see below). Committed `d9dfd50`.
 
 ### Done
 - **2.2 — `claude_utils.parse_json_response()` (new `claude_utils.py`)** — one helper that strips an
@@ -116,7 +130,7 @@ Verified against the Anthropic prompt-caching docs — caching is a strict **pre
 ## Stage 1 — §7.1 machine de-hardcoding (location + test-recipient)
 
 - **Status:** ✅ Code/doc changes applied and **offline-tested** (see "Tested" below). Full
-  end-to-end (credentialed) run still pending — tracked as a TODO in HANDOFF §11. Not yet committed.
+  end-to-end (credentialed) run still pending — tracked as a TODO in HANDOFF §11. Committed `e7b9a6c`.
 
 ### Changes
 - **`run_digest.bat` / `run_midday.bat` / `run_reply_monitor.bat`** — replaced

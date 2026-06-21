@@ -21,20 +21,22 @@ the current machine (operator `acohen@acorninv.com`, Windows user `KimCohen`). G
 around every source, sensible secret hygiene. No rewrite is warranted — only incremental,
 low-risk improvements.
 
-**Status (updated — Phases 0–1 done, offline):** The dev machine is stood up (Python 3.12 venv at `.venv`, all
-deps + Playwright chromium installed) and **Phase 0 cleanup is complete, committed (`1f400f6`), and
-validated without any secrets** — `ruff` clean, all 24 modules import/compile, 13 free fetchers run,
-plus `pacer` pure-function asserts and a `search` index round-trip (incl. the 0.3 re-index path). The
-LLM/Gmail/paid-scraper paths are import/compile-verified only and await a credentialed run — see §11
-"Needs Testing." **Phase 1** (cost-pricing fix + model centralization in `config.py`, plus
-HTML-escaping the pre-built sections) is also code-complete and unit-tested offline (committed
-`f78ef45`).
+**Status — all refactor work to date is COMMITTED and validated WITHOUT secrets; the integrated
+pipeline has not yet run end-to-end.** Dev machine stood up (Python 3.12 venv at `.venv`, all deps +
+Playwright chromium + `pytest`). Committed, in order:
 
-**Stage-1 §7.1 machine de-hardcoding (offline-tested, no secrets — uncommitted):** the `.bat` wrappers
-and `setup_tasks.bat` now use `%~dp0` + the project `.venv` + `PYTHONUTF8=1`; `DIGEST_RECIPIENTS`
-is `DIGEST_TO`-env-driven (defaults to jared); acohen is on the reply-bot allow-list and reply
-recipient; README paths/Substack notes updated. The User-Agent contact string is intentionally
-**kept as jared** (see §7.1.6). Per-change history is in `WORKLOG.md`.
+| Commit | What |
+|---|---|
+| `1f400f6` | **Phase 0** — cleanup, `ruff`, pinned deps, dead-code removal, `grab_session.py` deleted |
+| `f78ef45` | **Phase 1** — `config.py` (models + pricing), cost-pricing fix, `OPUS_MODEL` centralized, HTML-escaped the scraped `build_*_html` |
+| `e7b9a6c` | **Stage-1 §7.1 de-hardcoding** — `.bat`/`setup_tasks.bat` use `%~dp0` + project `.venv` + `PYTHONUTF8=1`; recipients `DIGEST_TO`-env-driven (default jared); reply-bot allow-list/recipient include acohen; README updated; User-Agent contact kept as jared (§7.1.6) |
+| `d9dfd50` | **Phase 2** — 2.2 `claude_utils.parse_json_response`, 2.3 `feeds.py`, 2.4 `search` embedding singleton (2.1 prompt caching **dropped** as counterproductive — §9/§10) |
+| `a04f892` | **A1** — `cost.py` per-run cost accounting across *all* Claude calls |
+| `004722b` | **Phase 3** — 3.4 `tests/` + `pytest` (34 unit tests), 3.2 `html_utils.py` HTML/Gmail-extractor consolidation |
+
+Offline-verified: `ruff` clean, every module imports/compiles, free fetchers run, `pytest` 34 green.
+**Everything doable + verifiable without secrets is done.** What remains is gated on secrets — the
+deferred runtime checks are consolidated in **§11**, and the ordered path to "done" is in **§12**.
 
 **End goal:** Stop depending on jared's personal computer. Migrate to a **dedicated, always-on
 standalone Windows machine acting as a server** that runs the digest, midday alert, and reply
@@ -343,7 +345,7 @@ confirm the assembled email still renders.
 
 ### Phase 2 — Medium-complexity quality / cost (each independent)
 
-> **Status (2026-06-19, uncommitted):** 2.2 / 2.3 / 2.4 ✅ done + offline-tested (see `WORKLOG.md`).
+> **Status (committed `d9dfd50`):** 2.2 / 2.3 / 2.4 ✅ done + offline-tested (see `WORKLOG.md`).
 > **2.1 NOT done** — verified counterproductive as specced. Prompt caching is a strict prefix match
 > over `tools → system → messages`; pass 1 and pass 2 use *different* `system` prompts (and pass 2
 > puts the shared content after a review block), so they share no cacheable prefix → 0 cache reads
@@ -377,7 +379,7 @@ module-level lazy singleton so the long-running `reply_monitor` loads it once pe
 
 ### Phase 3 — Larger / conditional (do only if justified; tests recommended first)
 
-> **Status (2026-06-19, uncommitted):** 3.4 ✅ done — `tests/` + `pytest` (`requirements-dev.txt`).
+> **Status (committed `004722b`):** 3.4 ✅ done — `tests/` + `pytest` (`requirements-dev.txt`).
 > 3.2 ✅ done — new `html_utils.py` consolidates the search/sec_filings stripper + the
 > digest/reply_monitor Gmail extractor (substack's divergent ones left alone); pinned by
 > `tests/test_html_utils.py`. Suite now 34 tests.
@@ -441,6 +443,28 @@ once a live run exercises them. The natural catch-all is the single permissioned
 `digest.py` run (drives `digest`, `substack`, `octus`, `pacer`, `thirteen_d` in one shot), plus
 separate `midday.py` and `reply_monitor.py` runs.
 
+**Once secrets land — ordered test plan (one pass validates the whole committed stack):**
+
+0. **Provision** (§7.1.4–5): create `env.bat` with `ANTHROPIC_API_KEY` (+ optional `FRED_API_KEY`,
+   `SUBSTACK_EMAIL`) and **`DIGEST_TO=acohen@acorninv.com`**; copy jared's `credentials.json` /
+   `token.json` / `octus_session.json` / `thirteen_d_session.json` / `substack_cookie.txt`. Sanity:
+   `python news.py` + a Gmail metadata-only call before anything paid.
+1. **One small permissioned `digest.py` run** (lower `MAX_EMAILS`, recipient = acohen). This single
+   run exercises almost everything deferred below: the 2-pass Opus flow + now-escaped sections (P1);
+   the Gmail / Substack / Octus / PACER / 13D credentialed paths (P0); the `config` / `claude_utils`
+   / `feeds` / `html_utils` wiring (P2 / 3.2); and the **A1 cost summary** (confirm the printed total
+   looks sane). Confirm: email renders, `archive/<date>/` + FAISS index written, `memory.json`
+   updated, no path/encoding errors.
+2. **`python midday.py --force`** → Sonnet materiality check + Gmail send to acohen.
+3. **`python reply_monitor.py --once`** → reply from acohen, RAG answer threads back to acohen.
+4. **The `.bat` wrappers** end-to-end + `setup_tasks.bat` on the target machine (Stage-1 detail below).
+5. **FRED sources:** set `FRED_API_KEY`, then `python macro_data.py` + `python fed_balance_sheet.py`
+   (skipped silently without the key today).
+
+**Then the deferred do-AND-test items** (each its own small permissioned run — see §12): A2
+structured outputs, 3.1 digest-core arg refactor (byte-identical baseline), 3.3 PDF-extraction
+review, and the Group B cost A/B (embedded Opus → Sonnet). Per-area detail follows.
+
 ### Phase 0 (committed `1f400f6`)
 
 Import/compile-clean, but live execution not yet run (needs Claude key / Gmail creds / paid-scraper
@@ -479,7 +503,7 @@ no deferred verification of their own logic. Two notes for the eventual credenti
 - `digest.py`, `memory.py`, `alerts.py`, `reply_monitor.py`, `thirteen_d.py` now `import config`; the
   live run will also exercise that wiring in the credentialed paths (already listed under Phase 0).
 
-### Stage 1 — §7.1 machine de-hardcoding (uncommitted)
+### Stage 1 — §7.1 machine de-hardcoding (committed `e7b9a6c`)
 
 **Offline-verified (done 2026-06-19):** `ruff` + `py_compile` clean; `DIGEST_TO` env override
 (default→jared, override→acohen, whitespace-stripped, inherited by `midday.py`/`reply_monitor.py`);
@@ -500,7 +524,14 @@ wrapper for real and confirm:
 - Confirm non-interactive scheduled runs see `PYTHONUTF8`/env vars and that Playwright/Chromium
   runs headless under Task Scheduler (Octus / 13D).
 
-### Cost/efficiency optimizations (A1 done offline; A2 deferred)
+### Phase 2 & 3 (committed `d9dfd50`, `004722b`)
+
+2.2 / 2.3 / 2.4 and 3.4 / 3.2 are **fully offline-tested** (unit tests + `pytest` 34 green + live
+free-RSS runs); no deferred verification of their own logic. The credentialed `digest.py` run
+(step 1 above) will additionally exercise the `claude_utils` / `feeds` / `html_utils` wiring in the
+live paths. 2.1 was dropped (no test needed).
+
+### Cost/efficiency optimizations (A1 committed `a04f892`; A2 deferred)
 
 - **A1 — per-run cost accounting (`cost.py`)** — code-complete + offline-tested (pricing math +
   multi-tier aggregation). The live behavior (the end-of-run cost summary printed by `digest.py` /
@@ -515,3 +546,27 @@ wrapper for real and confirm:
 - **Bigger cost cuts still on the table (need a permissioned A/B):** Group B — move the embedded
   Opus calls (memory, alerts, 13D summary, reply answer) to Sonnet (~40%/call) after a quality
   check; Group C — the dropped 2.1 caching restructure / conditional pass 2 (§3/§6-constrained).
+
+---
+
+## 12. Path from here (next steps)
+
+Everything safely doable/verifiable offline is committed (Phases 0–2, de-hardcoding, A1, 3.4, 3.2).
+The remaining work is gated on secrets. In order:
+
+1. **Provision secrets on the dev machine** (§7.1.4–5). Decide identity first: the agreed plan is
+   **keep jared's** (copy `credentials.json` / `token.json` / sessions / cookie; mail goes FROM jared,
+   TO acohen via `DIGEST_TO`) — *or* re-provision Gmail/Substack/Octus/13D under acohen. Set env vars
+   in `env.bat` (machine/system level for the eventual server).
+2. **First credentialed end-to-end run** — the §11 ordered test plan. Validates the whole committed
+   stack at once and clears the §11 backlog. **Ask permission before the Claude calls; run once, on a
+   small input, to acohen** (never `DIGEST_RECIPIENTS`/jared during testing).
+3. **Do-and-test the deferred items** (each permissioned, once): **A2** structured outputs (confirm
+   opus-4-6 support → iterate schemas → apply); **3.1** digest-core 19-arg refactor (with its
+   byte-identical baseline); **3.3** `_clean_pdf_text` review vs real archived PDFs; then the
+   **Group B cost cut** (embedded Opus → Sonnet) behind a quality A/B. (Group C / conditional pass 2
+   only if justified — §3/§6.)
+4. **§7.2 deploy** to the dedicated always-on Windows server — the definition of "done": always-on +
+   headless, runs whether or not anyone is logged in, machine-level env vars, headless
+   Playwright/Chromium, log rotation + failure alerting, correct TZ, and backups of `archive/` +
+   `memory.json` + the FAISS index.
