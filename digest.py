@@ -18,6 +18,7 @@ from pathlib import Path
 
 import anthropic
 from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -88,8 +89,15 @@ def get_gmail_service():
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
+            try:
+                creds.refresh(Request())
+            except RefreshError as e:
+                # Refresh token expired/revoked (invalid_grant) — don't crash;
+                # fall through to a fresh browser consent below.
+                print(f"  Gmail refresh token rejected ({e}). Re-authorizing via browser consent...")
+                creds = None
+
+        if not creds or not creds.valid:
             if not CREDENTIALS_FILE.exists():
                 print(f"ERROR: {CREDENTIALS_FILE} not found.")
                 print("Download it from Google Cloud Console → APIs & Services → Credentials.")

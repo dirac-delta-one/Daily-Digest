@@ -10,12 +10,49 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 All refactor work to date is **committed** and validated **without secrets**; the integrated
 pipeline has not yet run end-to-end. Commits in order: Phase 0 `1f400f6` → Phase 1 `f78ef45` →
 de-hardcoding `e7b9a6c` → Phase 2 `d9dfd50` → A1 `a04f892` → Phase 3 `004722b`. Offline state:
-`ruff` clean, all modules import/compile, free fetchers run, `pytest` 34 green.
+`ruff` clean, all modules import/compile, free fetchers run, `pytest` 34 green. **Plus in-progress
+uncommitted work** (credential bring-up + a Gmail token-refresh fix, 36 tests) — see the entry below.
 
 **Everything doable + verifiable offline is done.** What's left is gated on secrets — see
 `HANDOFF.md` §11 (ordered test plan once secrets land) and §12 (path to "done"). Headline remaining:
 the first credentialed `digest.py` run (validates the whole stack), then the do-and-test items
 (A2, 3.1, 3.3, Group B cost A/B), then §7.2 deploy.
+
+---
+
+## Credential bring-up + Gmail token-refresh hardening (2026-06-21, uncommitted)
+
+First time the gitignored secrets were present on the dev machine; validated the key-free paths and
+hardened Gmail auth against a failure we actually hit. (Only Claude calls need the Anthropic key, so
+Gmail + the scraper sessions are testable without it.)
+
+### Credential validation
+- **Substack ✅** — `substack_cookie.txt` valid; `python substack.py` fetched 3 articles. (One sub,
+  polymathinvestor.com, returns 403 — likely lapsed/blocked; degrades gracefully.)
+- **Gmail ❌** — the copied `token.json`'s refresh token is **rejected (`invalid_grant`)** (expired or
+  revoked). Fix = a fresh OAuth consent (remove token.json → run the flow), logged in as the mailbox
+  owner (jared — the digest reads his inbox as a data source). Deferred by operator.
+- **Octus ⚠️** — `octus_session.json` has 5/7 cookies expired; refresh needs jared's Octus login
+  (not available) → blocked.
+- **13D** — `thirteen_d_session.json` structurally healthy; live probe not yet run.
+- **`env.bat`** created (gitignored): `DIGEST_TO=acohen@acorninv.com`, `PYTHONUTF8=1`;
+  `ANTHROPIC_API_KEY` blank (acohen getting their own key); `SUBSTACK_EMAIL`/`FRED_API_KEY` optional.
+
+### Code — `get_gmail_service` hardening (`digest.py`)
+- **Problem:** with a present-but-expired `token.json` that still has a refresh token,
+  `get_gmail_service` called `creds.refresh()` with no error handling → a dead refresh token threw
+  `RefreshError` (invalid_grant) and **crashed the run** (exactly what we hit).
+- **Fix:** wrapped the refresh in `try/except RefreshError` → on failure, log + fall through to the
+  fresh browser-consent flow (same path as a missing token). Otherwise unchanged: a good refresh
+  still skips consent; a missing token still consents.
+- **Tested:** new `tests/test_gmail_auth.py` (2 mocked tests) — dead refresh token falls back to
+  consent (no crash) + saves the new token; good refresh skips consent. Suite now **36**; ruff clean.
+
+### §7.2 deploy finding (recorded in HANDOFF §7.2)
+Google OAuth refresh tokens for an app in **"Testing"** publishing status expire after 7 days — an
+always-on server needs the app in **"production"** publishing or Gmail breaks weekly. (jared's
+production digest running daily implies his app is already in production; the copied token more
+likely died from being superseded/revoked.)
 
 ---
 

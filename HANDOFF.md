@@ -33,10 +33,39 @@ Playwright chromium + `pytest`). Committed, in order:
 | `d9dfd50` | **Phase 2** — 2.2 `claude_utils.parse_json_response`, 2.3 `feeds.py`, 2.4 `search` embedding singleton (2.1 prompt caching **dropped** as counterproductive — §9/§10) |
 | `a04f892` | **A1** — `cost.py` per-run cost accounting across *all* Claude calls |
 | `004722b` | **Phase 3** — 3.4 `tests/` + `pytest` (34 unit tests), 3.2 `html_utils.py` HTML/Gmail-extractor consolidation |
+| `5d041f0` | **Docs** — consolidated this §1 status / §11 test plan / §12 path-to-done + `WORKLOG.md` snapshot |
 
 Offline-verified: `ruff` clean, every module imports/compiles, free fetchers run, `pytest` 34 green.
 **Everything doable + verifiable without secrets is done.** What remains is gated on secrets — the
 deferred runtime checks are consolidated in **§11**, and the ordered path to "done" is in **§12**.
+
+**Right now (2026-06-21) — resuming in a new conversation:**
+
+*Uncommitted in the working tree* (commit these for a clean start — `digest.py`,
+`tests/test_gmail_auth.py`, `HANDOFF.md`, `WORKLOG.md`): a **`get_gmail_service` hardening**
+(`digest.py` now catches `RefreshError` → re-consents instead of crashing; new
+`tests/test_gmail_auth.py`; suite is **36** green) plus the credential notes added to this file and
+`WORKLOG.md`.
+
+*Credentials on the dev machine* (only Claude calls need the Anthropic key — Gmail + scrapers are key-free):
+- ✅ `credentials.json`; `substack_cookie.txt` (validated — `python substack.py` fetched articles);
+  `thirteen_d_session.json` (healthy; live probe not yet run); `env.bat` created
+  (`DIGEST_TO=acohen`, `PYTHONUTF8=1`, `ANTHROPIC_API_KEY` **blank**).
+- ❌ `token.json` is **dead** — the copied refresh token is rejected (`invalid_grant`); needs a fresh
+  OAuth consent **as jared** (the digest reads jared's inbox as a source). See §11 step 0.
+- ⚠️ `octus_session.json` is **stale** (5/7 cookies expired) and **blocked** — refreshing needs jared's
+  Octus login, which acohen doesn't have.
+
+*The one blocker for a first run:* the **Anthropic API key**. acohen is requesting **$25 of API credit**
+from IT (key pending — acohen can't use jared's key; a single dollar balance covers all models).
+
+*Immediate next steps when resuming:*
+1. Paste the new key into `env.bat` (`set ANTHROPIC_API_KEY=...`).
+2. Fresh Gmail consent — `Rename-Item token.json token.json.bak`, then run the OAuth flow as jared:
+   `.venv\Scripts\python.exe -c "from digest import get_gmail_service; get_gmail_service()"`.
+3. First **small permissioned** run — `digest.py --email_time=2`, recipient acohen, **ask before any
+   Claude call** — and read the exact spend off the A1 cost summary before anything larger. Then
+   follow the §11 ordered test plan.
 
 **End goal:** Stop depending on jared's personal computer. Migrate to a **dedicated, always-on
 standalone Windows machine acting as a server** that runs the digest, midday alert, and reply
@@ -229,7 +258,12 @@ and `config.py`), then provision the server:
 3. **Secrets/identity on the server:** install the §7.1 secret files and `env.bat` there. **Decide
    whose Gmail/Substack/Octus the server uses** — keep jared's identities (copy `token.json`,
    `credentials.json`, sessions) or re-provision to a service/`acohen` account. Set env vars at the
-   **machine/system** level (not user) so non-interactive tasks see them.
+   **machine/system** level (not user) so non-interactive tasks see them. **Critical for Gmail:**
+   the Google OAuth app must be in **"production" publishing status** — Testing-mode refresh tokens
+   expire after 7 days and would break the digest weekly under unattended operation. (We saw a
+   *copied* `token.json` already rejected with `invalid_grant`; `get_gmail_service` now re-consents
+   on refresh failure instead of crashing, but a headless server can't do an interactive consent —
+   so a non-expiring production token is the real requirement.)
 4. **Reliability & observability:** rotate `logs/`; add failure alerting (e.g. email `acohen@` if a
    run errors or a key section is empty N days running) since no one is watching the console; verify
    sessions auto-renew (Substack magic-link via Gmail; Octus/13D will eventually need a manual
@@ -448,7 +482,11 @@ separate `midday.py` and `reply_monitor.py` runs.
 0. **Provision** (§7.1.4–5): create `env.bat` with `ANTHROPIC_API_KEY` (+ optional `FRED_API_KEY`,
    `SUBSTACK_EMAIL`) and **`DIGEST_TO=acohen@acorninv.com`**; copy jared's `credentials.json` /
    `token.json` / `octus_session.json` / `thirteen_d_session.json` / `substack_cookie.txt`. Sanity:
-   `python news.py` + a Gmail metadata-only call before anything paid.
+   `python news.py` + a Gmail metadata-only call before anything paid. **Note (2026-06-21):** a
+   *copied* `token.json` may be dead (refresh token → `invalid_grant`); if so, remove it and do a
+   fresh OAuth consent as the mailbox owner (jared — the digest reads his inbox as a source).
+   `get_gmail_service` now re-consents automatically on refresh failure instead of crashing. The
+   Octus session may also need a `--login` refresh (its cookies expire).
 1. **One small permissioned `digest.py` run** (lower `MAX_EMAILS`, recipient = acohen). This single
    run exercises almost everything deferred below: the 2-pass Opus flow + now-escaped sections (P1);
    the Gmail / Substack / Octus / PACER / 13D credentialed paths (P0); the `config` / `claude_utils`
