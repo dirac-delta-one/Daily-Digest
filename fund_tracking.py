@@ -16,7 +16,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 CACHE_DIR = SCRIPT_DIR / "archive" / "13f_cache"
 
-EDGAR_USER_AGENT = "DailyDigest/1.0 (jtramontano@acorninv.com)"
+EDGAR_USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 
 # Days to look back for new filings (check weekly for quarterly filings)
 DAYS_LOOKBACK = 7

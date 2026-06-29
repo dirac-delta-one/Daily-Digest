@@ -14,7 +14,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 CACHE_FILE = SCRIPT_DIR / "trace_cache.json"
 
-USER_AGENT = "DailyDigest/1.0 (jtramontano@acorninv.com)"
+USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 
 # Map issuer tickers to their common bond identifiers
 # Add CUSIPs or issuer names as needed

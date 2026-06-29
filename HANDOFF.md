@@ -208,11 +208,11 @@ The project is wired to jared's machine. Required to run here:
    `octus_session.json`, `thirteen_d_session.json` from jared's machine, OR re-provision (Gmail
    OAuth re-consent, Substack magic-link, Octus/13D manual login). These bind to *accounts*, not the
    machine.
-6. **`EDGAR_USER_AGENT` / `USER_AGENT` contact string** (`sec_filings.py:27`, `pacer.py:27`,
-   `trace_data.py:17`, `fund_tracking.py:19`) — SEC/PACER want a real contact. **Decision
-   (2026-06-19): KEEP `jtramontano@acorninv.com`.** It's only a courtesy contact for the scraped
-   servers' admins (SEC/PACER fair-access), not a credential, and jared stays the account
-   identity anyway. This item is a **no-op** — do not switch it to acohen.
+6. **`EDGAR_USER_AGENT` / `USER_AGENT` contact string** (`sec_filings.py:27`, `pacer.py:29`,
+   `trace_data.py:17`, `fund_tracking.py:19`) — SEC/PACER want a real contact. ~~Decision
+   (2026-06-19): KEEP `jtramontano@acorninv.com`.~~ **SUPERSEDED 2026-06-29 (see item 8): the
+   contact is now `acorn.research.bot@gmail.com`.** It's only a courtesy contact for the scraped
+   servers' admins (SEC/PACER fair-access), not a credential.
 7. **Test-recipient override — send FROM jared, TO `acohen@acorninv.com`.** Gmail sends as the
    *authenticated* account (`service.users().messages().send(userId="me", ...)`), so mail goes out
    **from whichever Google account `token.json` belongs to**. The agreed test setup copies **jared's**
@@ -227,6 +227,40 @@ The project is wired to jared's machine. Required to run here:
    so tests set `DIGEST_TO` without editing code. To exercise the reply-bot, also add
    `acohen@acorninv.com` to the `from:` allow-list in `reply_monitor.py` (`check_for_replies`,
    ~line 182) and the recipient in `send_reply` (~line 463).
+
+8. **Email-identity migration → `acorn.research.bot@gmail.com`** (decision 2026-06-29; overrides the
+   "keep jared" stance of items 6–7). A dedicated bot account becomes the system identity: it is the
+   SEC/PACER scraping contact, it replaces jared's personal gmail in the recipient/allow-list, and it
+   will *eventually* be the authenticated Gmail mailbox that sends and reads.
+
+   **Done now (code, committed on `ava-updates`):**
+   - Swapped `jaredtramontano@gmail.com` → `acorn.research.bot@gmail.com` in the `DIGEST_RECIPIENTS`
+     default (`digest.py`) and the reply `from:` allow-list (`reply_monitor.py`). *(Testing still
+     routes to acohen via `DIGEST_TO`; this only changes the production default — jared's **work**
+     address `jtramontano@acorninv.com` is unchanged.)*
+   - Switched the scraping User-Agent contact to the bot in `sec_filings.py`, `pacer.py`,
+     `trace_data.py`, `fund_tracking.py` (behavior-neutral courtesy contact).
+
+   **NOT done — the sender/mailbox flip is deferred (operator; plan-only).** The authenticated Gmail
+   account is both the *sender* and the *inbox that gets summarized*. Flipping it to the bot makes the
+   digest read the **bot's (empty) inbox**. Of all ~17 sources, only these are tied to the
+   authenticated account and **must be migrated to the bot first**:
+
+   | Source to migrate | Why it's tied to the mailbox |
+   |---|---|
+   | **Inbox emails** (`fetch_recent_emails`, `in:inbox`) — forwarded research PDFs, broker/market commentary, **Bloomberg** (digest §7) | 100% the authenticated inbox; the bot's inbox is empty until these subscriptions/forwards point at it. This curated PDF layer is **not** replicated by any automated source — it's the high-value loss. |
+   | **Substack** (`substack.py`) | `substack_cookie.txt` is Substack-account-tied (works until it expires); **auto-renewal** reads the authenticated inbox for the magic link, so renewal needs the bot to be the Substack account + `SUBSTACK_EMAIL=bot`. |
+
+   **Unaffected by the flip** (own keys/sessions or free public APIs — keep working regardless of which
+   account sends): SEC EDGAR, 13F fund tracking, WSJ/FT, rating actions, central-bank research, PACER,
+   market data, earnings, FRED macro + Fed balance sheet, Treasury auctions, CFTC COT, FINRA TRACE,
+   FDIC, 13D WILTW (own session), Octus (own session).
+
+   **Flip sequence (when ready):** (a) forward research email + move Substack subscriptions to the bot
+   → (b) OAuth re-provision as the bot (remove `token.json`, run consent as
+   `acorn.research.bot@gmail.com`; add it as a **test user** in the `credentials.json` Cloud project if
+   you hit "access blocked") → (c) sender, replies, and the read inbox all become the bot. Keep
+   `token.json` = jared until (a) is in place so the inbox source never goes dark mid-transition.
 
 **Status (2026-06-19):** Items 1–3 and 7 applied in code and **offline-tested** — `ruff` +
 `py_compile` clean; `DIGEST_TO` override confirmed (default→jared, override→acohen,

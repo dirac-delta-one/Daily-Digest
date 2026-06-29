@@ -160,7 +160,7 @@ def check_for_replies(service):
         f'subject:"Re: {DIGEST_SUBJECT_PREFIX}" '
         f'is:unread '
         f'newer_than:1d '
-        f'(from:jtramontano@acorninv.com OR from:jaredtramontano@gmail.com '
+        f'(from:jtramontano@acorninv.com OR from:acorn.research.bot@gmail.com '
         f'OR from:acohen@acorninv.com)'
     )
 

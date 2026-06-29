@@ -67,7 +67,7 @@ MAX_PDF_SIZE_MB = 5  # skip PDFs larger than this (to control token usage)
 DIGEST_RECIPIENTS = [
     r.strip()
     for r in os.environ.get(
-        "DIGEST_TO", "jtramontano@acorninv.com,jaredtramontano@gmail.com"
+        "DIGEST_TO", "jtramontano@acorninv.com,acorn.research.bot@gmail.com"
     ).split(",")
     if r.strip()
 ]

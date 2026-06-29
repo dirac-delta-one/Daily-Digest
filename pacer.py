@@ -26,7 +26,7 @@ import cost
 SCRIPT_DIR = Path(__file__).parent
 SEEN_FILE = SCRIPT_DIR / "pacer_seen.json"
 
-USER_AGENT = "DailyDigest/1.0 (jtramontano@acorninv.com)"
+USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 
 # ======================================================================
 # DISCOVERY — Monitor courts for new Chapter 11 filings

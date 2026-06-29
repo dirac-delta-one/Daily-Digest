@@ -24,7 +24,7 @@ CONTENT_CHARS_8K = 5000     # 8-Ks are the most important — grab more
 CONTENT_CHARS_DEFAULT = 3000  # everything else
 
 # Your contact info (SEC requires this in the User-Agent header)
-EDGAR_USER_AGENT = "DailyDigest/1.0 (jtramontano@acorninv.com)"
+EDGAR_USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 
 # ======================================================================
 # LIST YOUR TICKERS TO MONITOR HERE
