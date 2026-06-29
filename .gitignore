@@ -1,6 +1,9 @@
 # Secrets / credentials
 token.json
+token_*.json
 credentials.json
+credentials_*.json
+*.bak
 env.bat
 substack_cookie.txt
 octus_session.json
