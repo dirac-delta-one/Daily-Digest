@@ -39,6 +39,19 @@ Offline-verified: `ruff` clean, every module imports/compiles, free fetchers run
 **Everything doable + verifiable without secrets is done.** What remains is gated on secrets — the
 deferred runtime checks are consolidated in **§11**, and the ordered path to "done" is in **§12**.
 
+**Update (2026-06-29) — newest:**
+- **Email identity → `acorn.research.bot@gmail.com`.** The recipient/allow-list personal-gmail and the
+  SEC/PACER scraping User-Agent now point at the bot; the bot's Gmail OAuth is provisioned and verified
+  (it reads its own inbox — jared forwards research in — and sends/replies as the bot). See §7 item 8.
+- **Octus removed.** `octus.py` + `octus_session.json` deleted; all wiring stripped from `digest.py`,
+  `archive.py`, `search.py` (Jared's directive to stop using Octus; the stale login also would have
+  *blocked an unattended run* on its interactive re-login prompt). Lost: the Octus Intelligence feed and
+  the Primary Deal Tracker. The new-issue HY deal table has **no free replacement**; the distressed
+  *news* is partly covered by PACER + ratings + the credit Substacks. Existing archived Octus data is
+  left intact (still searchable). **Open question:** with Octus gone, the Rating Actions HTML table
+  (`build_ratings_html`, currently disabled — §6) could be re-enabled; left off pending a decision.
+- **Anthropic key** ($20 credit) is in `env.bat` — the first credentialed run is unblocked.
+
 **Right now (2026-06-21) — resuming in a new conversation:**
 
 *Uncommitted in the working tree* (commit these for a clean start — `digest.py`,
@@ -95,11 +108,11 @@ deploy to the dedicated Windows server — see §7.2. Stage 3 is the definition 
     and Opus (13D summary, memory, alerts, reply bot). This is the *only* thing that costs money per
     run — **ask explicit permission before any test that calls Claude**, run once on a small input,
     and never loop the full digest.
-  - **Flat paid subscriptions (already paid; zero marginal cost per run): Octus, Substack, 13D
-    Research.** Scraped via saved login/cookies — no per-query charge, so free to test repeatedly.
-    Only cautions: scraping etiquette / rate-limits, and that sessions expire and need a manual
-    re-login. Octus and 13D *also* fire a small embedded Claude call (Octus = Sonnet ranking,
-    13D = Opus summary) — that's a Claude cost, not a subscription cost; Substack has none.
+  - **Flat paid subscriptions (already paid; zero marginal cost per run): Substack, 13D
+    Research.** (Octus was **removed 2026-06-29** — see §1.) Scraped via saved login/cookies — no
+    per-query charge, so free to test repeatedly. Only cautions: scraping etiquette / rate-limits,
+    and that sessions expire and need a manual re-login. 13D *also* fires a small embedded Claude
+    call (Opus summary) — that's a Claude cost, not a subscription cost; Substack has none.
   - **Free (no charge): everything else.** No-key public APIs — SEC EDGAR, Yahoo Finance, WSJ/FT &
     Google News RSS, Treasury, CFTC, FDIC, FINRA TRACE, PACER court RSS — plus local compute (FAISS +
     sentence-transformer embeddings). Also free but key/auth-gated: **Gmail API** (quota-limited,
@@ -135,7 +148,6 @@ deploy to the dedicated Windows server — see §7.2. Stage 3 is the definition 
 |---|---|
 | `digest.py` | Main orchestrator: Gmail, prompt build, 2-pass Claude, assembly, send, weekly. Config at top (lines ~48–64): `HOURS_LOOKBACK`, `MAX_EMAILS`, `MAX_PDF_SIZE_MB`, `DIGEST_RECIPIENTS`, `CLAUDE_MODEL`. |
 | `substack.py` | API/cookie-based Substack scraper (magic-link auto-login via Gmail). Uses `substack_cookie.txt`. |
-| `octus.py` | Playwright scraper (intel + primary deals). Uses `octus_session.json`. |
 | `search.py` | FAISS index + chunking + embeddings + hybrid search. CLI: `--rebuild`, `--index <date>`. |
 | `reply_monitor.py` | Email-reply RAG bot. Hardcoded recipient + `from:` allow-list. |
 | `midday.py` | Intraday materiality alert (Sonnet). Imports from `digest.py`. |
@@ -145,7 +157,7 @@ deploy to the dedicated Windows server — see §7.2. Stage 3 is the definition 
 | `grab_session.py` | Stale manual helper (writes Playwright session for Substack, which no longer uses it). |
 
 **Gitignored, account-bound secrets** (must exist on the machine; copy or regenerate):
-`credentials.json`, `token.json` (Gmail), `substack_cookie.txt`, `octus_session.json`,
+`credentials.json`, `token.json` (Gmail), `substack_cookie.txt`,
 `thirteen_d_session.json`, `env.bat`, plus caches (`*_cache.json`, `pacer_seen.json`, `memory.json`).
 
 **Env vars used:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),
@@ -177,8 +189,9 @@ Investigated and confirmed as deliberate. Changing them adds risk for no benefit
   because `HOURS_LOOKBACK` is captured as a default-arg value at definition time. Correct placement.
 - **`_clean_pdf_text` aggressive regexes** (`search.py:117–136`): likely rescue logic for
   PyPDF2 character-fragmentation on this corpus. Measure before touching (see Phase 3).
-- **`build_ratings_html` unused in main flow** (`digest.py:1086` sets `ratings_html=""`):
-  deliberate product decision ("Octus has better coverage"). Keep the function.
+- **`build_ratings_html` unused in main flow** (`digest.py` sets `ratings_html=""`):
+  was a deliberate product decision ("Octus has better coverage") — but **Octus was removed
+  2026-06-29**, so this could now be re-enabled; left off pending a decision (§1). Keep the function.
 - **`_is_recent` returns `True` on unparseable dates** (news/ratings/substack): intentional
   over-inclusion; Opus curates downstream.
 - **`reply_monitor` `while True` daemon:** deliberate (a `--once` mode also exists). Not a bug.
@@ -323,9 +336,8 @@ each piece location- and account-independent as you go so the server install is 
   - Any path that calls Claude — full `digest.py`, `memory.py`, `alerts.py`, `midday.py`,
     `reply_monitor.py`, Octus/news ranking, **and `python pacer.py`** (its `__main__` can trigger
     Sonnet via the size filter when new filings exist).
-  - Octus (`octus.py`) and Substack (`substack.py`) scraping — **flat subscriptions, no per-query
-    cost; free to test** (see the cost tiers in §2). The Claude cost in the Octus path is its Sonnet
-    *ranking* step (noted above); Substack scraping itself makes no Claude call.
+  - Substack (`substack.py`) scraping — **flat subscription, no per-query cost; free to test**
+    (see the cost tiers in §2). Substack scraping itself makes no Claude call.
 - **Token discipline:** prefer unit tests; when an LLM path must run, run **once** on a **small**
   input (e.g. temporarily lower `MAX_EMAILS`), never in a loop. Do not re-run the full 2-pass digest
   to verify cosmetic changes — assert on intermediate functions instead.

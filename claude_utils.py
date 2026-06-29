@@ -12,7 +12,7 @@ def parse_json_response(text):
     """Strip an optional ``` / ```json code fence from a Claude response and
     json.loads() the body.
 
-    Mirrors the per-module logic that was duplicated across digest.py, octus.py,
+    Mirrors the per-module logic that was duplicated across digest.py,
     alerts.py, memory.py, pacer.py, and reply_monitor.py. Raises
     json.JSONDecodeError on unparseable content, so existing try/except blocks
     keep working unchanged.

@@ -39,7 +39,6 @@ from trace_data import fetch_trace_data, format_trace_for_prompt, build_trace_ht
 from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html
 from ratings import fetch_rating_actions, format_ratings_for_prompt
 from fund_tracking import fetch_fund_holdings, format_funds_for_prompt, build_funds_html
-from octus import fetch_octus_articles, fetch_octus_deals, format_octus_for_prompt, build_deals_table_html
 from thirteen_d import fetch_wiltw
 from fed_research import fetch_research_articles, format_research_for_prompt
 from treasury_auctions import fetch_treasury_auctions, format_auctions_for_prompt, build_auctions_table_html
@@ -308,7 +307,7 @@ Follow this template exactly. Same fonts, same sizes, same spacing every single 
 def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
                          macro_data, memory_context, earnings, trace_data, pacer_entries,
                          rating_actions=None, fund_results=None,
-                         octus_articles=None, octus_deals=None, wiltw=None,
+                         wiltw=None,
                          research_articles=None, treasury_auctions=None,
                          cot_data=None, fed_bs=None, bank_failures=None):
     """Build the full source material text for the Opus prompt."""
@@ -383,11 +382,6 @@ def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
             )
         prompt += "\n\n" + "=" * 40 + "\nSUBSTACK ARTICLES:\n" + "=" * 40 + "\n\n"
         prompt += "\n\n".join(substack_lines)
-
-    # Octus Intelligence + Deals
-    octus_text = format_octus_for_prompt(octus_articles or [], octus_deals or [])
-    if octus_text:
-        prompt += "\n\n" + "=" * 40 + "\n" + octus_text + "\n" + "=" * 40
 
     # 13D Research WILTW (Opus-summarized PDF)
     if wiltw and wiltw.get("summary"):
@@ -476,7 +470,7 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
                           market_data=None, macro_data=None, earnings=None,
                           trace_data=None, pacer_entries=None,
                           rating_actions=None, fund_results=None,
-                          octus_articles=None, octus_deals=None, wiltw=None,
+                          wiltw=None,
                           research_articles=None, treasury_auctions=None,
                           cot_data=None, fed_bs=None, bank_failures=None):
     """Send all sources to Claude for digest generation (2-pass)."""
@@ -490,8 +484,6 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
     pacer_entries = pacer_entries or []
     rating_actions = rating_actions or []
     fund_results = fund_results or []
-    octus_articles = octus_articles or []
-    octus_deals = octus_deals or []
     research_articles = research_articles or []
     treasury_auctions = treasury_auctions or []
     cot_data = cot_data or []
@@ -506,7 +498,7 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
         emails, substack_articles, sec_filings,
         market_data, macro_data, memory_context,
         earnings, trace_data, pacer_entries,
-        rating_actions, fund_results, octus_articles, octus_deals, wiltw,
+        rating_actions, fund_results, wiltw,
         research_articles, treasury_auctions, cot_data, fed_bs, bank_failures,
     )
 
@@ -723,7 +715,7 @@ def build_news_html(articles):
 
 def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
                           earnings_html, news_html, trace_html, pacer_html,
-                          ratings_html="", funds_html="", deals_html="",
+                          ratings_html="", funds_html="",
                           auctions_html="", fed_bs_html=""):
     """
     Assemble the final digest HTML by injecting pre-built sections
@@ -759,8 +751,6 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
         post_sections += news_html
     if ratings_html:
         post_sections += ratings_html
-    if deals_html:
-        post_sections += deals_html
     if funds_html:
         post_sections += funds_html
     if trace_html:
@@ -901,22 +891,6 @@ def main():
         print(f"Substack scraping failed: {e} — continuing without.")
         substack_articles = []
 
-    # --- Octus Intelligence ---
-    print("Fetching Octus intelligence...")
-    try:
-        octus_articles = fetch_octus_articles()
-    except Exception as e:
-        print(f"Octus articles failed: {e} — continuing without.")
-        octus_articles = []
-
-    # --- Octus Deals ---
-    print("Fetching Octus primary deals...")
-    try:
-        octus_deals = fetch_octus_deals()
-    except Exception as e:
-        print(f"Octus deals failed: {e} — continuing without.")
-        octus_deals = []
-
     # --- 13D WILTW ---
     print("Checking 13D WILTW...")
     try:
@@ -1055,7 +1029,7 @@ def main():
         emails, substack_articles, sec_filings,
         market_data, macro_data, earnings,
         trace_data, pacer_entries,
-        rating_actions, fund_results, octus_articles, octus_deals, wiltw,
+        rating_actions, fund_results, wiltw,
         research_articles, treasury_auctions, cot_data, fed_bs, bank_failures,
     )
 
@@ -1075,9 +1049,8 @@ def main():
     news_html = build_news_html(news_articles)
     trace_html = build_trace_html(trace_data)
     pacer_html = build_pacer_html(pacer_entries)
-    ratings_html = ""  # Rating data goes to Opus only; Octus has better coverage
+    ratings_html = ""  # Rating data goes to Opus only (it writes the Rating Actions section)
     funds_html = build_funds_html(fund_results)
-    deals_html = build_deals_table_html(octus_deals)
     auctions_html = build_auctions_table_html(treasury_auctions)
     fed_bs_html = build_fed_bs_table_html(fed_bs)
 
@@ -1085,7 +1058,7 @@ def main():
     final_html = _assemble_digest_html(
         digest_html, alerts_html, market_html, macro_html,
         earnings_html, news_html, trace_html, pacer_html,
-        ratings_html, funds_html, deals_html,
+        ratings_html, funds_html,
         auctions_html, fed_bs_html,
     )
 
@@ -1122,8 +1095,6 @@ def main():
             news_articles=news_articles,
             market_data=market_data,
             macro_data=macro_data,
-            octus_articles=octus_articles,
-            octus_deals=octus_deals,
             rating_actions=rating_actions,
             pacer_entries=pacer_entries,
             fund_results=fund_results,

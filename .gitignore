@@ -6,7 +6,6 @@ credentials_*.json
 *.bak
 env.bat
 substack_cookie.txt
-octus_session.json
 thirteen_d_session.json
 
 # Cache / state
@@ -26,10 +25,6 @@ __pycache__/
 # Virtual environment
 .venv/
 venv/
-
-# Debug files
-octus_debug*.png
-octus_debug*.html
 
 # Temp files
 wiltw_temp.pdf

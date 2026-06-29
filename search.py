@@ -338,31 +338,6 @@ def _chunks_for_date(date_str):
         except Exception:
             pass
 
-    # --- Octus articles ---
-    octus_file = day_dir / "octus_articles.json"
-    if octus_file.exists():
-        try:
-            articles = json.loads(octus_file.read_text(encoding="utf-8"))
-            for j, a in enumerate(articles):
-                title = a.get("title", "")
-                text = a.get("text", "")
-                company = a.get("company", "")
-                url = a.get("url", "")
-
-                full_text = f"{title}\n{company}\n\n{text}" if text else title
-                for i, chunk in enumerate(_chunk_text(full_text)):
-                    chunks.append((chunk, {
-                        "chunk_id": f"{date_str}_octus_{j:02d}_{i:04d}",
-                        "date": date_str,
-                        "source_type": "octus",
-                        "source_name": f"Octus: {company or title[:40]}",
-                        "source_file": str(octus_file.relative_to(SCRIPT_DIR)),
-                        "text": chunk,
-                        "url": url,
-                    }))
-        except Exception:
-            pass
-
     # --- Rating actions ---
     ratings_file = day_dir / "rating_actions.json"
     if ratings_file.exists():
@@ -433,35 +408,6 @@ def _chunks_for_date(date_str):
                         "text": chunk,
                         "url": url,
                     }))
-        except Exception:
-            pass
-
-    # --- Octus deals ---
-    deals_file = day_dir / "octus_deals.json"
-    if deals_file.exists():
-        try:
-            deals = json.loads(deals_file.read_text(encoding="utf-8"))
-            if deals:
-                # Index all deals as a single block (they're structured data, not long text)
-                deal_lines = []
-                for d in deals:
-                    parts = [d.get("entity", "")]
-                    for k in ("coupon", "yield", "price_talk", "rating", "bookrunners", "size"):
-                        v = d.get(k, "")
-                        if v and v != "-":
-                            parts.append(f"{k}: {v}")
-                    deal_lines.append(" | ".join(parts))
-                deal_text = "Primary Market Deals:\n" + "\n".join(deal_lines)
-
-                chunks.append((deal_text, {
-                    "chunk_id": f"{date_str}_deals_0000",
-                    "date": date_str,
-                    "source_type": "deals",
-                    "source_name": "Octus Primary Deal Tracker",
-                    "source_file": str(deals_file.relative_to(SCRIPT_DIR)),
-                    "text": deal_text,
-                    "url": "",
-                }))
         except Exception:
             pass
 

@@ -36,8 +36,6 @@ def archive_daily_content(
     news_articles=None,
     market_data=None,
     macro_data=None,
-    octus_articles=None,
-    octus_deals=None,
     rating_actions=None,
     pacer_entries=None,
     fund_results=None,
@@ -102,12 +100,6 @@ def archive_daily_content(
     # Save macro data
     _save_json(day_dir / "macro_data.json", macro_data or [])
 
-    # Save Octus articles
-    _save_json(day_dir / "octus_articles.json", octus_articles or [])
-
-    # Save Octus deals
-    _save_json(day_dir / "octus_deals.json", octus_deals or [])
-
     # Save rating actions
     _save_json(day_dir / "rating_actions.json", rating_actions or [])
 
@@ -132,8 +124,7 @@ def archive_daily_content(
 
     print(f"  Archived: {len(emails_clean)} emails, {pdf_count} PDFs, "
           f"{len(substack_articles or [])} substacks, {len(sec_filings or [])} filings, "
-          f"{len(news_articles or [])} news, {len(octus_articles or [])} octus, "
-          f"{len(rating_actions or [])} ratings, {len(octus_deals or [])} deals.")
+          f"{len(news_articles or [])} news, {len(rating_actions or [])} ratings.")
 
     return str(day_dir)
 
