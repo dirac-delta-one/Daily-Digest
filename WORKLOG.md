@@ -5,18 +5,70 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-06-19)
+## Current state (2026-06-30)
 
-All refactor work to date is **committed** and validated **without secrets**; the integrated
-pipeline has not yet run end-to-end. Commits in order: Phase 0 `1f400f6` → Phase 1 `f78ef45` →
-de-hardcoding `e7b9a6c` → Phase 2 `d9dfd50` → A1 `a04f892` → Phase 3 `004722b`. Offline state:
-`ruff` clean, all modules import/compile, free fetchers run, `pytest` 34 green. **Plus in-progress
-uncommitted work** (credential bring-up + a Gmail token-refresh fix, 36 tests) — see the entry below.
+**The system is LIVE-validated end-to-end on the bot identity.** All prior refactor work
+(Phase 0–3, de-hardcoding, A1, Gmail RefreshError hardening) is committed + offline-verified. Since
+then: the **email identity migrated to `acorn.research.bot@gmail.com`** (OAuth provisioned + verified),
+**Octus was removed**, the **$20 Anthropic key + a free FRED key** were installed, and the **first
+credentialed run of the whole stack succeeded**, all → acohen: `digest.py` **$1.52**,
+`reply_monitor.py --once` **$0.20**, `midday.py --force` **$0.01** (~$1.73 of $20). `ruff` clean,
+`pytest` 36 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entry below.
 
-**Everything doable + verifiable offline is done.** What's left is gated on secrets — see
-`HANDOFF.md` §11 (ordered test plan once secrets land) and §12 (path to "done"). Headline remaining:
-the first credentialed `digest.py` run (validates the whole stack), then the do-and-test items
-(A2, 3.1, 3.3, Group B cost A/B), then §7.2 deploy.
+**Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
+TRACE + Octus unreplaced, a `fed_balance_sheet` series-label bug found 2026-06-30), the
+`.bat`/`setup_tasks` scheduling test, the optional do-and-test code items (A2, 3.1, 3.3, Group B),
+and the **§7.2 server deploy** (= "done").
+
+---
+
+## Credentialed bring-up + first live end-to-end run (2026-06-30)
+
+First time the full pipeline ran with real secrets. **All Tier-C tests green; ~$1.73 spent of $20.**
+
+### Email identity → acorn.research.bot@gmail.com
+- Swapped `jaredtramontano@gmail.com` → the bot in `DIGEST_RECIPIENTS` (`digest.py`) and the reply
+  allow-list (`reply_monitor.py`); switched the SEC/PACER scraping User-Agent to the bot in
+  `sec_filings.py` / `pacer.py` / `trace_data.py` / `fund_tracking.py` (overrides the old §7.1.6
+  keep-jared decision).
+- **Bot Gmail OAuth provisioned + verified** — fresh Cloud project owned by the bot, Gmail API enabled,
+  bot added as a test user. `getProfile` confirms the authenticated account is the bot; its inbox
+  receives jared's forwarded research (KBW, STIFEL IG/HY, Barclays Distressed, Guggenheim, etc.).
+- `.gitignore` broadened to `credentials_*.json` / `token_*.json` / `*.bak` so the jared backup
+  (`credentials_JARED.json`) can't be committed.
+
+### Octus removed
+- Deleted `octus.py` + `octus_session.json`; stripped all wiring from `digest.py`, `archive.py`,
+  `search.py`; scrubbed docs. The live digest ran Octus-free with no hang (the stale Octus login would
+  otherwise have blocked an unattended run on its interactive re-login prompt — the same latent risk was
+  confirmed-absent for 13D via a headless session probe before the run).
+
+### First live run (all → acohen; key in env.bat)
+- `digest.py` (bounded for the first run: `MAX_EMAILS` 6 / `MAX_PDF_SIZE_MB` 2, both reverted after) →
+  **$1.52**: 6 emails, 7 Substack, 5 SEC filings, 144 WSJ/FT (ranked to 15), 4 ratings, 13D WILTW
+  (4.7MB PDF → Opus summary **$0.65 = the cost driver**), 2-pass Opus $0.60, alerts (0 triggered),
+  memory (18 stories), PACER Sonnet size-filter. Email rendered correctly; `archive/2026-06-30/` +
+  FAISS (629 chunks) + `memory.json` all written. The SSL-retry on send fired once and recovered.
+- `reply_monitor.py --once` → **$0.20**: answered acohen's "state of private credit H1 2026" question
+  with a detailed, well-sourced RAG answer (top-10 funds table, contrarian framing, adjacent
+  FSK/FT/Bloomberg points) — **retrieval quality confirmed high**. Threaded back to acohen.
+- `midday.py --force` → **$0.01**: Sonnet materiality check returned NO_ALERT (correct — nothing
+  material since the 10:39 morning cutoff); `--force` sent it anyway. Confirms the path works AND that
+  unforced middays correctly stay silent.
+- Key + the 3 model IDs (`claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001`)
+  smoke-tested OK before the run.
+
+### FRED provisioned + tested
+- `FRED_API_KEY` added to `env.bat`. `macro_data.py` → 12 series ✅ (HY/IG OAS, 2Y/10Y + derived 2s10s,
+  breakevens, jobless claims, CPI, dollar, fed funds, SOFR). `fed_balance_sheet.py` → 6 series ✅.
+- **Finding + fix (data bug):** `fed_balance_sheet.py` series were mislabeled by magnitude — "Discount
+  Window" (`WDTGAL`) read **$901.8B** and "Treasury Holdings" (`WTREGEN`) read $0.92T, but both IDs are
+  the Treasury General Account. Verified against the FRED API and **fixed same day**: Treasury Holdings
+  → `WSHOTSL` (SOMA UST ~$4.49T), Discount Window → `WLCFLPCL` (primary credit ~$7.9B); also fixed an
+  ON RRP **units bug** (`RRPONTSYD` is in billions → added a per-series ×1000 scale; was showing $4M vs
+  ~$3.5B). Re-ran clean (ruff + compile + sane values). **Also retuned `check_fed_stress`** (the old
+  $5B level always tripped against the mislabeled TGA) → $25B absolute + $10B WoW-surge; now silent at
+  the ~$8B baseline. Detail in HANDOFF §13.
 
 ---
 

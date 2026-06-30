@@ -39,7 +39,18 @@ Offline-verified: `ruff` clean, every module imports/compiles, free fetchers run
 **Everything doable + verifiable without secrets is done.** What remains is gated on secrets — the
 deferred runtime checks are consolidated in **§11**, and the ordered path to "done" is in **§12**.
 
-**Update (2026-06-29) — newest:**
+**Update (2026-06-30) — newest:**
+- **System is LIVE-validated end-to-end.** First credentialed run of the whole stack succeeded, all
+  → acohen: `digest.py` **$1.52** (sent, rendered, archived, 629-chunk FAISS index, `memory.json`
+  updated), `reply_monitor.py --once` **$0.20** (high-quality RAG answer, threaded back),
+  `midday.py --force` **$0.01** (Sonnet → NO_ALERT, correct). ~$1.73 of the $20 spent. This clears the
+  §11 backlog steps 0–3; full detail in WORKLOG (2026-06-30).
+- **FRED provisioned + tested** — `FRED_API_KEY` in `env.bat`; `macro_data.py` (12 series) and
+  `fed_balance_sheet.py` (6 series) now active. ⚠️ **But** the Fed-balance-sheet series labels are wrong
+  by magnitude (see §13 "Data bugs") — needs a series-ID audit before that section is trusted.
+- **Octus removal validated live** (the digest ran Octus-free, no hang).
+
+**Update (2026-06-29):**
 - **Email identity → `acorn.research.bot@gmail.com`.** The recipient/allow-list personal-gmail and the
   SEC/PACER scraping User-Agent now point at the bot; the bot's Gmail OAuth is provisioned and verified
   (it reads its own inbox — jared forwards research in — and sends/replies as the bot). See §7 item 8.
@@ -523,6 +534,11 @@ once a live run exercises them. The natural catch-all is the single permissioned
 `digest.py` run (drives `digest`, `substack`, `octus`, `pacer`, `thirteen_d` in one shot), plus
 separate `midday.py` and `reply_monitor.py` runs.
 
+**✅ EXECUTED 2026-06-30 (see WORKLOG).** Steps 0–3 + 5 below are DONE and green — the credentialed
+`digest.py` / `reply_monitor.py --once` / `midday.py --force` runs all passed → acohen, and the FRED
+sources are live. **Step 4 remains** (the `.bat` wrappers + `setup_tasks.bat`), to be done with the
+§7.2 deploy. Original plan retained below for reference.
+
 **Once secrets land — ordered test plan (one pass validates the whole committed stack):**
 
 0. **Provision** (§7.1.4–5): create `env.bat` with `ANTHROPIC_API_KEY` (+ optional `FRED_API_KEY`,
@@ -654,3 +670,56 @@ The remaining work is gated on secrets. In order:
    headless, runs whether or not anyone is logged in, machine-level env vars, headless
    Playwright/Chromium, log rotation + failure alerting, correct TZ, and backups of `archive/` +
    `memory.json` + the FAISS index.
+
+---
+
+## 13. Open source-coverage gaps (flagged 2026-06-30)
+
+Flagged after the **first live credentialed digest run succeeded** ($1.52, sent to acohen from the bot;
+all sources flowed, Octus-free). Each item below is a real gap in what the digest currently captures.
+
+### Missing secrets (fixable)
+- [x] **`FRED_API_KEY` provisioned + tested 2026-06-30** → the **Macro Dashboard** (12 series: HY/IG
+  OAS, 2Y/10Y + derived 2s10s, breakevens, jobless claims, CPI, SOFR, dollar) and the **Fed Balance
+  Sheet (H.4.1)** (6 series) are now active. ⚠️ See the `fed_balance_sheet` series-label bug under
+  "Data bugs" below — audit before trusting that section.
+- [ ] **`SUBSTACK_EMAIL` blank** → Substack runs on the saved cookie today, but **auto-renewal will fail
+  when the cookie expires** (the magic link is delivered to the account that owns the subs — jared's —
+  not the bot). Decide the Substack ownership/renewal path before the cookie dies, or Substack silently
+  goes empty.
+
+### Data bugs
+- [x] **`fed_balance_sheet.py` mislabeled FRED series — FIXED 2026-06-30** (verified against the FRED
+  API). Corrected `BALANCE_SHEET_SERIES`: "Treasury Holdings" `WTREGEN` → **`WSHOTSL`** (SOMA U.S.
+  Treasuries, ~$4.49T); "Discount Window" `WDTGAL` → **`WLCFLPCL`** (primary credit, ~$7.9B) — both old
+  IDs were actually the Treasury General Account (~$900B). Also fixed an **ON RRP units bug**:
+  `RRPONTSYD` is published in *billions*, so the map now carries a per-series scale (×1000) to keep the
+  table in millions (was showing $4M instead of ~$3.5B). Re-ran clean: Total $6.74T / USTs $4.49T /
+  MBS $1.96T / Discount Window $7.9B / ON RRP $3.5B / Repos $4M. Also **retuned `check_fed_stress`** the
+  same day: the old $5B level (calibrated against the mislabeled $900B TGA, so it always tripped) →
+  **$25B absolute + $10B WoW-surge** thresholds (`DISCOUNT_WINDOW_ALERT_MM` / `DISCOUNT_WINDOW_SURGE_MM`),
+  sized to genuine primary-credit stress (SVB-era spiked ~$150B); now silent at the ~$8B baseline. (That
+  path is still unused by the digest.)
+
+### Forwarding completeness (verify with jared)
+The inbox layer = whatever jared forwards to `acorn.research.bot@gmail.com`. The first run's window had
+6 broker HTML notes, **0 PDFs, no Bloomberg**. Confirm the full set is forwarding:
+- [ ] **Research PDFs** — the digest sends PDF attachments straight to Opus (a marquee feature). Confirm
+  PDF-bearing research is forwarded **and the attachments survive forwarding** (some forwards drop/inline them).
+- [ ] **Bloomberg emails** (`bloomberg.net`) — the digest has a dedicated §7 Bloomberg section; none seen yet.
+- [ ] **Non-Substack newsletters** (Grant's, Greenmantle, etc. — cited in the SYSTEM_PROMPT) — only appear if forwarded.
+
+### Genuinely unreplaced sources (no current substitute)
+- [ ] **Octus — HY new-issue Primary Deal Tracker** (removed 2026-06-29). **No free replacement** for the
+  primary/new-issue leveraged-finance pipeline (entity / yield ≥ 8% / price talk / rating / bookrunners).
+  TRACE is secondary-market; SEC S-1/424B lack the HY pricing color. Would need a different paid feed or a
+  custom scraper. *(Octus Intelligence — the distressed/restructuring news — is ~partly covered by
+  PACER + ratings + the credit Substacks.)*
+- [ ] **FINRA TRACE bond data — effectively broken** (pre-existing, NOT caused by the Octus removal).
+  `trace_data.py` returns 0 with "non-JSON response (may need API registration)"; the public
+  Morningstar/FINRA endpoint isn't usable as written, so watchlist secondary bond-trade data is absent.
+  Needs FINRA TRACE API registration or a different data source.
+
+### Latent maintenance (works now, will need a human later)
+- [ ] **13D session** + **Substack cookie** will expire and need a manual re-login (13D's is interactive).
+- [ ] **polymathinvestor.com** Substack returns 403 (lapsed/blocked sub) — contributing nothing; degrades gracefully.

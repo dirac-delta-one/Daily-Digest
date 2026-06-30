@@ -10,19 +10,26 @@ import datetime
 
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
-# Series to track — verified against FRED
-# Values in millions of dollars
+# series_id -> (label, scale_to_millions). Most H.4.1 series are in millions of $;
+# RRPONTSYD (ON RRP) is published in BILLIONS, so it's scaled x1000 to keep the table
+# consistent. IDs corrected 2026-06-30: WDTGAL/WTREGEN were the Treasury General Account
+# (a liability, ~$900B), NOT the discount window / SOMA Treasury holdings — see HANDOFF §13.
 BALANCE_SHEET_SERIES = {
-    "WALCL":       "Total Assets",
-    "WDTGAL":      "Discount Window",
-    "WTREGEN":     "Treasury Holdings",
-    "WSHOMCB":     "MBS Holdings",
-    "RRPONTSYD":   "ON RRP",
-    "WORAL":       "Repos",
+    "WALCL":     ("Total Assets", 1),
+    "WSHOTSL":   ("Treasury Holdings", 1),    # SOMA U.S. Treasury securities held outright
+    "WSHOMCB":   ("MBS Holdings", 1),
+    "WLCFLPCL":  ("Discount Window", 1),       # primary credit (the actual discount window)
+    "RRPONTSYD": ("ON RRP", 1000),             # published in billions -> x1000 to millions
+    "WORAL":     ("Repos", 1),
 }
 
-# Threshold for stress alert (in millions)
-DISCOUNT_WINDOW_ALERT_MM = 5000  # $5B
+# Discount-window (primary credit) stress thresholds, in $millions. Primary credit runs a
+# low-single-digit-$B baseline (~$8B in current data); genuine stress is far larger — the SVB
+# episode (Mar 2023) spiked primary credit to ~$150B. So flag either an elevated ABSOLUTE level
+# or a sharp week-over-week SURGE. (Retuned 2026-06-30 after the series-ID fix; the old $5B level
+# was calibrated against the mislabeled TGA series and always tripped.)
+DISCOUNT_WINDOW_ALERT_MM = 25000     # $25B absolute level
+DISCOUNT_WINDOW_SURGE_MM = 10000     # $10B week-over-week jump
 
 
 def fetch_fed_balance_sheet():
@@ -43,7 +50,7 @@ def fetch_fed_balance_sheet():
 
     results = []
 
-    for series_id, label in BALANCE_SHEET_SERIES.items():
+    for series_id, (label, scale) in BALANCE_SHEET_SERIES.items():
         try:
             data = fred.get_series(series_id, observation_start=start)
             data = data.dropna()
@@ -51,10 +58,10 @@ def fetch_fed_balance_sheet():
             if len(data) < 1:
                 continue
 
-            current = float(data.iloc[-1])
+            current = float(data.iloc[-1]) * scale
             current_date = str(data.index[-1].date())
 
-            prior = float(data.iloc[-2]) if len(data) >= 2 else None
+            prior = (float(data.iloc[-2]) * scale) if len(data) >= 2 else None
             wow_change = (current - prior) if prior is not None else None
 
             # 4-week ago
@@ -62,7 +69,7 @@ def fetch_fed_balance_sheet():
             target = datetime.date.today() - datetime.timedelta(days=28)
             for i in range(len(data) - 1, -1, -1):
                 if data.index[i].date() <= target:
-                    four_wk = float(data.iloc[i])
+                    four_wk = float(data.iloc[i]) * scale
                     break
             mom_change = (current - four_wk) if four_wk is not None else None
 
@@ -92,7 +99,7 @@ def check_fed_stress(results):
                     f"Discount window at ${r['value_mm']/1000:.1f}B "
                     f"(threshold: ${DISCOUNT_WINDOW_ALERT_MM/1000:.0f}B)"
                 )
-            if r["wow_change"] is not None and r["wow_change"] > 2000:
+            if r["wow_change"] is not None and r["wow_change"] > DISCOUNT_WINDOW_SURGE_MM:
                 signals.append(
                     f"Discount window surged +${r['wow_change']/1000:.1f}B week-over-week"
                 )
