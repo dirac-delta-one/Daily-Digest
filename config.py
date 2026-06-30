@@ -7,11 +7,16 @@ helpers. Centralizes values that were previously hardcoded across modules.
 import html
 
 # --- Claude models ---
-# Keep Opus at 4.6 for now; upgradeable to claude-opus-4-8 (same API surface,
-# same $5/$25 pricing) when ready.
-OPUS_MODEL = "claude-opus-4-6"
+# Opus upgraded 4.6 -> 4.8 (same API surface, same $5/$25 pricing).
+OPUS_MODEL = "claude-opus-4-8"
 SONNET_MODEL = "claude-sonnet-4-6"
-HAIKU_MODEL = "claude-haiku-4-5"
+HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+# --- Scraper contact ---
+# Courtesy contact in the User-Agent for the public SEC EDGAR / PACER / FINRA
+# scrapers (fair-access etiquette, not a credential). Used by sec_filings.py,
+# pacer.py, trace_data.py, fund_tracking.py.
+USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 
 # --- Pricing ($ per million tokens) ---
 OPUS_PRICE_IN = 5.0

@@ -25,7 +25,7 @@ import anthropic
 from digest import get_gmail_service, DIGEST_RECIPIENTS
 
 from search import search
-from config import OPUS_MODEL
+from config import OPUS_MODEL, SONNET_MODEL
 from claude_utils import parse_json_response
 import cost
 from html_utils import extract_gmail_body, strip_html
@@ -43,8 +43,6 @@ DIGEST_SUBJECT_PREFIX = "\U0001f4ec Daily Inbox Digest"
 
 # Queries processed this hour (for rate limiting)
 _replies_this_hour = []
-
-SCRIPT_DIR = Path(__file__).parent
 
 
 # ======================================================================
@@ -239,7 +237,7 @@ def _extract_search_queries(reply_text):
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=SONNET_MODEL,
             max_tokens=500,
             system=(
                 "Extract the questions or information requests from this email reply. "
@@ -252,7 +250,7 @@ def _extract_search_queries(reply_text):
             messages=[{"role": "user", "content": reply_text}],
         )
 
-        cost.record("reply query-extract", "claude-sonnet-4-6", response.usage)
+        cost.record("reply query-extract", SONNET_MODEL, response.usage)
         queries = parse_json_response(response.content[0].text)
         if isinstance(queries, list) and queries:
             print(f"  Extracted {len(queries)} search queries from reply")
@@ -381,7 +379,7 @@ def answer_question(question, digest_date=None):
         system=(
             "You are a research assistant for a credit/distressed investment analyst. "
             "You have access to an archive of investment research — PDFs, newsletters, "
-            "SEC filings, Substack articles, Octus intelligence, and daily digests.\n\n"
+            "SEC filings, Substack articles, and daily digests.\n\n"
             "RULES:\n"
             "- Answer using the provided source material. Extract every relevant detail — "
             "numbers, prices, yields, spreads, leverage ratios, dates, names.\n"

@@ -94,7 +94,7 @@ Edit the top of `digest.py`:
 - `MAX_PDF_SIZE_MB` — skip PDFs larger than this (default: 5MB)
 
 Edit the top of `substack.py`:
-- `MAX_ARTICLES` — max Substack articles per run (default: 15)
+- `MAX_ARTICLES_PER_PUB` — max Substack articles per publication per run (default: 3)
 - `MAX_ARTICLE_CHARS` — truncate long articles (default: 8000 chars)
 
 ## Files

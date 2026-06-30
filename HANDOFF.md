@@ -106,9 +106,11 @@ deploy to the dedicated Windows server — see §7.2. Stage 3 is the definition 
 
 ## 2. Key constraints
 
-- **Keep the model at `claude-opus-4-6`** for now; mark it as upgradeable (current latest is
-  `claude-opus-4-8`, same API surface, $5/$25 vs 4.6's same $5/$25). Sonnet (`claude-sonnet-4-6`)
-  and Haiku (`claude-haiku-4-5`) usages are already current.
+- **Opus is now `claude-opus-4-8`** (upgraded from 4.6 on operator's instruction — same API
+  surface, same $5/$25 pricing). All model IDs are centralized in `config.py`
+  (`OPUS_MODEL` / `SONNET_MODEL` / `HAIKU_MODEL`); every Claude call site imports them, so a future
+  model bump is a one-line change in `config.py`. Sonnet (`claude-sonnet-4-6`) and Haiku
+  (`claude-haiku-4-5-20251001`) are current.
 - **This is a working single-operator tool.** Explicitness and tuned heuristics have real value;
   prefer small, reversible changes over architecture-level refactors.
 - **Test between every phase.** Route all test output **locally or to `acohen@acorninv.com`** —
@@ -518,7 +520,8 @@ Only then decide to gate them behind a fragmentation heuristic and/or switch PyP
   `build_ratings_html`; `_is_recent` true-on-unparseable; reply-monitor daemon; FAISS index type;
   **2.1 prompt caching (dropped 2026-06-19 — counterproductive as specced; the cache-correct version
   would change output / touch §6)**.
-- **Constraint:** keep Opus 4.6 (mark upgradeable); test to `acohen@acorninv.com`; ask permission
+- **Constraint:** Opus is `claude-opus-4-8` (upgraded from 4.6); model IDs centralized in
+  `config.py`; test to `acohen@acorninv.com`; ask permission
   before any **Claude** call (the only pay-per-query cost — Octus/Substack/13D are flat subscriptions,
   free to test; see the §2 cost tiers); don't loop LLM calls.
 - **End state ("done"):** running unattended 24/7 on a dedicated always-on Windows server, not

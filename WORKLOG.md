@@ -22,6 +22,36 @@ and the **§7.2 server deploy** (= "done").
 
 ---
 
+## General code cleanup + Opus 4.8 upgrade (2026-06-30)
+
+Offline-only pass (no Claude calls), all verified: `ruff` clean, `pytest` **36 green**, all touched
+modules import, constants resolve, `python market_data.py` runs (free Yahoo).
+
+- **Opus 4.6 → 4.8** (operator-directed; same API surface + $5/$25 pricing). One-line change in
+  `config.py` (`OPUS_MODEL`), which the 5 importing modules pick up automatically. HANDOFF §2/§10
+  "keep 4.6" constraint updated.
+- **Model-ID consolidation** — Phase 1.1 had only centralized Opus; Sonnet/Haiku were still scattered
+  string literals while `config.SONNET_MODEL`/`HAIKU_MODEL` sat unused. Routed every call through
+  config: `midday.py` (dropped its own local `SONNET_MODEL`), `pacer.py`, `reply_monitor.py` →
+  `config.SONNET_MODEL`; `digest.py` (×2) → `config.HAIKU_MODEL`. **Behavior-neutral:** set
+  `config.HAIKU_MODEL` to the exact dated snapshot already in use (`claude-haiku-4-5-20251001`), so
+  the string is unchanged.
+- **Shared scraper User-Agent** — the duplicated `"DailyDigest/1.0 (acorn.research.bot@gmail.com)"`
+  contact (sec_filings / pacer / trace_data / fund_tracking) is now one `config.USER_AGENT` constant.
+- **Dead code removed** — `market_data.py`'s write-only cache (`_load_cache` was defined but never
+  called after Phase 0.2 removed its reader; nothing consumed `market_data_cache.json`): deleted the
+  cache functions, the cache-build block, the now-unused `json`/`datetime`/`Path` imports, the
+  `.gitignore` entry, and the stale on-disk file. Removed unused `SCRIPT_DIR` from `reply_monitor.py`.
+- **Stale text** — dropped the "Octus intelligence" mention from `reply_monitor.py`'s RAG system
+  prompt (Octus was removed); fixed README's Substack config (`MAX_ARTICLES` →
+  `MAX_ARTICLES_PER_PUB`, default 3).
+- **Intentionally NOT done** (low value / deliberate divergence): folding `fed_research`'s date
+  helpers into `feeds.py` (HANDOFF 2.3 keeps it separate), merging the EDGAR `_make_request` /
+  `_SSL_CTX` / `news._clean_html` near-dupes, and the `alerts_config.json` Fed `$5B` threshold (a
+  behavior/decision item, not cleanup).
+
+---
+
 ## Credentialed bring-up + first live end-to-end run (2026-06-30)
 
 First time the full pipeline ran with real secrets. **All Tier-C tests green; ~$1.73 spent of $20.**

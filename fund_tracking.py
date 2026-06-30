@@ -13,10 +13,10 @@ import urllib.error
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from config import USER_AGENT as EDGAR_USER_AGENT
+
 SCRIPT_DIR = Path(__file__).parent
 CACHE_DIR = SCRIPT_DIR / "archive" / "13f_cache"
-
-EDGAR_USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 
 # Days to look back for new filings (check weekly for quarterly filings)
 DAYS_LOOKBACK = 7

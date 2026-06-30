@@ -19,14 +19,12 @@ from pathlib import Path
 
 import anthropic
 
-from config import esc, safe_href
+from config import esc, safe_href, SONNET_MODEL, USER_AGENT
 from claude_utils import parse_json_response
 import cost
 
 SCRIPT_DIR = Path(__file__).parent
 SEEN_FILE = SCRIPT_DIR / "pacer_seen.json"
-
-USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 
 # ======================================================================
 # DISCOVERY — Monitor courts for new Chapter 11 filings
@@ -299,7 +297,7 @@ def _filter_by_size(filings):
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=SONNET_MODEL,
             max_tokens=1000,
             system=(
                 "You are filtering Chapter 11 bankruptcy filings for a distressed credit investor. "
@@ -327,7 +325,7 @@ def _filter_by_size(filings):
         tokens_out = response.usage.output_tokens
         print(f"  Size filter: kept {len(kept)}/{len(filings)} "
               f"({tokens_in:,} in + {tokens_out:,} out)")
-        cost.record("pacer size filter", "claude-sonnet-4-6", response.usage)
+        cost.record("pacer size filter", SONNET_MODEL, response.usage)
 
         return kept
 

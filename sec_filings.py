@@ -15,6 +15,7 @@ import urllib.request
 import urllib.error
 import html as html_module
 from html_utils import HTMLStripper
+from config import USER_AGENT as EDGAR_USER_AGENT
 
 # --- Configuration ---
 HOURS_LOOKBACK = 24
@@ -23,8 +24,8 @@ HOURS_LOOKBACK = 24
 CONTENT_CHARS_8K = 5000     # 8-Ks are the most important — grab more
 CONTENT_CHARS_DEFAULT = 3000  # everything else
 
-# Your contact info (SEC requires this in the User-Agent header)
-EDGAR_USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
+# EDGAR_USER_AGENT (SEC requires a contact in the User-Agent) is imported from
+# config above as the shared scraper contact.
 
 # ======================================================================
 # LIST YOUR TICKERS TO MONITOR HERE

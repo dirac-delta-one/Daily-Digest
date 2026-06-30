@@ -23,7 +23,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from config import OPUS_MODEL, OPUS_PRICE_IN, OPUS_PRICE_OUT, esc, safe_href
+from config import OPUS_MODEL, HAIKU_MODEL, OPUS_PRICE_IN, OPUS_PRICE_OUT, esc, safe_href
 from claude_utils import parse_json_response
 import cost
 from html_utils import extract_gmail_body
@@ -625,7 +625,7 @@ def _rank_news_articles(articles, max_articles=8):
 
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=HAIKU_MODEL,
             max_tokens=500,
             system=(
                 "You are selecting the 5-8 most relevant news articles for a "
@@ -656,7 +656,7 @@ def _rank_news_articles(articles, max_articles=8):
         tokens_out = response.usage.output_tokens
         print(f"  Ranked: kept {len(ranked)}/{len(articles)} articles "
               f"({tokens_in:,} in + {tokens_out:,} out)")
-        cost.record("news ranking", "claude-haiku-4-5-20251001", response.usage)
+        cost.record("news ranking", HAIKU_MODEL, response.usage)
 
         return ranked if ranked else articles[:max_articles]
 

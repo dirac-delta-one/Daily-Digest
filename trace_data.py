@@ -11,10 +11,10 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
+from config import USER_AGENT
+
 SCRIPT_DIR = Path(__file__).parent
 CACHE_FILE = SCRIPT_DIR / "trace_cache.json"
-
-USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 
 # Map issuer tickers to their common bond identifiers
 # Add CUSIPs or issuer names as needed

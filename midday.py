@@ -18,6 +18,7 @@ from pathlib import Path
 
 import anthropic
 
+from config import SONNET_MODEL
 from digest import get_gmail_service, DIGEST_RECIPIENTS
 from news import fetch_wsj_ft_articles
 from sec_filings import fetch_recent_filings
@@ -26,8 +27,6 @@ import cost
 
 SCRIPT_DIR = Path(__file__).parent
 ARCHIVE_DIR = SCRIPT_DIR / "archive"
-
-SONNET_MODEL = "claude-sonnet-4-6"
 
 MATERIALITY_PROMPT = """\
 You are evaluating whether any of the following new content warrants an
