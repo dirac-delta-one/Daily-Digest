@@ -304,13 +304,17 @@ Follow this template exactly. Same fonts, same sizes, same spacing every single 
 """
 
 
-def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
+def _build_source_prompt(*, emails, substack_articles, sec_filings, market_data,
                          macro_data, memory_context, earnings, trace_data, pacer_entries,
                          rating_actions=None, fund_results=None,
                          wiltw=None,
                          research_articles=None, treasury_auctions=None,
                          cot_data=None, fed_bs=None, bank_failures=None):
-    """Build the full source material text for the Opus prompt."""
+    """Build the full source material text for the Opus prompt.
+
+    Keyword-only (Phase 3.1): with 17 same-typed source arguments, positional
+    calls were a misroute footgun — `*` forces every caller to name each source.
+    """
     # Email metadata
     email_lines = []
     for i, e in enumerate(emails):
@@ -466,14 +470,17 @@ def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
     return prompt
 
 
-def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
+def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           market_data=None, macro_data=None, earnings=None,
                           trace_data=None, pacer_entries=None,
                           rating_actions=None, fund_results=None,
                           wiltw=None,
                           research_articles=None, treasury_auctions=None,
                           cot_data=None, fed_bs=None, bank_failures=None):
-    """Send all sources to Claude for digest generation (2-pass)."""
+    """Send all sources to Claude for digest generation (2-pass).
+
+    Keyword-only (Phase 3.1) — see `_build_source_prompt` for the rationale.
+    """
     client = anthropic.Anthropic()
     substack_articles = substack_articles or []
     sec_filings = sec_filings or []
@@ -495,11 +502,23 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
 
     # Build full source prompt
     prompt = _build_source_prompt(
-        emails, substack_articles, sec_filings,
-        market_data, macro_data, memory_context,
-        earnings, trace_data, pacer_entries,
-        rating_actions, fund_results, wiltw,
-        research_articles, treasury_auctions, cot_data, fed_bs, bank_failures,
+        emails=emails,
+        substack_articles=substack_articles,
+        sec_filings=sec_filings,
+        market_data=market_data,
+        macro_data=macro_data,
+        memory_context=memory_context,
+        earnings=earnings,
+        trace_data=trace_data,
+        pacer_entries=pacer_entries,
+        rating_actions=rating_actions,
+        fund_results=fund_results,
+        wiltw=wiltw,
+        research_articles=research_articles,
+        treasury_auctions=treasury_auctions,
+        cot_data=cot_data,
+        fed_bs=fed_bs,
+        bank_failures=bank_failures,
     )
 
     # Build the content array for Claude's messages API
@@ -1026,11 +1045,22 @@ def main():
     print(f"Summarizing with Claude ({source_count})...")
 
     digest_html, source_text = summarize_with_claude(
-        emails, substack_articles, sec_filings,
-        market_data, macro_data, earnings,
-        trace_data, pacer_entries,
-        rating_actions, fund_results, wiltw,
-        research_articles, treasury_auctions, cot_data, fed_bs, bank_failures,
+        emails=emails,
+        substack_articles=substack_articles,
+        sec_filings=sec_filings,
+        market_data=market_data,
+        macro_data=macro_data,
+        earnings=earnings,
+        trace_data=trace_data,
+        pacer_entries=pacer_entries,
+        rating_actions=rating_actions,
+        fund_results=fund_results,
+        wiltw=wiltw,
+        research_articles=research_articles,
+        treasury_auctions=treasury_auctions,
+        cot_data=cot_data,
+        fed_bs=fed_bs,
+        bank_failures=bank_failures,
     )
 
     # --- Custom Alerts ---

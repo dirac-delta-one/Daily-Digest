@@ -63,39 +63,34 @@ deferred runtime checks are consolidated in **§11**, and the ordered path to "d
   (`build_ratings_html`, currently disabled — §6) could be re-enabled; left off pending a decision.
 - **Anthropic key** ($20 credit) is in `env.bat` — the first credentialed run is unblocked.
 
-**Right now (2026-06-21) — resuming in a new conversation:**
-
-*Uncommitted in the working tree* (commit these for a clean start — `digest.py`,
-`tests/test_gmail_auth.py`, `HANDOFF.md`, `WORKLOG.md`): a **`get_gmail_service` hardening**
-(`digest.py` now catches `RefreshError` → re-consents instead of crashing; new
-`tests/test_gmail_auth.py`; suite is **36** green) plus the credential notes added to this file and
-`WORKLOG.md`.
-
-*Credentials on the dev machine* (only Claude calls need the Anthropic key — Gmail + scrapers are key-free):
-- ✅ `credentials.json`; `substack_cookie.txt` (validated — `python substack.py` fetched articles);
-  `thirteen_d_session.json` (healthy; live probe not yet run); `env.bat` created
-  (`DIGEST_TO=acohen`, `PYTHONUTF8=1`, `ANTHROPIC_API_KEY` **blank**).
-- ❌ `token.json` is **dead** — the copied refresh token is rejected (`invalid_grant`); needs a fresh
-  OAuth consent **as jared** (the digest reads jared's inbox as a source). See §11 step 0.
-- ⚠️ `octus_session.json` is **stale** (5/7 cookies expired) and **blocked** — refreshing needs jared's
-  Octus login, which acohen doesn't have.
-
-*The one blocker for a first run:* the **Anthropic API key**. acohen is requesting **$25 of API credit**
-from IT (key pending — acohen can't use jared's key; a single dollar balance covers all models).
-
-*Immediate next steps when resuming:*
-1. Paste the new key into `env.bat` (`set ANTHROPIC_API_KEY=...`).
-2. Fresh Gmail consent — `Rename-Item token.json token.json.bak`, then run the OAuth flow as jared:
-   `.venv\Scripts\python.exe -c "from digest import get_gmail_service; get_gmail_service()"`.
-3. First **small permissioned** run — `digest.py --email_time=2`, recipient acohen, **ask before any
-   Claude call** — and read the exact spend off the A1 cost summary before anything larger. Then
-   follow the §11 ordered test plan.
+**Credential bring-up — COMPLETE (2026-06-30).** The 2026-06-21 blockers below are all resolved;
+this block is retained only as a record of how the bring-up landed:
+- The `get_gmail_service` RefreshError hardening + `tests/test_gmail_auth.py` are **committed**
+  (`1b714e1`); suite is **36** green.
+- **All secret files are present and working** on the dev machine: `credentials.json`; `token.json`
+  (re-provisioned as the bot `acorn.research.bot@gmail.com` and OAuth-verified — the dead copied
+  refresh token that returned `invalid_grant` on 2026-06-21 has been replaced); `substack_cookie.txt`
+  (validated); `thirteen_d_session.json` (healthy, exercised in the live run); and `env.bat`
+  (`ANTHROPIC_API_KEY` = the $20 key, `FRED_API_KEY`, `DIGEST_TO=acohen`, `PYTHONUTF8=1`).
+  `octus_session.json` is **gone** (Octus removed 2026-06-29).
+- The Anthropic-key blocker is **cleared**, and the first small permissioned run plus the §11 ordered
+  test plan (steps 0–3 and 5) have **executed green** (see the 2026-06-30 update above). **Step 4**
+  (the `.bat` / `setup_tasks.bat` scheduling test) is the only §11 item left, deferred to the §7.2
+  server deploy.
 
 **End goal:** Stop depending on jared's personal computer. Migrate to a **dedicated, always-on
 standalone Windows machine acting as a server** that runs the digest, midday alert, and reply
-monitor unattended 24/7. The work happens in three stages: (1) get it running on the current dev
-machine (`KimCohen`) for refactoring/testing — see §7; (2) apply the Phase 0–3 improvements; (3)
-deploy to the dedicated Windows server — see §7.2. Stage 3 is the definition of "done."
+monitor unattended 24/7. The work happens in three stages:
+1. **Get it running on the current dev machine (`KimCohen`)** for refactoring/testing — ✅ **DONE**
+   (§7.1; secrets installed, first live end-to-end run green 2026-06-30).
+2. **Apply the Phase 0–3 improvements** — ✅ **DONE and committed**: Phase 0 cleanup, Phase 1
+   correctness/escaping, Phase 2 quality/cost, Phase 3.2/3.4, **3.1** (digest-core keyword-only
+   refactor), the §7.1 de-hardcoding, A1 cost accounting, the Gmail hardening, and the **Opus 4.8
+   upgrade + model/User-Agent centralization + dead-code cleanup**. The optional *do-and-test* items
+   remain, each gated on one permissioned run: **A2** structured outputs, **3.3** PDF-extraction
+   review, **3.5** (conditional), and the **Group B** Opus→Sonnet cost A/B (§11/§12).
+3. **Deploy to the dedicated Windows server** — ⬜ **the remaining work** (§7.2), and the definition
+   of "done."
 
 **Module convention:** nearly every source module exposes `fetch_X()` (gather),
 `format_X_for_prompt()` (text for the Opus prompt), and `build_X_html()` (pre-rendered HTML section).
@@ -439,20 +434,8 @@ confirm the assembled email still renders.
 ### Phase 2 — Medium-complexity quality / cost (each independent)
 
 > **Status (committed `d9dfd50`):** 2.2 / 2.3 / 2.4 ✅ done + offline-tested (see `WORKLOG.md`).
-> **2.1 NOT done** — verified counterproductive as specced. Prompt caching is a strict prefix match
-> over `tools → system → messages`; pass 1 and pass 2 use *different* `system` prompts (and pass 2
-> puts the shared content after a review block), so they share no cacheable prefix → 0 cache reads
-> plus a wasted ~1.25× cache-write on pass 1 = **net cost increase**. Making it cache needs an
-> identical system + shared-content-first restructure that changes pass 2 and touches the §6
-> load-bearing `SYSTEM_PROMPT`. **Decision (2026-06-19): 2.1 dropped.** Phase 2 is complete with
-> 2.2 / 2.3 / 2.4.
-
-2.1 **Prompt caching across passes** — `digest.py:summarize_with_claude`. Pass 1 and pass 2 send the
-same `content` (text + PDFs); add `cache_control: {"type":"ephemeral"}` to the last shared content
-block so pass 2 reads the prefix from cache. Output is unchanged (caching only affects cost/latency).
-Keep the shared content as a byte-identical suffix in both calls.
-*Verify (permission required):* one digest run; assert `response.usage.cache_read_input_tokens > 0`
-on pass 2. Recipient = `acohen@acorninv.com`.
+> **2.1 (prompt caching) dropped** — counterproductive as specced; rationale moved to §14.E. Phase 2
+> is complete with 2.2 / 2.3 / 2.4.
 
 2.2 **JSON-fence parse helper** — the strip-```json-fences + `json.loads` block is copied in
 `digest.py`, `octus.py`, `alerts.py`, `memory.py`, `pacer.py`, `reply_monitor.py`. Extract one
@@ -468,45 +451,31 @@ to structured outputs `output_config.format` to drop fence-stripping entirely.)
 module-level lazy singleton so the long-running `reply_monitor` loads it once per process.
 *Verify:* `python search.py "<query>"` returns same results; model loads once.
 
-**Test Phase 2:** offline tests for 2.2/2.3/2.4; 2.1 needs one permissioned digest run.
+**Test Phase 2:** offline tests for 2.2/2.3/2.4.
 
 ### Phase 3 — Larger / conditional (do only if justified; tests recommended first)
 
-> **Status (committed `004722b`):** 3.4 ✅ done — `tests/` + `pytest` (`requirements-dev.txt`).
-> 3.2 ✅ done — new `html_utils.py` consolidates the search/sec_filings stripper + the
-> digest/reply_monitor Gmail extractor (substack's divergent ones left alone); pinned by
-> `tests/test_html_utils.py`. Suite now 34 tests.
-> **3.1 deferred to the credentialed phase** — its acceptance criterion (byte-identical end-to-end
-> digest baseline) needs secrets, and it touches the load-bearing core, so it lands *with* the first
-> credentialed run rather than on the pre-validation stack.
-> Blocked on data/secrets: 3.3 (needs real archived PDFs), 3.5 (`_assemble_digest_html`: no evidence;
-> PACER sizing swap: path calls Claude).
+> **Status:** 3.1 / 3.2 / 3.4 ✅ done (committed `004722b` + 2026-06-30); suite now **41 tests**.
+> **3.3 and 3.5 are deferred / conditional — moved to §14 (Flagged / Deferred)** so this breakdown
+> shows only completed cleanup.
 
-3.1 **De-risk the 19-arg functions** — `_build_source_prompt` / `summarize_with_claude` take 19
-positional args (misroute footgun). Convert to keyword-only or a single dict. This is the
-high-value, low-risk slice of the original "source registry" idea; the **full registry refactor of
-`main()` is optional** and only pays off if new sources are still being added.
-*Verify:* end-to-end digest output is byte-identical to a saved baseline (permission required, once).
+3.1 **De-risk the 19-arg functions** — ✅ **DONE 2026-06-30.** `_build_source_prompt` /
+`summarize_with_claude` (17 same-typed source args, a misroute footgun) are now **keyword-only**
+(`def f(*, ...)`); both call sites pass named args. The **full registry refactor of `main()` was
+left out** (optional; only pays off if new sources are still being added).
+*Verified offline:* `tests/test_digest_prompt.py` pins the keyword-only contract (positional → `TypeError`),
+per-source routing (a sentinel per source lands in its own section), and determinism — no permissioned
+run required (the change is a mechanical signature swap).
 
-3.2 **Consolidate HTML strippers / Gmail body extractors** — `_HTMLStripper` (×3, intentionally
-divergent) and the Gmail body extractors (×3, two mergeable). Only with unit tests that pin each
-call site's current extraction behavior, since this feeds embeddings/prompts.
+3.2 **Consolidate HTML strippers / Gmail body extractors** — ✅ **DONE** (commit `004722b`). New
+`html_utils.py` consolidates the search/sec_filings `_HTMLStripper` + the digest/reply_monitor Gmail
+body extractor (substack's divergent ones left alone); pinned by `tests/test_html_utils.py`.
 
-3.3 **PDF extraction review (C6 + PyPDF2→pypdf)** — measure `_clean_pdf_text` against real
-`archive/*/pdfs/`: diff cleaned vs. raw, see how often the aggressive single-char-join rules fire.
-Only then decide to gate them behind a fragmentation heuristic and/or switch PyPDF2→pypdf/pymupdf.
-*Verify:* compare retrieval quality on a few known questions before/after.
+3.4 **Targeted tests** — ✅ **DONE** (commit `004722b`). `pytest` for the bug-prone pure functions:
+`pacer._extract_case_info`, `_is_corporate_entity`, `_is_chapter_11_filing`;
+`reply_monitor._extract_question`, `_extract_digest_date`; `search._chunk_text`; market/macro math.
 
-3.4 **Targeted tests** — add `pytest` for the bug-prone pure functions: `pacer._extract_case_info`,
-`_is_corporate_entity`, `_is_chapter_11_filing`; `reply_monitor._extract_question`,
-`_extract_digest_date`; `search._chunk_text`; market/macro change math.
-
-3.5 **Conditional, low priority:**
-- `_assemble_digest_html` placeholder approach — **only if** archived digests show real section
-  misplacement (no evidence yet; the fix risks the tuned SYSTEM_PROMPT).
-- PACER company-sizing search API (`pacer.py:_search_company_size`) — Google scraping is fragile but
-  degrades gracefully. A free-tier search API (e.g. Brave) or dropping the web step are options;
-  low priority, low volume.
+*(3.3 PDF-extraction review and 3.5 conditional items → §14.A / §14.B.)*
 
 **Test Phase 3:** unit tests first; any end-to-end run is permissioned, once, to `acohen@`.
 
@@ -514,12 +483,14 @@ Only then decide to gate them behind a fragmentation heuristic and/or switch PyP
 
 ## 10. Quick reference — verdict summary
 
-- **Genuine, do:** 0.1–0.5, 1.1, 1.2, 2.2, 2.3, 2.4, (3.1 de-risk args, 3.4 tests).
-- **Conditional / measure first:** 3.2, 3.3, 3.5.
-- **Withdrawn (intentional — see §6):** module-level argv parse; `_clean_pdf_text` blind edits;
-  `build_ratings_html`; `_is_recent` true-on-unparseable; reply-monitor daemon; FAISS index type;
-  **2.1 prompt caching (dropped 2026-06-19 — counterproductive as specced; the cache-correct version
-  would change output / touch §6)**.
+- **Done (cleanup phases — see §9):** Phase 0 (0.1–0.6), 1.1, 1.2, 2.2, 2.3, 2.4, 3.1, 3.2, 3.4 —
+  plus the §7.1 de-hardcoding, A1 cost accounting, the Opus 4.8 upgrade + model/UA centralization +
+  dead-code cleanup.
+- **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional), A2 (structured
+  outputs), Group B/C (cost cuts), the low-value dedup niceties, and two pending decisions
+  (`alerts_config` Fed threshold, re-enable `build_ratings_html`). 2.1 prompt caching dropped (§14.E).
+- **Do NOT fix (intentional / load-bearing — see §6):** module-level argv parse; `_clean_pdf_text`
+  blind edits; `_is_recent` true-on-unparseable; reply-monitor daemon; FAISS index type.
 - **Constraint:** Opus is `claude-opus-4-8` (upgraded from 4.6); model IDs centralized in
   `config.py`; test to `acohen@acorninv.com`; ask permission
   before any **Claude** call (the only pay-per-query cost — Octus/Substack/13D are flat subscriptions,
@@ -565,8 +536,8 @@ sources are live. **Step 4 remains** (the `.bat` wrappers + `setup_tasks.bat`), 
    (skipped silently without the key today).
 
 **Then the deferred do-AND-test items** (each its own small permissioned run — see §12): A2
-structured outputs, 3.1 digest-core arg refactor (byte-identical baseline), 3.3 PDF-extraction
-review, and the Group B cost A/B (embedded Opus → Sonnet). Per-area detail follows.
+structured outputs, 3.3 PDF-extraction review, and the Group B cost A/B (embedded Opus → Sonnet).
+(3.1 digest-core arg refactor is **done** — verified offline, no run needed.) Per-area detail follows.
 
 ### Phase 0 (committed `1f400f6`)
 
@@ -665,10 +636,10 @@ The remaining work is gated on secrets. In order:
    stack at once and clears the §11 backlog. **Ask permission before the Claude calls; run once, on a
    small input, to acohen** (never `DIGEST_RECIPIENTS`/jared during testing).
 3. **Do-and-test the deferred items** (each permissioned, once): **A2** structured outputs (confirm
-   opus-4-6 support → iterate schemas → apply); **3.1** digest-core 19-arg refactor (with its
-   byte-identical baseline); **3.3** `_clean_pdf_text` review vs real archived PDFs; then the
+   opus support → iterate schemas → apply); **3.3** `_clean_pdf_text` review vs real archived PDFs
+   (once the broker-research PDFs forward in — the archive has only a 13D PDF today); then the
    **Group B cost cut** (embedded Opus → Sonnet) behind a quality A/B. (Group C / conditional pass 2
-   only if justified — §3/§6.)
+   only if justified — §3/§6.) **3.1 is already done** (offline — §9).
 4. **§7.2 deploy** to the dedicated always-on Windows server — the definition of "done": always-on +
    headless, runs whether or not anyone is logged in, machine-level env vars, headless
    Playwright/Chromium, log rotation + failure alerting, correct TZ, and backups of `archive/` +
@@ -726,3 +697,70 @@ The inbox layer = whatever jared forwards to `acorn.research.bot@gmail.com`. The
 ### Latent maintenance (works now, will need a human later)
 - [ ] **13D session** + **Substack cookie** will expire and need a manual re-login (13D's is interactive).
 - [ ] **polymathinvestor.com** Substack returns 403 (lapsed/blocked sub) — contributing nothing; degrades gracefully.
+
+---
+
+## 14. Flagged / deferred — code changes that are fine for now
+
+A single place for everything that's been **flagged but intentionally not done**, so §9's phase
+breakdown reflects only *completed* cleanup. Nothing here is blocking. Each item is gated on a
+permissioned Claude run, waiting on data, conditional on a problem appearing, or a low-value nicety.
+*(Distinct from §6 "Do NOT fix" — those are load-bearing and meant to stay untouched permanently.
+Items here are "fine for now, maybe later.")*
+
+### A. Deferred do-and-test (need a permissioned Claude run or more data)
+- **A2 — structured outputs (`output_config.format`)** for alerts/memory + the 4 ranker calls. Needs
+  live-API schema iteration + an Opus capability check. Value is concentrated in alerts/memory, which
+  silently drop on a JSON parse failure today. Detail: §11 "Cost/efficiency."
+- **3.3 — PDF-extraction review (`_clean_pdf_text`; PyPDF2→pypdf)** — measure the aggressive
+  single-char-rejoin regexes against real `archive/*/pdfs/` (how often they fire, cleaned-vs-raw diff,
+  retrieval quality before/after), then decide whether to gate them behind a fragmentation heuristic
+  and/or switch the PDF lib. **Gated on data:** the archive holds only one PDF today (a 13D report),
+  not the broker-research corpus these rules target — revisit once research PDFs forward in. Also gates
+  the `PyPDF2 3.0.1` pin (don't bump first). `_clean_pdf_text` is measure-before-touch per §6.
+- **Group B — embedded Opus → Sonnet cost cut** (memory, alerts, 13D summary, reply answer) behind a
+  quality A/B (~40%/call saving). §11/§12.
+- **Group C — prompt-caching restructure / conditional pass 2** (the cache-correct version of dropped
+  2.1). Constrained by §3/§6; only if justified.
+
+### B. Conditional — do only if a real problem appears (no evidence yet)
+- **3.5a — `_assemble_digest_html` placeholder approach** — sections are injected by string-matching
+  the Opus HTML. Only revisit **if** archived digests show real section misplacement; the fix risks
+  the tuned `SYSTEM_PROMPT` (§6).
+- **3.5b — PACER company-sizing search (`pacer._search_company_size`)** — Google scraping is fragile
+  but degrades gracefully. Options: a free-tier search API (e.g. Brave) or dropping the web step. Low
+  priority, low volume.
+
+### C. Low-value cleanup
+✅ **Done 2026-06-30** — three "nice-to-have" dedups consolidated, behavior-neutral (`ruff` clean,
+`pytest` 41 green, + live free-fetcher smoke):
+- `fed_research._parse_date` / `_is_recent` → now import `feeds.is_recent` (only the date helpers were
+  dupes; the divergent `fed_research._fetch_feed` stays, per HANDOFF 2.3).
+- The two EDGAR `_make_request` (`sec_filings.py` + `fund_tracking.py`) → shared **`net_utils.edgar_get`**
+  (sec_filings parses JSON; fund_tracking takes raw text + 20s timeout — both via the one fetcher).
+- The duplicated unverified-SSL context (`treasury_auctions.py` + `cftc_cot.py`) →
+  **`net_utils.unverified_ssl_context`**.
+
+**Left as-is (intentional):**
+- **`news._clean_html` vs the inline `re.sub(r'<[^>]+>', …)` strips** in `ratings.py` / `fed_research.py`
+  — NOT consolidated: `news._clean_html` also unescapes HTML entities while the inline strips don't, so
+  merging would change what's fed to Opus/embeddings (§3.2 left these divergent for exactly this reason).
+  Extracting a one-line `re.sub` would also add indirection for no real gain.
+
+### D. Decisions pending (behavior/product, not cleanup)
+- **`alerts_config.json` "Fed stress signal" threshold** still reads "$5B / +$2B WoW" but
+  `check_fed_stress` was retuned to **$25B / $10B** after the §13 series-ID fix (real primary-credit
+  baseline ~$8B). This plain-English alert is Opus-evaluated (separate from the unused
+  `check_fed_stress`), so it would mis-fire against a correctly-labeled baseline. Decide the right
+  trigger wording.
+- **Re-enable `build_ratings_html` (digest §9 Rating Actions table)** — disabled as a product call
+  ("Octus has better coverage"), but **Octus was removed 2026-06-29**, so it could come back. Left off
+  pending a decision (§1/§6); keep the function either way.
+
+### E. Dropped (closed — not pending, kept for context)
+- **2.1 — prompt caching across the two Opus passes.** Counterproductive *as specced*: caching is a
+  strict prefix match over `tools → system → messages`; pass 1 and pass 2 use different `system`
+  prompts (pass 2 also puts the shared content after a review block), so they share no cacheable
+  prefix → 0 cache reads + a wasted ~1.25× cache-write on pass 1 = **net cost increase**. A
+  cache-correct version (= Group C above) would change pass 2's output and touch the load-bearing
+  `SYSTEM_PROMPT`. **Decision (2026-06-19): dropped.**

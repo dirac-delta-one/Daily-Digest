@@ -8,12 +8,10 @@ Detects new positions, exits, increases, and decreases.
 import json
 import time
 import datetime
-import urllib.request
-import urllib.error
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from config import USER_AGENT as EDGAR_USER_AGENT
+from net_utils import edgar_get
 
 SCRIPT_DIR = Path(__file__).parent
 CACHE_DIR = SCRIPT_DIR / "archive" / "13f_cache"
@@ -40,17 +38,8 @@ TRACKED_FUNDS = [
 
 
 def _make_request(url):
-    """Make an HTTP request to EDGAR."""
-    req = urllib.request.Request(url)
-    req.add_header("User-Agent", EDGAR_USER_AGENT)
-    req.add_header("Accept", "application/json")
-
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            return resp.read().decode("utf-8")
-    except Exception as e:
-        print(f"    EDGAR request error: {e}")
-        return None
+    """Fetch an EDGAR endpoint as raw text (20s timeout for larger 13F payloads)."""
+    return edgar_get(url, timeout=20)
 
 
 def _get_latest_13f(cik):

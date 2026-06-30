@@ -6,9 +6,10 @@ Shows bid-to-cover, yield, tail, and bidder breakdown.
 """
 
 import json
-import ssl
 import datetime
 import urllib.request
+
+from net_utils import unverified_ssl_context
 
 HOURS_LOOKBACK = 24
 
@@ -20,10 +21,8 @@ API_URL = (
     "&filter=auction_date:gte:{start_date},high_investment_rate:gt:0"
 )
 
-# SSL context for Treasury (self-signed cert chain)
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+# SSL context for Treasury (cert chain doesn't validate against the default store)
+_SSL_CTX = unverified_ssl_context()
 
 
 def _fetch_json(url):

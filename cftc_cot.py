@@ -7,10 +7,11 @@ Best shown on Mondays in the digest.
 """
 
 import json
-import ssl
 import datetime
 import urllib.request
 from pathlib import Path
+
+from net_utils import unverified_ssl_context
 
 SCRIPT_DIR = Path(__file__).parent
 CACHE_DIR = SCRIPT_DIR / "archive" / "cot_cache"
@@ -19,10 +20,8 @@ CACHE_DIR = SCRIPT_DIR / "archive" / "cot_cache"
 COT_FUTURES_URL = "https://www.cftc.gov/dea/newcot/deafut.txt"
 COT_FINANCIAL_URL = "https://www.cftc.gov/dea/newcot/FinFutWk.txt"
 
-# SSL context for CFTC
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+# SSL context for CFTC (cert chain doesn't validate against the default store)
+_SSL_CTX = unverified_ssl_context()
 
 # Contracts to track: (name, cftc_code, source_file)
 # "futures" = deafut.txt, "financial" = FinFutWk.txt

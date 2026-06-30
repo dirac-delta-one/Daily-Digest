@@ -12,9 +12,9 @@ import re
 import datetime
 import time
 import urllib.request
-import urllib.error
 import html as html_module
 from html_utils import HTMLStripper
+from net_utils import edgar_get
 from config import USER_AGENT as EDGAR_USER_AGENT
 
 # --- Configuration ---
@@ -62,17 +62,12 @@ _cik_map = None
 
 
 def _make_request(url):
-    """Make an HTTP request to EDGAR with required headers."""
-    req = urllib.request.Request(url)
-    req.add_header("User-Agent", EDGAR_USER_AGENT)
-    req.add_header("Accept", "application/json")
-
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        print(f"    EDGAR HTTP error {e.code} for {url}")
+    """Fetch an EDGAR JSON endpoint (via the shared edgar_get) and parse it."""
+    raw = edgar_get(url)
+    if raw is None:
         return None
+    try:
+        return json.loads(raw)
     except Exception as e:
         print(f"    EDGAR request error: {e}")
         return None

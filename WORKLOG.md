@@ -13,7 +13,7 @@ then: the **email identity migrated to `acorn.research.bot@gmail.com`** (OAuth p
 **Octus was removed**, the **$20 Anthropic key + a free FRED key** were installed, and the **first
 credentialed run of the whole stack succeeded**, all → acohen: `digest.py` **$1.52**,
 `reply_monitor.py --once` **$0.20**, `midday.py --force` **$0.01** (~$1.73 of $20). `ruff` clean,
-`pytest` 36 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entry below.
+`pytest` 41 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entry below.
 
 **Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
 TRACE + Octus unreplaced, a `fed_balance_sheet` series-label bug found 2026-06-30), the
@@ -22,12 +22,20 @@ and the **§7.2 server deploy** (= "done").
 
 ---
 
-## General code cleanup + Opus 4.8 upgrade (2026-06-30)
+## General code cleanup + Opus 4.8 upgrade + 3.1 keyword-only refactor (2026-06-30)
 
-Offline-only pass (no Claude calls), all verified: `ruff` clean, `pytest` **36 green**, all touched
+Offline-only pass (no Claude calls), all verified: `ruff` clean, `pytest` **41 green**, all touched
 modules import, constants resolve, `python market_data.py` runs (free Yahoo).
 
-- **Opus 4.6 → 4.8** (operator-directed; same API surface + $5/$25 pricing). One-line change in
+- **Phase 3.1 — digest-core keyword-only** — `_build_source_prompt` / `summarize_with_claude` (17
+  same-typed source args, a misroute footgun) converted to keyword-only (`def f(*, ...)`); both call
+  sites in `digest.py` now pass named args. The full `main()` source-registry refactor was left out
+  (optional). Pinned offline by new `tests/test_digest_prompt.py` (keyword-only contract → `TypeError`
+  on positional; per-source sentinel routing; determinism). The HANDOFF "byte-identical end-to-end
+  run" acceptance was over-conservative for a mechanical signature swap — no permissioned run used. +5
+  tests (36 → 41).
+- **Opus 4.6 → 4.8** (operator-directed; same API surface + $5/$25 pricing, verified against the
+  claude-api pricing reference). One-line change in
   `config.py` (`OPUS_MODEL`), which the 5 importing modules pick up automatically. HANDOFF §2/§10
   "keep 4.6" constraint updated.
 - **Model-ID consolidation** — Phase 1.1 had only centralized Opus; Sonnet/Haiku were still scattered
@@ -45,10 +53,17 @@ modules import, constants resolve, `python market_data.py` runs (free Yahoo).
 - **Stale text** — dropped the "Octus intelligence" mention from `reply_monitor.py`'s RAG system
   prompt (Octus was removed); fixed README's Substack config (`MAX_ARTICLES` →
   `MAX_ARTICLES_PER_PUB`, default 3).
-- **Intentionally NOT done** (low value / deliberate divergence): folding `fed_research`'s date
-  helpers into `feeds.py` (HANDOFF 2.3 keeps it separate), merging the EDGAR `_make_request` /
-  `_SSL_CTX` / `news._clean_html` near-dupes, and the `alerts_config.json` Fed `$5B` threshold (a
-  behavior/decision item, not cleanup).
+- **Nice-to-have dedups (DONE in a follow-up pass, same day)** — new `net_utils.py` (`edgar_get` +
+  `unverified_ssl_context`): the two EDGAR `_make_request` (sec_filings parses JSON, fund_tracking
+  takes raw text + 20s timeout) now share `edgar_get`; the duplicated unverified-SSL context
+  (treasury_auctions + cftc_cot) now shares `unverified_ssl_context`. Separately, `fed_research`'s
+  `_parse_date`/`_is_recent` now import `feeds.is_recent` (its divergent `_fetch_feed` stays).
+  Behavior-neutral: `ruff` clean, `pytest` 41 green, plus live free-fetcher smoke (edgar_get → dict/text,
+  Treasury + CFTC auctions/positioning, fed_research date-filtering) all confirmed.
+- **Intentionally NOT done** (deliberate divergence): `news._clean_html` vs the inline `re.sub` tag
+  strips in `ratings.py`/`fed_research.py` — `_clean_html` also unescapes entities, so merging would
+  change what's fed to Opus/embeddings (§3.2). The `alerts_config.json` Fed `$5B` threshold is a
+  behavior/decision item, not cleanup.
 
 ---
 
