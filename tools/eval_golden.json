@@ -1,0 +1,140 @@
+{
+  "_readme": [
+    "Golden retrieval-eval set (MEMORY_REFACTOR_SPEC Stage 0). Each item: a question a user",
+    "might ask the reply bot, plus what search() should surface. Run: python tools/eval_retrieval.py",
+    "",
+    "Match semantics: a returned chunk satisfies an item if it matches ANY entry in `expect`.",
+    "Within one expect entry, every specified field must match: `source_type` (exact),",
+    "`source_name_contains` (case-insensitive substring), `text_contains_any` (case-insensitive,",
+    "at least one substring present in the chunk text).",
+    "",
+    "Optional per-item `date_filter` is passed straight to search() — keep at least one such item",
+    "to exercise the day-filtered path (the Stage-1 date-filter fix).",
+    "",
+    "GROW THIS FILE as archived days accrue: add a few questions per interesting day, and add a",
+    "true 1-2 character ticker query (Stage-2 tokenizer case) when one first appears in the archive",
+    "— the 2026-06-30 day has no 1-2 char tickers, so ALM/AGI/WF6 are the closest exact-token probes.",
+    "",
+    "Note: the WILTW report is indexed TWICE — the Opus summary (source_type 'wiltw') and the raw",
+    "PDF (source_type 'pdf', source_name 'Wiltw ...'). Both are correct answers for 13D questions,",
+    "so WILTW items accept either."
+  ],
+  "questions": [
+    {
+      "id": "private-credit-h1",
+      "question": "What is the state of private credit in H1 2026?",
+      "expect": [
+        {"source_type": "substack", "source_name_contains": "creditcrunch"}
+      ]
+    },
+    {
+      "id": "mstr-framework",
+      "question": "What did Strategy announce about its Digital Credit Capital Framework?",
+      "expect": [
+        {"source_type": "filing", "text_contains_any": ["Digital Credit Capital Framework"]}
+      ]
+    },
+    {
+      "id": "tungsten-names",
+      "question": "Which tungsten miners does 13D recommend on the critical minerals squeeze?",
+      "expect": [
+        {"source_type": "wiltw", "text_contains_any": ["tungsten", "Almonty"]},
+        {"source_type": "pdf", "source_name_contains": "wiltw", "text_contains_any": ["tungsten", "Almonty"]}
+      ]
+    },
+    {
+      "id": "alm-ticker",
+      "question": "What is the thesis on $ALM Almonty Industries?",
+      "expect": [
+        {"source_type": "wiltw", "text_contains_any": ["Almonty", "ALM"]},
+        {"source_type": "pdf", "source_name_contains": "wiltw", "text_contains_any": ["Almonty", "ALM"]}
+      ]
+    },
+    {
+      "id": "agi-seismic",
+      "question": "What happened at Alamos Gold's Young-Davidson mine and how did the stock react?",
+      "expect": [
+        {"source_type": "wiltw", "text_contains_any": ["Young-Davidson", "Seismic event"]},
+        {"source_type": "pdf", "source_name_contains": "wiltw", "text_contains_any": ["Young-Davidson", "seismic"]}
+      ]
+    },
+    {
+      "id": "13d-portfolio",
+      "question": "What is 13D's highest-conviction portfolio allocation to gold and silver miners?",
+      "expect": [
+        {"source_type": "wiltw", "text_contains_any": ["36.1%", "gold/silver miners"]},
+        {"source_type": "pdf", "source_name_contains": "wiltw", "text_contains_any": ["36.1%", "gold/silver miners"]}
+      ]
+    },
+    {
+      "id": "wynn-moodys",
+      "question": "What was the Moody's rating action on Wynn Resorts?",
+      "expect": [
+        {"source_type": "rating", "text_contains_any": ["Wynn"]},
+        {"source_type": "digest", "text_contains_any": ["Wynn"]}
+      ]
+    },
+    {
+      "id": "wynn-dayfiltered",
+      "question": "Wynn Resorts outlook downgrade leverage",
+      "date_filter": "2026-06-30",
+      "expect": [
+        {"source_type": "rating", "text_contains_any": ["Wynn"]},
+        {"source_type": "digest", "text_contains_any": ["Wynn"]}
+      ]
+    },
+    {
+      "id": "amegre-newissue",
+      "question": "What new high yield deal did Stifel flash on American Greetings?",
+      "expect": [
+        {"source_type": "email", "text_contains_any": ["American Greetings", "AMEGRE"]}
+      ]
+    },
+    {
+      "id": "fsk-purchase",
+      "question": "What did FSK file about a purchase agreement with KKR?",
+      "expect": [
+        {"source_type": "filing", "text_contains_any": ["Purchase Agreement", "FS KKR"]}
+      ]
+    },
+    {
+      "id": "pgy-form4",
+      "question": "Were there any insider Form 4 filings in Pagaya?",
+      "expect": [
+        {"source_type": "filing", "text_contains_any": ["Pagaya", "PGY"]}
+      ]
+    },
+    {
+      "id": "yen-low",
+      "question": "Why did the Japanese yen fall to a 40-year low?",
+      "expect": [
+        {"source_type": "news", "text_contains_any": ["yen"]},
+        {"source_type": "digest", "text_contains_any": ["yen"]}
+      ]
+    },
+    {
+      "id": "oil-quarter",
+      "question": "How did oil perform this quarter?",
+      "expect": [
+        {"source_type": "news", "text_contains_any": ["Oil Headed for Largest Quarterly Loss", "quarterly loss"]},
+        {"source_type": "digest", "text_contains_any": ["oil"]}
+      ]
+    },
+    {
+      "id": "scotus-agencies",
+      "question": "What was the Supreme Court ruling about independent agencies and how might it matter for markets?",
+      "expect": [
+        {"source_type": "substack", "source_name_contains": "Krugman"},
+        {"source_type": "digest", "text_contains_any": ["Humphrey", "Supreme Court"]}
+      ]
+    },
+    {
+      "id": "rotterdam-apt",
+      "question": "What is happening to Rotterdam APT tungsten prices and China's tungsten exports?",
+      "expect": [
+        {"source_type": "wiltw", "text_contains_any": ["Rotterdam", "tungsten exports"]},
+        {"source_type": "pdf", "source_name_contains": "wiltw", "text_contains_any": ["Rotterdam", "tungsten"]}
+      ]
+    }
+  ]
+}

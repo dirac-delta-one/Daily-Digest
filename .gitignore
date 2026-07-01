@@ -22,6 +22,8 @@ logs/
 # A/B harness outputs (derived from paid 13D/Substack content — keep local like archive/)
 tools/ab_outputs/
 tools/step3_outputs/
+# Retrieval-eval result snapshots (regenerable; baselines recorded in WORKLOG)
+tools/eval_results/
 __pycache__/
 *.pyc
 

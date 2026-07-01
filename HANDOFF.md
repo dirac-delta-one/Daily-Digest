@@ -24,9 +24,11 @@ low-risk improvements.
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30) and now being
 *optimized*. `ruff` clean, `pytest` **60** green. The **cost refactor is complete** (2026-07-01 — the
 Group B A/B kept all Opus; then landed the 13D summary cache, memory→Sonnet, and 2-pass prompt caching;
-see §11 / §14 + `WORKLOG`). The **next major track is the memory / retrieval refactor**, now fully scoped
+see §11 / §14 + `WORKLOG`). The **next major track is the memory / retrieval refactor**, scoped + reviewed
 in **`MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search → entity metadata → System A↔B
-convergence) — **not yet started**. Other open items: the **§7.2 server deploy** (the definition of
+convergence) — **Stage 0 (eval harness) built 2026-07-01** (`tools/eval_retrieval.py` + golden set;
+baseline hit@1=0.93 / MRR=0.96 on the 1-day archive); **Stage 1 is next**. Other open items: the
+**§7.2 server deploy** (the definition of
 "done"), the **§13** coverage gaps, and the data-gated **3.3** PDF review — see **§11 / §12 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
@@ -41,12 +43,14 @@ convergence) — **not yet started**. Other open items: the **§7.2 server deplo
 > pass 2 reads it (~$0.10/run text-day, ~$0.54/run PDF-day). Validated output-equivalent + cache-engaging
 > via a permissioned before/after; supersedes the old §14.E "2.1 dropped" finding.
 >
-> ➡️ **NEXT MAJOR TRACK — the memory / retrieval refactor, fully scoped in `MEMORY_REFACTOR_SPEC.md`
-> (not started).** Improves the RAG reply bot (reranker → hybrid search → entity/date metadata) and
-> converges the two "memory" systems (the cross-digest `memory.json` storylines vs. the FAISS archive)
-> so it can "piece together" across time. Mostly local/free to build + test; recommended start is its
-> Stage 0 + Stage 1 (eval harness + cross-encoder reranker). **Other open tracks:** §7.2 server deploy
-> (= "done"), §13 coverage gaps.
+> ➡️ **NEXT MAJOR TRACK — the memory / retrieval refactor, scoped + reviewed in `MEMORY_REFACTOR_SPEC.md`
+> (Stage 0 built 2026-07-01; Stage 1 next).** Improves the RAG reply bot (reranker → hybrid search →
+> entity/date metadata) and converges the two "memory" systems (the cross-digest `memory.json`
+> storylines vs. the FAISS archive) so it can "piece together" across time. Mostly local/free to build
+> + test. The 2026-07-01 review also restructured the spec: Stage 3 split into 3a (metadata tags, no
+> reindex) / 3b (embedder swap / re-chunking, conditional on eval evidence), and two latent `search()`
+> findings were added — the post-retrieval date-filter scaling bug (→ Stage 1) and the per-call index
+> reload (→ Stage 2). **Other open tracks:** §7.2 server deploy (= "done"), §13 coverage gaps.
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 

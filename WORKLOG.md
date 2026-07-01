@@ -31,14 +31,49 @@ permissioned before/after (~$3.5). Detail in the sections below.
 
 ➡️ **COST REFACTOR COMPLETE.** Remaining cost ideas are lower-value (conditional pass-2 skip; 13D
 text-extraction) — see §14; not worth the effort/risk. **NEXT MAJOR TRACK: the memory / retrieval
-refactor, fully scoped in `MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search → entity
-metadata → System A↔B convergence; mostly local/free to build + test; recommended start = its Stage 0 +
-Stage 1). **Other tracks:** the §7.2 server deploy (= "done") and the §13 coverage gaps.
+refactor, scoped + reviewed in `MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search →
+entity metadata → System A↔B convergence; mostly local/free to build + test). **Stage 0 (eval harness)
+is BUILT — 2026-07-01, baseline recorded; Stage 1 (reranker + date-filter fix) is next.** **Other
+tracks:** the §7.2 server deploy (= "done") and the §13 coverage gaps.
 
 **Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
 TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaining do-and-test item
 **3.3** (PDF review, needs more PDF data), the wait-and-see items (3.5), and the **§7.2 server deploy**
 (= "done"). See HANDOFF §14.
+
+---
+
+## Memory / retrieval refactor — spec review + Stage 0 eval harness (2026-07-01)
+
+Reviewed `MEMORY_REFACTOR_SPEC.md` against the actual code and **restructured it** (operator-approved):
+
+- **New finding — date-filter scaling bug (added to Stage 1):** `search()` applies `date_filter`
+  *after* FAISS retrieval, so the `top_k*10` candidates are global; with 100+ days indexed the reply
+  bot's day-filtered phase will often surface few/no target-day chunks. Invisible today (1 day
+  indexed). Fix specced (over-fetch or per-day brute-force) + pinned by a day-filtered eval case.
+- **New finding — per-call index reload (added to Stage 2):** `search()` re-reads the FAISS index +
+  full metadata JSON from disk on every call; fold an mtime-invalidated cache in with the BM25 build
+  (which needs the same staleness logic).
+- **Stage 3 split:** 3a (entity/date metadata tags + date-range filter — metadata-only, NO reindex,
+  can land anytime) vs 3b (embedder swap / structure-aware chunking — the actual reindexes, now
+  **conditional** on Stage 0/1 evidence, done as separate measured reindexes). Also set honest
+  entity-coverage expectations (watchlist + $TICK patterns only until real NER).
+- Stage 2 tokenizer note (keep 1–2 char tickers — the exact failure mode BM25 exists to fix);
+  §2B accuracy fix (only `date` is filterable, not source_type); model-download footprints noted
+  for the §7.2 server disk list. Operator confirmed the digest can run daily on this machine, so
+  the archive (and eval signal) accrues.
+
+**Stage 0 — BUILT (free, offline, no Claude calls):** `tools/eval_retrieval.py` (harness: hit@1/3/5/10 +
+MRR, per-question first-match rank, `--save` snapshots to gitignored `tools/eval_results/`) +
+`tools/eval_golden.json` (15 versioned golden questions from the 2026-06-30 archive, spanning
+substack/filing/wiltw/rating/email/news/digest; includes the required **day-filtered** case and
+ALM/AGI/WF6 exact-token probes — a true 1–2 char ticker case gets added when one appears in the
+archive). Match semantics pinned by new `tests/test_eval_retrieval.py` (+8; suite **68** green, ruff
+clean). **Baseline (2026-07-01): hit@1=0.933, hit@3/5/10=1.0, MRR=0.956** — near-saturated, as
+expected with a single archived day (little competition); treat Stage 1/2 deltas as directional
+until more days accrue. Note: the WILTW report is indexed twice (Opus summary `wiltw` + raw `pdf`),
+so 13D golden items accept either; the one non-rank-1 item (13d-portfolio, rank 3) is a raw-PDF
+chunk outranking the summary.
 
 ---
 
@@ -52,7 +87,8 @@ archive + reply bot, answers questions but can't piece together across time), pl
 metadata + stronger embeddings (one reindex), (4) smarter reply-bot retrieval (query understanding +
 MMR/dedup), (5) System A↔B convergence (queryable story-timeline store wired into the bot). Mostly
 local/free to build + test (only the reply answer, Opus, costs). **Thin-archive caveat:** only 1 day is
-indexed today, so retrieval-quality measurement is directional until more days accrue. Nothing started.
+indexed today, so retrieval-quality measurement is directional until more days accrue. *(Superseded
+same day: the spec was reviewed/restructured and Stage 0 built — see the entry above.)*
 
 ---
 
