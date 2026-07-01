@@ -670,7 +670,7 @@ def _rank_news_articles(articles, max_articles=8):
             model=HAIKU_MODEL,
             max_tokens=500,
             system=(
-                "You are selecting the 5-8 most relevant news articles for a "
+                f"You are selecting the {max_articles} most relevant news articles for a "
                 "credit/distressed investment analyst. Be RUTHLESS — only keep articles "
                 "directly relevant to: credit markets, bankruptcies, restructuring, "
                 "leveraged finance, specialty finance, special situations, distressed credit, "

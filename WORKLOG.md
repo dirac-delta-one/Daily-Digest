@@ -89,7 +89,9 @@ the §14.E "2.1 dropped" finding).
 - The in-function cost print is now cache-aware (`cost.cost_of`) and logs `pass 1 wrote N / pass 2 read N`
   — that line is the live confirmation the cache engages on real runs. Dropped the now-unused
   `OPUS_PRICE_IN/OUT` imports from `digest.py`.
-- A/B harness (`step3_cache_ab.py`) + the four text-mode digests kept in the session scratchpad.
+- A/B harness (`step3_cache_ab.py`) + the four text-mode digests were kept in the session scratchpad;
+  **moved into the repo 2026-07-01** — harness committed at `tools/step3_cache_ab.py` (paths made
+  repo-relative), digests preserved locally at `tools/step3_outputs/` (gitignored).
 
 ---
 
@@ -147,7 +149,9 @@ Per-call results (cost = one call each model; saving = per-run if that call were
 - **Notes for any future revisit:** 13D→Sonnet is only viable *with a tightened length instruction*;
   reply must stay Opus (render bug); the Opus em-dash `—` mojibake seen in the memory A/B was
   **run-variance** — the live 2026-06-30 `memory.json` is clean. The A/B harness (`groupb_ab.py`) and
-  the side-by-side outputs were kept in the session scratchpad, not committed.
+  the side-by-side outputs were kept in the session scratchpad; **moved into the repo 2026-07-01** —
+  harness committed at `tools/groupb_ab.py` (paths made repo-relative), outputs preserved locally at
+  `tools/ab_outputs/` (gitignored).
 
 ---
 

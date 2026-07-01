@@ -110,4 +110,8 @@ Edit the top of `substack.py`:
 
 With Claude Opus and PDF/Substack content, expect roughly $0.50–$2.00 per daily
 digest depending on volume. Heavier days with many PDFs and long articles will
-cost more. Monitor usage at console.anthropic.com for the first week.
+cost more. The satellites cost extra: the reply bot is ~$0.20 per answered reply
+(Opus over the archive), and the midday check is ~$0.01 per run that finds new
+content (Sonnet; sends nothing most days). Every entry point prints a per-call
+cost summary at the end of its run. Monitor usage at console.anthropic.com for
+the first week.
