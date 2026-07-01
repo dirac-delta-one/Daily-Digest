@@ -23,15 +23,21 @@ low-risk improvements.
 
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30) and now being
 *optimized*. **All work is committed** on `ava-updates` (working tree clean). `ruff` clean, `pytest`
-**56** green. What remains is a short list of gated items (a permissioned cost A/B, a data-gated PDF
-review, a couple of wait-and-see items) plus the server deploy — see **§11 / §12 / §14**.
+**56** green. The Group B cost A/B is **DONE** (2026-07-01 — A/B'd all four calls, kept all Opus). What
+remains is a short list of gated items (a data-gated PDF review, a couple of wait-and-see items) plus
+the server deploy — see **§11 / §12 / §14**.
 
-> ➡️ **IMMEDIATE NEXT STEP — start here in a new conversation: the Group B Opus→Sonnet cost A/B.**
-> It's a permissioned run (~$1.50) that is **waiting on a scoping decision from the operator** — do NOT
-> run it before asking which calls to A/B. The four candidate calls, the A/B mechanics, the cost, and a
-> recommended scoping are in **§11 "Cost/efficiency" → Group B** (also flagged in §14.A). Present the
-> scoping options, get the operator's choice, run the side-by-side comparison, show outputs + cost
-> deltas, then apply only the approved `OPUS_MODEL`→`SONNET_MODEL` swaps.
+> ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
+> The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
+> real 2026-06-30 inputs. Reply (Sonnet render bug: ```html fence + full HTML doc) and 13D (Sonnet blew
+> the 500–800-word cap) have quality catches. Full results in `WORKLOG.md` (2026-07-01) and §11 / §14.A.
+>
+> ➡️ **Cost refactor steps 1–2 — DONE 2026-07-01** (`pytest` **60** green): (1) **13D WILTW summary cache**
+> (`wiltw_cache.json`) — stops re-summarizing the same weekly PDF 4–6×/week (~$130–150/yr, zero quality
+> impact); (2) **memory → Sonnet** — a *cost* follow-up (memory output near-identical, ~$0.16/run). Next
+> cost lever is **step 3 prompt caching** on the 2-pass digest (permissioned before/after — touches the
+> load-bearing `SYSTEM_PROMPT`). **Other open tracks:** §7.2 server deploy (= "done"), §13 coverage gaps,
+> and the scoped-but-unstarted Part-2 memory/retrieval refactor (reranker + hybrid search + PDF→md).
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 
@@ -110,8 +116,8 @@ monitor unattended 24/7. The work happens in three stages:
    correctness/escaping, Phase 2 quality/cost, Phase 3.2/3.4, **3.1** (digest-core keyword-only
    refactor), **A2** (structured outputs, live-confirmed 2026-06-30), the §7.1 de-hardcoding, A1 cost
    accounting, the Gmail hardening, and the **Opus 4.8 upgrade + model/User-Agent centralization +
-   dead-code cleanup**. The optional *do-and-test* items remaining: **3.3** PDF-extraction review,
-   **3.5** (conditional), and the **Group B** Opus→Sonnet cost A/B (§11/§12).
+   dead-code cleanup**. The optional *do-and-test* items remaining: **3.3** PDF-extraction review and
+   **3.5** (conditional). (**Group B** Opus→Sonnet cost A/B is **done** — 2026-07-01, kept all Opus.)
 3. **Deploy to the dedicated Windows server** — ⬜ **the remaining work** (§7.2), and the definition
    of "done."
 
@@ -511,8 +517,9 @@ body extractor (substack's divergent ones left alone); pinned by `tests/test_htm
 - **Done (cleanup phases — see §9):** Phase 0 (0.1–0.6), 1.1, 1.2, 2.2, 2.3, 2.4, 3.1, 3.2, 3.4 —
   plus the §7.1 de-hardcoding, A1 cost accounting, the Opus 4.8 upgrade + model/UA centralization +
   dead-code cleanup.
-- **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional), Group B/C
-  (cost cuts). **A2 structured outputs — done + live-confirmed 2026-06-30.** The low-value dedups are
+- **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional), Group C
+  (caching). **Group B cost A/B — done 2026-07-01 (kept all Opus).** **A2 structured outputs — done +
+  live-confirmed 2026-06-30.** The low-value dedups are
   all done (§14.C), and both former
   "decisions" are resolved (Fed alert → numeric; `build_ratings_html` clarified — §9 is already
   Opus-written, so left off) (§14.D). 2.1 prompt caching dropped (§14.E).
@@ -563,8 +570,9 @@ sources are live. **Step 4 remains** (the `.bat` wrappers + `setup_tasks.bat`), 
    (skipped silently without the key today).
 
 **Then the deferred do-AND-test items** (each its own small permissioned run — see §12): 3.3
-PDF-extraction review and the Group B cost A/B (embedded Opus → Sonnet). (A2 structured outputs and
-3.1 digest-core arg refactor are **done** — A2 live-confirmed 2026-06-30, 3.1 offline.) Per-area detail follows.
+PDF-extraction review. (The Group B cost A/B is **done** — 2026-07-01, kept all Opus. A2 structured
+outputs and 3.1 digest-core arg refactor are **done** — A2 live-confirmed 2026-06-30, 3.1 offline.)
+Per-area detail follows.
 
 ### Phase 0 (committed `1f400f6`)
 
@@ -648,10 +656,23 @@ live paths. 2.1 was dropped (no test needed).
   pacer/Sonnet, reply/Sonnet) → object with a wrapped `indices`/`queries` array (structured outputs
   want a top-level object, so array returns are wrapped + unwrapped after parse). All 5 exercised live
   on small inputs (~$0.04 total); offline unit tests in `tests/test_claude_utils.py`.
-- **Group B — Opus→Sonnet cost A/B (THE IMMEDIATE NEXT STEP; permissioned, ~$1.50).** Move the
-  *embedded/secondary* Opus calls to **Sonnet 4.6** ($3/$15 vs Opus 4.8 $5/$25 ≈ **40% cheaper/call**)
-  **where quality holds**. **Not** the main 2-pass digest (stays Opus — the marquee output) and **not**
-  the news/pacer rankers (already Haiku/Sonnet). Four candidates, with live-run cost + est. saving:
+- **Group B — Opus→Sonnet cost A/B — ✅ DONE 2026-07-01 (ran ~$1.89; decision: KEEP ALL FOUR ON OPUS).**
+  Operator chose to A/B all four. Single-call results: alerts $0.098 vs $0.042; memory $0.278 vs $0.116;
+  13D $0.721 vs $0.425; reply $0.139 vs $0.065. **Quality findings:** reply Sonnet was **malformed**
+  (```html fence + full `<!DOCTYPE html>` doc → broken email); 13D Sonnet **blew the 500–800-word cap**
+  (~1,900 words, would bloat the digest 3×); memory near-identical (Opus kept 2 more credit stories —
+  Wynn downgrade, PE debt-like deals); alerts identical (0/7). **Decision: keep all four on Opus** —
+  quality catches on reply/13D, savings too small on memory/alerts (~$0.06–0.16/run vs a ~$1.50/day
+  system). **No code changes *from the A/B itself*.** 13D→Sonnet is only viable *with a tightened length
+  prompt*; reply must stay Opus. Detail in WORKLOG (2026-07-01). The original plan is retained below for
+  reference. **Cost follow-up (2026-07-01):** a separate cost refactor then landed the 13D **summary
+  cache** (biggest win, orthogonal to model choice) and moved **memory → Sonnet** for cost (near-identical
+  output) — so memory now runs Sonnet; alerts/13D/reply stay Opus.
+
+  The plan was: move the *embedded/secondary* Opus calls to **Sonnet 4.6** ($3/$15 vs Opus 4.8 $5/$25 ≈
+  **40% cheaper/call**) **where quality holds**. **Not** the main 2-pass digest (stays Opus — the marquee
+  output) and **not** the news/pacer rankers (already Haiku/Sonnet). Four candidates, with live-run cost
+  + est. saving:
 
   | Call | Location | Live cost (2026-06-30) | ~Saving |
   |---|---|---|---|
@@ -689,10 +710,10 @@ The remaining work is gated on secrets. In order:
    stack at once and clears the §11 backlog. **Ask permission before the Claude calls; run once, on a
    small input, to acohen** (never `DIGEST_RECIPIENTS`/jared during testing).
 3. **Do-and-test the deferred items** (each permissioned, once): **3.3** `_clean_pdf_text` review vs
-   real archived PDFs (once the broker-research PDFs forward in — the archive has only a 13D PDF today);
-   then the **Group B cost cut** (embedded Opus → Sonnet) behind a quality A/B. (Group C / conditional
-   pass 2 only if justified — §3/§6.) **A2 (structured outputs, live-confirmed 2026-06-30) and 3.1 are
-   already done.**
+   real archived PDFs (once the broker-research PDFs forward in — the archive has only a 13D PDF today).
+   (The **Group B cost cut** A/B is **done** — 2026-07-01, kept all Opus. Group C / conditional pass 2
+   only if justified — §3/§6. **A2 (structured outputs, live-confirmed 2026-06-30) and 3.1 are already
+   done.**)
 4. **§7.2 deploy** to the dedicated always-on Windows server — the definition of "done": always-on +
    headless, runs whether or not anyone is logged in, machine-level env vars, headless
    Playwright/Chromium, log rotation + failure alerting, correct TZ, and backups of `archive/` +
@@ -776,10 +797,11 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
   and/or switch the PDF lib. **Gated on data:** the archive holds only one PDF today (a 13D report),
   not the broker-research corpus these rules target — revisit once research PDFs forward in. Also gates
   the `PyPDF2 3.0.1` pin (don't bump first). `_clean_pdf_text` is measure-before-touch per §6.
-- **Group B — embedded Opus → Sonnet cost A/B** (memory, alerts, 13D summary, reply answer; ~40%/call).
-  ⭐ **This is the IMMEDIATE NEXT STEP** — a permissioned ~$1.50 run **waiting on an operator scoping
-  decision**. Full plan (candidates, cost table, A/B mechanics, recommended scoping, scoping options to
-  present) is in **§11 "Cost/efficiency" → Group B**. Ask before running.
+- ✅ **Group B — embedded Opus → Sonnet cost A/B — DONE 2026-07-01.** Ran all four (memory, alerts, 13D,
+  reply) through both models (~$1.89). A/B quality verdict: **keep all four on Opus** — reply Sonnet
+  render bug (```html fence + full HTML doc), 13D Sonnet over-length (~1,900 words), memory/alerts savings
+  too small. **Cost follow-up (2026-07-01):** a separate refactor then added the 13D **summary cache** and
+  moved **memory → Sonnet** for cost (near-identical output). Full results in §11 and WORKLOG (2026-07-01).
 - **Group C — prompt-caching restructure / conditional pass 2** (the cache-correct version of dropped
   2.1). Constrained by §3/§6; only if justified. Lower priority than Group B.
 

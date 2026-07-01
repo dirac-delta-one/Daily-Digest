@@ -11,13 +11,16 @@ from pathlib import Path
 
 import anthropic
 
-from config import OPUS_MODEL
+from config import SONNET_MODEL
 from claude_utils import parse_json_response, json_schema_output
 import cost
 
 SCRIPT_DIR = Path(__file__).parent
 MEMORY_FILE = SCRIPT_DIR / "memory.json"
-CLAUDE_MODEL = OPUS_MODEL
+# Memory runs on Sonnet 4.6 (not Opus): the 2026-07-01 cost A/B found Sonnet's
+# memory output near-identical to Opus at ~40% of the cost (~$0.16/run saved).
+# One-line, reversible — swap back to OPUS_MODEL if quality drifts (see WORKLOG).
+CLAUDE_MODEL = SONNET_MODEL
 
 # Structured-output schema (A2) — guarantees a well-formed memory object so a parse
 # failure can't silently wipe the running memory. Top-level object, no wrapping.

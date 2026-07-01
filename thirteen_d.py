@@ -30,6 +30,30 @@ WILTW_BASE = "https://client.13d.com/report.php?id=WILTW_"
 LOGIN_URL = "https://client.13d.com/login.php"
 CLAUDE_MODEL = OPUS_MODEL
 
+# WILTW publishes weekly (Thursdays) but the digest runs daily, so the same
+# report is otherwise fetched Thursday->Wednesday. Cache each summary by report
+# date to avoid re-downloading and re-summarizing (a ~$0.65 Opus call) every run.
+WILTW_CACHE_FILE = SCRIPT_DIR / "wiltw_cache.json"
+
+
+def _load_summary_cache():
+    """Load the {report_date: result_dict} WILTW summary cache."""
+    if WILTW_CACHE_FILE.exists():
+        try:
+            return json.loads(WILTW_CACHE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def _save_summary_cache(key, result):
+    """Store one report's summary in the cache, keyed by report date (ISO)."""
+    cache = _load_summary_cache()
+    cache[key] = result
+    WILTW_CACHE_FILE.write_text(
+        json.dumps(cache, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
 
 def _save_session(context):
     state = context.storage_state()
@@ -266,17 +290,16 @@ def _summarize_pdf(pdf_bytes):
 
 def fetch_wiltw():
     """
-    Main entry point. Downloads the latest WILTW PDF and returns an Opus summary.
+    Main entry point. Returns an Opus summary of the latest WILTW report.
+
+    The summary is cached by report date (wiltw_cache.json). WILTW drops on
+    Thursdays but the digest runs daily, so without the cache the same weekly PDF
+    would be re-downloaded and re-summarized (a ~$0.65 Opus call) every run
+    Thursday->Wednesday. On a cache hit we skip both the download and the Opus call.
 
     Returns:
         dict with {"title", "date", "summary", "url"} or None if unavailable.
     """
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("  Playwright not installed — skipping 13D WILTW.")
-        return None
-
     report_date = _find_latest_thursday()
     report_url = _get_report_url(report_date)
 
@@ -286,7 +309,22 @@ def fetch_wiltw():
         print(f"  Latest WILTW ({report_date}) is over 6 days old — skipping.")
         return None
 
+    # Cache hit: reuse the already-generated summary for this report date and
+    # skip the Playwright download + the Opus summarization entirely.
+    key = report_date.isoformat()
+    cache = _load_summary_cache()
+    if key in cache:
+        print(f"  WILTW {key} already summarized — using cached summary "
+              f"(skipping download + Opus call).")
+        return cache[key]
+
     print(f"  Latest WILTW date: {report_date} ({days_since} days ago)")
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("  Playwright not installed — skipping 13D WILTW.")
+        return None
 
     with sync_playwright() as pw:
         pdf_bytes = _download_pdf(pw, report_url)
@@ -298,12 +336,14 @@ def fetch_wiltw():
     if not summary:
         return None
 
-    return {
+    result = {
         "title": f"What I Learned This Week — {report_date.strftime('%B %d, %Y')}",
-        "date": report_date.isoformat(),
+        "date": key,
         "summary": summary,
         "url": report_url,
     }
+    _save_summary_cache(key, result)
+    return result
 
 
 if __name__ == "__main__":

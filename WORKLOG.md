@@ -5,7 +5,7 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-06-30)
+## Current state (2026-07-01)
 
 **The system is LIVE-validated end-to-end on the bot identity.** All prior refactor work
 (Phase 0–3, de-hardcoding, A1, Gmail RefreshError hardening) is committed + offline-verified. Since
@@ -18,13 +18,80 @@ A post-live **optimization session** then landed (Opus 4.8 upgrade, model/UA cen
 removal incl. `net_utils`/`build_ratings_html`, 3.1 keyword-only, Fed-stress numeric wiring,
 SYSTEM_PROMPT §9 fix, A2 structured outputs) — **all committed** (`62002e0`→`543065a`; working tree clean).
 
-➡️ **IMMEDIATE NEXT STEP: the Group B Opus→Sonnet cost A/B** — a permissioned ~$1.50 run **waiting on an
-operator scoping decision** (don't run before asking). Full plan in HANDOFF §11 "Cost/efficiency" → Group B.
+✅ **Group B Opus→Sonnet cost A/B — DONE 2026-07-01.** The A/B's *quality* verdict was keep-all-Opus.
+Detail in the dedicated section below and HANDOFF §11 "Cost/efficiency" → Group B.
+
+✅ **Cost refactor steps 1–2 — DONE 2026-07-01** (`pytest` **60** green, `ruff` clean): (1) **13D WILTW
+summary cache** (`wiltw_cache.json`) — stops re-summarizing the same weekly PDF 4–6×/week (~$130–150/yr,
+zero quality impact); (2) **memory → Sonnet** — a *cost* follow-up to the A/B (memory output was
+near-identical, ~$0.16/run saved; one-line, reversible). Detail in the section below.
+
+➡️ **NEXT (cost):** step 3 prompt caching on the 2-pass digest — permissioned before/after (touches the
+load-bearing SYSTEM_PROMPT). **Other tracks:** the §7.2 server deploy and the §13 coverage gaps; the
+Part-2 memory/retrieval refactor (reranker + hybrid search + PDF→md indexing) is scoped but not started.
 
 **Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
-TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the two remaining do-and-test
-items — **Group B** (the next step, above) and **3.3** (PDF review, needs more PDF data) — the
-wait-and-see items (3.5), and the **§7.2 server deploy** (= "done"). See HANDOFF §14.
+TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaining do-and-test item
+**3.3** (PDF review, needs more PDF data), the wait-and-see items (3.5), and the **§7.2 server deploy**
+(= "done"). See HANDOFF §14.
+
+---
+
+## Cost refactor — steps 1 & 2 (2026-07-01)
+
+First two changes from the cost-cutting plan (both offline-safe; no permissioned Claude call needed —
+step 2 was already validated by the Group B A/B, step 1 has zero quality surface). `pytest` **60** green
+(+4), `ruff` clean.
+
+**Step 1 — 13D WILTW summary cache (`thirteen_d.py`).** `fetch_wiltw` now caches each summary by report
+date in `wiltw_cache.json` (gitignored). WILTW publishes Thursdays but the digest runs daily, so the
+same 4.7 MB PDF was re-downloaded (Playwright) and re-summarized (a ~$0.65 Opus call) every run
+Thursday→Wednesday. On a cache hit `fetch_wiltw` returns the stored summary and skips both the download
+and the Opus call (the Playwright import moved *after* the cache check, so a hit needs no browser).
+Estimated saving ~$2.5–3/week (~$130–150/yr); **zero quality impact** (same summary, generated once).
+Pinned by new `tests/test_thirteen_d_cache.py` (cache round-trip; cache hit must not download or
+summarize; stale-report skip).
+
+**Step 2 — memory → Sonnet (`memory.py`).** `CLAUDE_MODEL` is now `SONNET_MODEL`. A *cost* follow-up to
+the Group B A/B (whose keep-all-Opus verdict was a quality call): memory output was near-identical
+Opus↔Sonnet — Opus kept 2 more credit stories — so this banks ~$0.16/run for a slight completeness
+trade. One-line, reversible. **Watch for ~a week:** memory compounds day-over-day (each update rewrites
+the prior memory), so keep a live eye on story retention; revert to `OPUS_MODEL` if it drifts.
+Structured outputs (A2) already work on Sonnet.
+
+**Not done (deferred):** step 3 (prompt caching on the 2-pass digest — permissioned before/after, touches
+the load-bearing `SYSTEM_PROMPT`); the 13D text-extraction / Sonnet+tightened-prompt squeeze (marginal
+once the cache lands — PDF→md extraction reassigned to the Part-2 retrieval work); alerts left on Opus
+(the A/B evidence there was a single null datapoint).
+
+---
+
+## Group B cost A/B — Opus 4.8 vs Sonnet 4.6 (2026-07-01)
+
+**DONE — decision: keep all four calls on Opus. No code changes** (working tree still clean;
+`memory.CLAUDE_MODEL` / `alerts.CLAUDE_MODEL` / `thirteen_d.CLAUDE_MODEL` / `reply_monitor.REPLY_MODEL`
+all remain `OPUS_MODEL`). The permissioned A/B ran the four embedded/secondary Claude calls through
+**both** Opus 4.8 and Sonnet 4.6 on the real 2026-06-30 archived inputs, isolating the model as the
+only variable — side effects disabled (no email, `memory._save_memory` monkeypatched to a no-op so
+`memory.json` was untouched, and reply's retrieval context frozen so only the answer model varied).
+**Total spend $1.89** (est. was ~$1.75; budget $1.50–$2.00).
+
+Per-call results (cost = one call each model; saving = per-run if that call were switched to Sonnet):
+
+| Call | Opus 4.8 | Sonnet 4.6 | Saving/run | Finding |
+|---|---|---|---|---|
+| Alerts | $0.098 | $0.042 | ~$0.056 | Identical result (0/7 triggered) — one null datapoint, can't distinguish quality. |
+| Memory | $0.278 | $0.116 | ~$0.162 | Near-identical content; Opus kept 2 more credit stories (Wynn Moody's cut; PE debt-like deals). |
+| 13D WILTW | $0.721 | $0.425 | ~$0.296 | Sonnet richer/more granular but blew the 500–800-word cap (~1,900 vs ~700 words) — would bloat the digest 3×. |
+| Reply | $0.139 | $0.065 | ~$0.074 | **Sonnet malformed** — wrapped its answer in a ```html fence + a full `<!DOCTYPE html>` document → renders broken in the email. |
+
+- **Decision (operator, 2026-07-01): keep all four on Opus.** Reply and 13D have concrete quality
+  catches; memory/alerts savings are small (~$0.06–0.16/run) against a ~$1.50/day system — not worth
+  trading quality/consistency for ~$0.30/day best case.
+- **Notes for any future revisit:** 13D→Sonnet is only viable *with a tightened length instruction*;
+  reply must stay Opus (render bug); the Opus em-dash `—` mojibake seen in the memory A/B was
+  **run-variance** — the live 2026-06-30 `memory.json` is clean. The A/B harness (`groupb_ab.py`) and
+  the side-by-side outputs were kept in the session scratchpad, not committed.
 
 ---
 
