@@ -21,23 +21,45 @@ the current machine (operator `acohen@acorninv.com`, Windows user `KimCohen`). G
 around every source, sensible secret hygiene. No rewrite is warranted — only incremental,
 low-risk improvements.
 
-**Status — all refactor work to date is COMMITTED and validated WITHOUT secrets; the integrated
-pipeline has not yet run end-to-end.** Dev machine stood up (Python 3.12 venv at `.venv`, all deps +
-Playwright chromium + `pytest`). Committed, in order:
+**Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30) and now being
+*optimized*. **All work is committed** on `ava-updates` (working tree clean). `ruff` clean, `pytest`
+**56** green. What remains is a short list of gated items (a permissioned cost A/B, a data-gated PDF
+review, a couple of wait-and-see items) plus the server deploy — see **§11 / §12 / §14**.
+
+> ➡️ **IMMEDIATE NEXT STEP — start here in a new conversation: the Group B Opus→Sonnet cost A/B.**
+> It's a permissioned run (~$1.50) that is **waiting on a scoping decision from the operator** — do NOT
+> run it before asking which calls to A/B. The four candidate calls, the A/B mechanics, the cost, and a
+> recommended scoping are in **§11 "Cost/efficiency" → Group B** (also flagged in §14.A). Present the
+> scoping options, get the operator's choice, run the side-by-side comparison, show outputs + cost
+> deltas, then apply only the approved `OPUS_MODEL`→`SONNET_MODEL` swaps.
+
+**Phase 0–3 refactor commits (pre-live-run history):**
 
 | Commit | What |
 |---|---|
 | `1f400f6` | **Phase 0** — cleanup, `ruff`, pinned deps, dead-code removal, `grab_session.py` deleted |
 | `f78ef45` | **Phase 1** — `config.py` (models + pricing), cost-pricing fix, `OPUS_MODEL` centralized, HTML-escaped the scraped `build_*_html` |
-| `e7b9a6c` | **Stage-1 §7.1 de-hardcoding** — `.bat`/`setup_tasks.bat` use `%~dp0` + project `.venv` + `PYTHONUTF8=1`; recipients `DIGEST_TO`-env-driven (default jared); reply-bot allow-list/recipient include acohen; README updated; User-Agent contact kept as jared (§7.1.6) |
-| `d9dfd50` | **Phase 2** — 2.2 `claude_utils.parse_json_response`, 2.3 `feeds.py`, 2.4 `search` embedding singleton (2.1 prompt caching **dropped** as counterproductive — §9/§10) |
+| `e7b9a6c` | **Stage-1 §7.1 de-hardcoding** — `.bat`/`setup_tasks.bat` use `%~dp0` + project `.venv` + `PYTHONUTF8=1`; recipients `DIGEST_TO`-env-driven; reply-bot allow-list/recipient include acohen |
+| `d9dfd50` | **Phase 2** — 2.2 `claude_utils.parse_json_response`, 2.3 `feeds.py`, 2.4 `search` embedding singleton (2.1 prompt caching **dropped** — §9/§10) |
 | `a04f892` | **A1** — `cost.py` per-run cost accounting across *all* Claude calls |
-| `004722b` | **Phase 3** — 3.4 `tests/` + `pytest` (34 unit tests), 3.2 `html_utils.py` HTML/Gmail-extractor consolidation |
-| `5d041f0` | **Docs** — consolidated this §1 status / §11 test plan / §12 path-to-done + `WORKLOG.md` snapshot |
+| `004722b` | **Phase 3** — 3.4 `tests/` + `pytest`, 3.2 `html_utils.py` HTML/Gmail-extractor consolidation |
+| `5d041f0` | **Docs** — consolidated §1 status / §11 / §12 + `WORKLOG.md` snapshot |
 
-Offline-verified: `ruff` clean, every module imports/compiles, free fetchers run, `pytest` 34 green.
-**Everything doable + verifiable without secrets is done.** What remains is gated on secrets — the
-deferred runtime checks are consolidated in **§11**, and the ordered path to "done" is in **§12**.
+**Post-live optimization session (committed 2026-06-30, commits `62002e0`→`543065a`):**
+- **Opus 4.6 → 4.8** upgrade (pricing re-verified against the claude-api reference: still $5/$25).
+- **Centralized in `config.py`:** the Sonnet/Haiku model IDs (were scattered literals) and the two
+  User-Agent strings (`USER_AGENT` contact for EDGAR/PACER; `FEED_USER_AGENT` for RSS/data feeds).
+- **Dead code removed:** new `net_utils.py` (dedup of the EDGAR fetch + the unverified-SSL context);
+  `fed_research` date helpers → `feeds`; `market_data` write-only cache; `reply_monitor.SCRIPT_DIR`;
+  and `build_ratings_html` (§9 is Opus-written — §6/§14.D).
+- **3.1** — `_build_source_prompt` / `summarize_with_claude` are now **keyword-only** (misroute-proof).
+- **Fed-stress alert → numeric:** `check_fed_stress` ($25B/$10B) wired into `digest.main` (merged into
+  the alert box); the stale `$5B` LLM rule removed from `alerts_config.json` (§14.D).
+- **SYSTEM_PROMPT §9** made an explicit Opus-owned section (fixed a latent "do NOT generate §9"
+  contradiction — Opus writes §9 Rating Actions from the data).
+- **A2 structured outputs** (`output_config.format`) on all 5 JSON call sites — guaranteed-valid JSON,
+  no silent parse-drops; live-confirmed on Opus 4.8 / Sonnet 4.6 / Haiku 4.5 (§11 "Cost/efficiency").
+- Test suite 34 → **56**; `ruff` clean. Full detail in `WORKLOG.md` (2026-06-30 entries).
 
 **Update (2026-06-30) — newest:**
 - **System is LIVE-validated end-to-end.** First credentialed run of the whole stack succeeded, all
@@ -626,9 +648,31 @@ live paths. 2.1 was dropped (no test needed).
   pacer/Sonnet, reply/Sonnet) → object with a wrapped `indices`/`queries` array (structured outputs
   want a top-level object, so array returns are wrapped + unwrapped after parse). All 5 exercised live
   on small inputs (~$0.04 total); offline unit tests in `tests/test_claude_utils.py`.
-- **Bigger cost cuts still on the table (need a permissioned A/B):** Group B — move the embedded
-  Opus calls (memory, alerts, 13D summary, reply answer) to Sonnet (~40%/call) after a quality
-  check; Group C — the dropped 2.1 caching restructure / conditional pass 2 (§3/§6-constrained).
+- **Group B — Opus→Sonnet cost A/B (THE IMMEDIATE NEXT STEP; permissioned, ~$1.50).** Move the
+  *embedded/secondary* Opus calls to **Sonnet 4.6** ($3/$15 vs Opus 4.8 $5/$25 ≈ **40% cheaper/call**)
+  **where quality holds**. **Not** the main 2-pass digest (stays Opus — the marquee output) and **not**
+  the news/pacer rankers (already Haiku/Sonnet). Four candidates, with live-run cost + est. saving:
+
+  | Call | Location | Live cost (2026-06-30) | ~Saving |
+  |---|---|---|---|
+  | **13D WILTW summary** | `thirteen_d._summarize_pdf` (`CLAUDE_MODEL`) | **$0.65** (the run's cost driver — 4.7MB PDF) | ~$0.26/run |
+  | **Reply answer** (RAG) | `reply_monitor.answer_question` (`REPLY_MODEL`) | **$0.20**/reply | ~$0.08/reply |
+  | **Memory update** | `memory.update_memory` (`CLAUDE_MODEL`) | small | ~$0.04/run |
+  | **Alerts eval** | `alerts.evaluate_alerts` (`CLAUDE_MODEL`) | small | ~$0.01/run |
+
+  Realistic savings ≈ **$0.30–0.35/digest** (mostly 13D) + ~$0.08/reply — modest in absolute terms
+  (system runs ~$1.50/day) but compounds on the always-on server. **The A/B has no automated metric —
+  it's a per-call judgment:** run the *same real input* (from the archive — `source_text` for alerts,
+  the archived `WILTW_2026-06-25.pdf` for 13D, a real reply question over the FAISS index) through
+  **both Opus and Sonnet**, compare outputs side-by-side + cost delta, decide per call. The A/B run
+  itself costs ~$1.50 (it runs both models on real inputs incl. the 4.7MB PDF). The swap is trivial +
+  low-risk once decided (models are centralized in `config.py`; structured outputs already work on
+  Sonnet — A2). **Recommended scoping:** A/B **alerts + 13D + memory** (where the money + safety are),
+  and **keep reply on Opus** (most quality-visible, only $0.08/reply). **Ask the operator which calls to
+  A/B before running** — options: all four / alerts+13D+memory / just alerts+memory (skip the pricey
+  13D compare) / other.
+- **Group C — the dropped 2.1 caching restructure / conditional pass 2** (§3/§6-constrained); only if
+  justified. Lower priority than Group B.
 
 ---
 
@@ -732,10 +776,12 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
   and/or switch the PDF lib. **Gated on data:** the archive holds only one PDF today (a 13D report),
   not the broker-research corpus these rules target — revisit once research PDFs forward in. Also gates
   the `PyPDF2 3.0.1` pin (don't bump first). `_clean_pdf_text` is measure-before-touch per §6.
-- **Group B — embedded Opus → Sonnet cost cut** (memory, alerts, 13D summary, reply answer) behind a
-  quality A/B (~40%/call saving). §11/§12.
+- **Group B — embedded Opus → Sonnet cost A/B** (memory, alerts, 13D summary, reply answer; ~40%/call).
+  ⭐ **This is the IMMEDIATE NEXT STEP** — a permissioned ~$1.50 run **waiting on an operator scoping
+  decision**. Full plan (candidates, cost table, A/B mechanics, recommended scoping, scoping options to
+  present) is in **§11 "Cost/efficiency" → Group B**. Ask before running.
 - **Group C — prompt-caching restructure / conditional pass 2** (the cache-correct version of dropped
-  2.1). Constrained by §3/§6; only if justified.
+  2.1). Constrained by §3/§6; only if justified. Lower priority than Group B.
 
 ### B. Conditional — do only if a real problem appears (no evidence yet)
 - **3.5a — `_assemble_digest_html` placeholder approach** — sections are injected by string-matching

@@ -13,12 +13,18 @@ then: the **email identity migrated to `acorn.research.bot@gmail.com`** (OAuth p
 **Octus was removed**, the **$20 Anthropic key + a free FRED key** were installed, and the **first
 credentialed run of the whole stack succeeded**, all → acohen: `digest.py` **$1.52**,
 `reply_monitor.py --once` **$0.20**, `midday.py --force` **$0.01** (~$1.73 of $20). `ruff` clean,
-`pytest` 56 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entry below.
+`pytest` 56 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entries below.
+A post-live **optimization session** then landed (Opus 4.8 upgrade, model/UA centralization, dead-code
+removal incl. `net_utils`/`build_ratings_html`, 3.1 keyword-only, Fed-stress numeric wiring,
+SYSTEM_PROMPT §9 fix, A2 structured outputs) — **all committed** (`62002e0`→`543065a`; working tree clean).
+
+➡️ **IMMEDIATE NEXT STEP: the Group B Opus→Sonnet cost A/B** — a permissioned ~$1.50 run **waiting on an
+operator scoping decision** (don't run before asking). Full plan in HANDOFF §11 "Cost/efficiency" → Group B.
 
 **Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
 TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the two remaining do-and-test
-items — **Group B** (Opus→Sonnet cost A/B, needs a permissioned run) and **3.3** (PDF review, needs
-more PDF data) — the wait-and-see items (3.5), and the **§7.2 server deploy** (= "done"). See §14.
+items — **Group B** (the next step, above) and **3.3** (PDF review, needs more PDF data) — the
+wait-and-see items (3.5), and the **§7.2 server deploy** (= "done"). See HANDOFF §14.
 
 ---
 
