@@ -34,10 +34,12 @@ the server deploy — see **§11 / §12 / §14**.
 >
 > ➡️ **Cost refactor steps 1–2 — DONE 2026-07-01** (`pytest` **60** green): (1) **13D WILTW summary cache**
 > (`wiltw_cache.json`) — stops re-summarizing the same weekly PDF 4–6×/week (~$130–150/yr, zero quality
-> impact); (2) **memory → Sonnet** — a *cost* follow-up (memory output near-identical, ~$0.16/run). Next
-> cost lever is **step 3 prompt caching** on the 2-pass digest (permissioned before/after — touches the
-> load-bearing `SYSTEM_PROMPT`). **Other open tracks:** §7.2 server deploy (= "done"), §13 coverage gaps,
-> and the scoped-but-unstarted Part-2 memory/retrieval refactor (reranker + hybrid search + PDF→md).
+> impact); (2) **memory → Sonnet** — a *cost* follow-up (memory output near-identical, ~$0.16/run);
+> (3) **2-pass digest prompt caching** — restructured so pass 1 writes the source/PDF prefix to cache and
+> pass 2 reads it (~$0.10/run text-day, ~$0.54/run PDF-day). Validated output-equivalent + cache-engaging
+> via a permissioned before/after; supersedes the old §14.E "2.1 dropped" finding. **Other open tracks:**
+> §7.2 server deploy (= "done"), §13 coverage gaps, and the scoped-but-unstarted Part-2 memory/retrieval
+> refactor (reranker + hybrid search + PDF→md indexing).
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 
@@ -517,10 +519,10 @@ body extractor (substack's divergent ones left alone); pinned by `tests/test_htm
 - **Done (cleanup phases — see §9):** Phase 0 (0.1–0.6), 1.1, 1.2, 2.2, 2.3, 2.4, 3.1, 3.2, 3.4 —
   plus the §7.1 de-hardcoding, A1 cost accounting, the Opus 4.8 upgrade + model/UA centralization +
   dead-code cleanup.
-- **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional), Group C
-  (caching). **Group B cost A/B — done 2026-07-01 (kept all Opus).** **A2 structured outputs — done +
-  live-confirmed 2026-06-30.** The low-value dedups are
-  all done (§14.C), and both former
+- **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional). **Cost work
+  done 2026-07-01:** Group B A/B (kept all Opus), the 13D summary cache, memory→Sonnet, and **Group C
+  (2-pass prompt caching)**. **A2 structured outputs — done + live-confirmed 2026-06-30.** The low-value
+  dedups are all done (§14.C), and both former
   "decisions" are resolved (Fed alert → numeric; `build_ratings_html` clarified — §9 is already
   Opus-written, so left off) (§14.D). 2.1 prompt caching dropped (§14.E).
 - **Do NOT fix (intentional / load-bearing — see §6):** module-level argv parse; `_clean_pdf_text`
@@ -692,8 +694,9 @@ live paths. 2.1 was dropped (no test needed).
   and **keep reply on Opus** (most quality-visible, only $0.08/reply). **Ask the operator which calls to
   A/B before running** — options: all four / alerts+13D+memory / just alerts+memory (skip the pricey
   13D compare) / other.
-- **Group C — the dropped 2.1 caching restructure / conditional pass 2** (§3/§6-constrained); only if
-  justified. Lower priority than Group B.
+- ✅ **Group C — 2-pass prompt-caching restructure — DONE 2026-07-01** (the cache-correct version of the
+  dropped 2.1). Validated output-equivalent + cache-engaging; see §14.A and WORKLOG. *(A "conditional
+  pass 2" skip-on-thin-days variant remains a separate, undone option, §3/§6-constrained.)*
 
 ---
 
@@ -711,9 +714,9 @@ The remaining work is gated on secrets. In order:
    small input, to acohen** (never `DIGEST_RECIPIENTS`/jared during testing).
 3. **Do-and-test the deferred items** (each permissioned, once): **3.3** `_clean_pdf_text` review vs
    real archived PDFs (once the broker-research PDFs forward in — the archive has only a 13D PDF today).
-   (The **Group B cost cut** A/B is **done** — 2026-07-01, kept all Opus. Group C / conditional pass 2
-   only if justified — §3/§6. **A2 (structured outputs, live-confirmed 2026-06-30) and 3.1 are already
-   done.**)
+   (Cost work **done 2026-07-01**: the Group B A/B (kept all Opus), the 13D summary cache, memory→Sonnet,
+   and **Group C 2-pass prompt caching**. A "conditional pass 2" skip-on-thin-days variant remains
+   optional — §3/§6. **A2 (structured outputs, live-confirmed 2026-06-30) and 3.1 are already done.**)
 4. **§7.2 deploy** to the dedicated always-on Windows server — the definition of "done": always-on +
    headless, runs whether or not anyone is logged in, machine-level env vars, headless
    Playwright/Chromium, log rotation + failure alerting, correct TZ, and backups of `archive/` +
@@ -802,8 +805,12 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
   render bug (```html fence + full HTML doc), 13D Sonnet over-length (~1,900 words), memory/alerts savings
   too small. **Cost follow-up (2026-07-01):** a separate refactor then added the 13D **summary cache** and
   moved **memory → Sonnet** for cost (near-identical output). Full results in §11 and WORKLOG (2026-07-01).
-- **Group C — prompt-caching restructure / conditional pass 2** (the cache-correct version of dropped
-  2.1). Constrained by §3/§6; only if justified. Lower priority than Group B.
+- ✅ **Group C (prompt-caching restructure) — DONE 2026-07-01** (the cache-correct version of dropped
+  2.1). The 2-pass digest now shares a cached source/PDF prefix across both passes (unified `system`;
+  per-pass instruction after the `cache_control` breakpoint). Validated output-equivalent + cache-engaging
+  via a permissioned before/after (~$3.5); ~$0.10/run text-day, ~$0.54/run PDF-day (mostly latent until
+  §13 PDF-forwarding flows). Detail in WORKLOG (2026-07-01). *(A "conditional pass 2" — skip pass 2 on
+  thin days — remains a separate, undone option if ever justified.)*
 
 ### B. Conditional — do only if a real problem appears (no evidence yet)
 - **3.5a — `_assemble_digest_html` placeholder approach** — sections are injected by string-matching
@@ -850,10 +857,12 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
   trap). If you ever want the complete raw table over Opus's curation, you'd re-add a renderer *and*
   suppress Opus's §9.
 
-### E. Dropped (closed — not pending, kept for context)
+### E. Dropped as specced — later revived cache-correct (Group C, DONE 2026-07-01)
 - **2.1 — prompt caching across the two Opus passes.** Counterproductive *as specced*: caching is a
-  strict prefix match over `tools → system → messages`; pass 1 and pass 2 use different `system`
-  prompts (pass 2 also puts the shared content after a review block), so they share no cacheable
-  prefix → 0 cache reads + a wasted ~1.25× cache-write on pass 1 = **net cost increase**. A
-  cache-correct version (= Group C above) would change pass 2's output and touch the load-bearing
-  `SYSTEM_PROMPT`. **Decision (2026-06-19): dropped.**
+  strict prefix match over `tools → system → messages`; pass 1 and pass 2 used different `system`
+  prompts (pass 2 also put the shared content after a review block), so they shared no cacheable
+  prefix → 0 cache reads + a wasted ~1.25× cache-write on pass 1 = **net cost increase**. The naive
+  version was **dropped (2026-06-19)**. ✅ **SUPERSEDED 2026-07-01:** the *cache-correct* restructure
+  (Group C — unify `system`, put the shared source/PDF prefix first with a `cache_control` breakpoint,
+  move per-pass instructions after it) **was built and validated** (output-equivalent + cache-engaging;
+  pass 2 reads the cached prefix). See §14.A "Group C" and WORKLOG (2026-07-01).

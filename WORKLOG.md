@@ -21,19 +21,60 @@ SYSTEM_PROMPT §9 fix, A2 structured outputs) — **all committed** (`62002e0`�
 ✅ **Group B Opus→Sonnet cost A/B — DONE 2026-07-01.** The A/B's *quality* verdict was keep-all-Opus.
 Detail in the dedicated section below and HANDOFF §11 "Cost/efficiency" → Group B.
 
-✅ **Cost refactor steps 1–2 — DONE 2026-07-01** (`pytest` **60** green, `ruff` clean): (1) **13D WILTW
+✅ **Cost refactor steps 1–3 — DONE 2026-07-01** (`pytest` **60** green, `ruff` clean): (1) **13D WILTW
 summary cache** (`wiltw_cache.json`) — stops re-summarizing the same weekly PDF 4–6×/week (~$130–150/yr,
 zero quality impact); (2) **memory → Sonnet** — a *cost* follow-up to the A/B (memory output was
-near-identical, ~$0.16/run saved; one-line, reversible). Detail in the section below.
+near-identical, ~$0.16/run saved; one-line, reversible); (3) **2-pass digest prompt caching** — pass 1
+writes the source/PDF prefix to cache, pass 2 reads it (~0.1×) instead of re-sending at full price
+(~$0.10/run text-day, ~$0.54/run on a 5 MB-PDF day). Validated output-equivalent + cache-engaging via a
+permissioned before/after (~$3.5). Detail in the sections below.
 
-➡️ **NEXT (cost):** step 3 prompt caching on the 2-pass digest — permissioned before/after (touches the
-load-bearing SYSTEM_PROMPT). **Other tracks:** the §7.2 server deploy and the §13 coverage gaps; the
-Part-2 memory/retrieval refactor (reranker + hybrid search + PDF→md indexing) is scoped but not started.
+➡️ **NEXT (cost):** the biggest safe cost wins are banked. Remaining cost ideas are lower-value (Group C
+conditional pass-2; 13D text-extraction) — see §14. **Other tracks:** the §7.2 server deploy and the §13
+coverage gaps; the Part-2 memory/retrieval refactor (reranker + hybrid search + PDF→md indexing) is
+scoped but not started.
 
 **Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
 TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaining do-and-test item
 **3.3** (PDF review, needs more PDF data), the wait-and-see items (3.5), and the **§7.2 server deploy**
 (= "done"). See HANDOFF §14.
+
+---
+
+## Cost refactor — step 3: 2-pass digest prompt caching (2026-07-01)
+
+`digest.summarize_with_claude` restructured so the two Opus passes share a cached source prefix.
+`pytest` **60** green, `ruff` clean.
+
+**The problem:** pass 2 re-sent the entire source material + all PDFs at full price (`review_prompt.extend(content)`)
+so the big input was billed ~twice. Naive caching couldn't help (the two passes had different `system`
+prompts and pass 2 put the draft/review text *before* the sources — no shared cacheable prefix; this was
+the §14.E "2.1 dropped" finding).
+
+**The restructure (cache-correct):**
+- Both passes now use the **same `system` (`SYSTEM_PROMPT`)**; the pass-2 "you are reviewing a draft"
+  framing moved into the trailing user block.
+- The source material (text + PDFs) is the **identical leading prefix** in both passes, with a
+  `cache_control: ephemeral` breakpoint on the last shared block; each pass's instruction (generate /
+  review-this-draft) goes **after** the breakpoint. Pass 1 writes the cache, pass 2 reads it (~0.1×).
+  The passes run seconds apart, inside the 5-min TTL.
+
+**Validation (permissioned A/B, ~$3.5 total — a foreground run timed out mid-PDF-mode; recovered):**
+- **Output equivalence — PASS.** Baseline vs restructured final digests on the archived 2026-06-30
+  sources were equivalent (same stories, structure, no errors); the restructured version actually
+  adhered *better* to the template's `<span style="color:#888">` source-tag styling (pass 2 now runs
+  under the full `SYSTEM_PROMPT`). Caching itself is **transparent to the model** (identical tokens
+  either way), so the only output-affecting change is the restructure — proven safe on the text case,
+  which covers the PDF case too.
+- **Cache engagement — CONFIRMED.** A 2-call check showed pass 1 `cache_creation=30,183`, pass 2
+  `cache_read=30,183` (uncached input just 6,568) — real numbers, SDK 0.109.2 / Opus 4.8.
+- **Saving:** cached ≈ $0.57 vs baseline ≈ $0.67 on a 30k-token text day (**~$0.10/run**); deterministic
+  math + `count_tokens` put a 5 MB-PDF day at **~$0.54/run**. Win scales with inbox-PDF volume, so the
+  bulk is **latent until the §13 PDF-forwarding is flowing** (the archived run had 0 inbox PDFs).
+- The in-function cost print is now cache-aware (`cost.cost_of`) and logs `pass 1 wrote N / pass 2 read N`
+  — that line is the live confirmation the cache engages on real runs. Dropped the now-unused
+  `OPUS_PRICE_IN/OUT` imports from `digest.py`.
+- A/B harness (`step3_cache_ab.py`) + the four text-mode digests kept in the session scratchpad.
 
 ---
 

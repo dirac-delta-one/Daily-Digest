@@ -23,7 +23,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from config import OPUS_MODEL, HAIKU_MODEL, OPUS_PRICE_IN, OPUS_PRICE_OUT, esc, safe_href
+from config import OPUS_MODEL, HAIKU_MODEL, esc, safe_href
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body
@@ -548,14 +548,30 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                 },
             })
 
+    # Prompt caching (Step 3): the source material (text + PDFs) is identical across
+    # both passes, so mark the last shared block as a cache breakpoint. Both passes use
+    # the SAME system prompt and put their per-pass instruction AFTER this cached prefix,
+    # so pass 1 writes the cache and pass 2 reads it (~0.1x) instead of re-paying full
+    # price to re-send the sources+PDFs. The passes run seconds apart, well within the
+    # 5-minute cache TTL. Validated output-equivalent + cache-engaging 2026-07-01 (see
+    # WORKLOG) — caching is transparent to the model (identical tokens either way).
+    content[-1] = {**content[-1], "cache_control": {"type": "ephemeral"}}
+
     # ---- PASS 1: Generate initial digest ----
     print("  Pass 1: Generating initial digest...")
 
+    pass1_content = content + [{
+        "type": "text",
+        "text": (
+            "Using the source material above, generate today's daily research digest now, "
+            "following the template and rules in the system prompt exactly."
+        ),
+    }]
     response = client.messages.create(
         model=CLAUDE_MODEL,
         max_tokens=20000,
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": content}],
+        messages=[{"role": "user", "content": pass1_content}],
     )
 
     draft = response.content[0].text
@@ -567,42 +583,37 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     cost.record("digest pass 1", CLAUDE_MODEL, response.usage)
 
     # ---- PASS 2: Review and enhance ----
+    # Same system + same cached source prefix as pass 1; the review instruction (with the
+    # draft) goes in the trailing block so the cached prefix stays byte-identical.
     print("  Pass 2: Reviewing for missed content...")
 
-    review_prompt = [
-        {"type": "text", "text": (
-            "You are reviewing a draft daily research digest against the original source material.\n\n"
-            "Below is the DRAFT DIGEST, followed by ALL the original source material it was based on.\n\n"
-            "Your job:\n"
-            "1. Compare the draft against every source. Identify any important items that were MISSED — "
-            "specific data points, trade ideas, tickers, price targets, key arguments, or surprising findings "
-            "that should have been included but weren't.\n"
-            "2. Check for any ERRORS — wrong numbers, misattributed sources, or mischaracterized arguments.\n"
+    pass2_content = content + [{
+        "type": "text",
+        "text": (
+            "Above is all of today's original source material.\n\n"
+            "Below is a DRAFT DIGEST you produced from it. Review the draft against the "
+            "source material above:\n"
+            "1. Identify any important items that were MISSED — specific data points, trade "
+            "ideas, tickers, price targets, key arguments, or surprising findings that should "
+            "have been included but weren't.\n"
+            "2. Check for any ERRORS — wrong numbers, misattributed sources, or mischaracterized "
+            "arguments.\n"
             "3. Check that every bullet has a source tag.\n"
             "4. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
             "and fixes any errors. Keep the exact same HTML template and formatting.\n\n"
-            "If the draft was already comprehensive, return it mostly unchanged — don't pad it with filler.\n"
-            "If you found missed items, weave them into the appropriate sections.\n\n"
+            "If the draft was already comprehensive, return it mostly unchanged — don't pad it "
+            "with filler.\n\n"
             "DRAFT DIGEST:\n"
             "═══════════════════════════════════════\n"
             f"{draft}\n"
-            "═══════════════════════════════════════\n\n"
-            "ORIGINAL SOURCE MATERIAL:\n"
-        )}
-    ]
-    # Append the same source content (text block + PDFs)
-    review_prompt.extend(content)
-
+            "═══════════════════════════════════════\n"
+        ),
+    }]
     review_response = client.messages.create(
         model=CLAUDE_MODEL,
         max_tokens=20000,
-        system=(
-            "You are a senior research analyst reviewing a junior analyst's daily digest. "
-            "Your job is to catch anything important that was missed and produce the final version. "
-            "Use the exact same HTML template and formatting as the draft. "
-            "Do not add filler — only add genuinely important missed items."
-        ),
-        messages=[{"role": "user", "content": review_prompt}],
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": pass2_content}],
     )
 
     final = review_response.content[0].text
@@ -618,14 +629,18 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     print(f"  Pass 2 tokens: {p2_input:,} in + {p2_output:,} out")
     cost.record("digest pass 2", CLAUDE_MODEL, review_response.usage)
 
-    total_input = p1_input + p2_input
-    total_output = p1_output + p2_output
-    input_cost = (total_input / 1_000_000) * OPUS_PRICE_IN
-    output_cost = (total_output / 1_000_000) * OPUS_PRICE_OUT
-    total_cost = input_cost + output_cost
+    # Cost (cache-aware): usage.input_tokens excludes cached tokens, so price via
+    # cost.cost_of, which bills cache reads at 0.1x and writes at 1.25x.
+    def _cache_tokens(usage):
+        return (getattr(usage, "cache_read_input_tokens", 0) or 0,
+                getattr(usage, "cache_creation_input_tokens", 0) or 0)
+    cr1, cw1 = _cache_tokens(response.usage)
+    cr2, cw2 = _cache_tokens(review_response.usage)
+    total_cost = (cost.cost_of(CLAUDE_MODEL, p1_input, p1_output, cr1, cw1)
+                  + cost.cost_of(CLAUDE_MODEL, p2_input, p2_output, cr2, cw2))
 
-    print(f"  Total: {total_input:,} in + {total_output:,} out")
-    print(f"  Estimated cost: ${total_cost:.2f} (${input_cost:.2f} in + ${output_cost:.2f} out)")
+    print(f"  Cache: pass 1 wrote {cw1:,} tok; pass 2 read {cr2:,} tok from cache")
+    print(f"  Estimated 2-pass cost: ${total_cost:.2f}")
 
     return final, prompt  # Return prompt too for alert evaluation
 
