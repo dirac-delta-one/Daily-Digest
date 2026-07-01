@@ -13,12 +13,57 @@ then: the **email identity migrated to `acorn.research.bot@gmail.com`** (OAuth p
 **Octus was removed**, the **$20 Anthropic key + a free FRED key** were installed, and the **first
 credentialed run of the whole stack succeeded**, all → acohen: `digest.py` **$1.52**,
 `reply_monitor.py --once` **$0.20**, `midday.py --force` **$0.01** (~$1.73 of $20). `ruff` clean,
-`pytest` 41 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entry below.
+`pytest` 49 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entry below.
 
 **Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
-TRACE + Octus unreplaced, a `fed_balance_sheet` series-label bug found 2026-06-30), the
-`.bat`/`setup_tasks` scheduling test, the optional do-and-test code items (A2, 3.1, 3.3, Group B),
-and the **§7.2 server deploy** (= "done").
+TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the deferred do-and-test items
+that need a permissioned run (A2, Group B) or more data (3.3), the wait-and-see items (3.5), one open
+product decision (re-enable `build_ratings_html`), and the **§7.2 server deploy** (= "done"). See §14.
+
+---
+
+## SYSTEM_PROMPT §9 fix + Rating-Actions clarification (2026-06-30)
+
+Follow-up to a premise error the operator caught: an earlier note claimed the digest had **no** §9
+Rating Actions section and that `build_ratings_html` should be re-enabled to add one. Checking the
+**archived 2026-06-30 email** disproved it — §9 was present, written by **Opus** (curated prose with
+ticker + "(Moody's via …)" source tags; none of `build_ratings_html`'s ▼/▲ arrows or per-item links).
+
+- **Root cause:** the `SYSTEM_PROMPT` said "Sections 9 (Rating Actions), 10, 11 … do NOT generate those
+  yourself," but the rating data is fed to Opus and it writes §9 anyway (instruction ignored) — while
+  §10/§11 really are appended (`build_news_html` / `build_funds_html`). A latent contradiction.
+- **Fix:** made §9 an explicit **Opus-owned** section in the `SYSTEM_PROMPT` (added a Rating Actions
+  spec + template comment) and scoped the "do NOT generate" line to §10/§11 only. Clarified the
+  `digest.py` `ratings_html=""` comment (Opus writes §9; `build_ratings_html` is the disabled raw-table
+  alternative — enabling it naively *duplicates* §9).
+- **Decision + follow-up cleanup:** `build_ratings_html` was **removed as dead code** (zero references;
+  it would have duplicated Opus's §9) — along with its now-unused `esc`/`safe_href` import and the
+  vestigial always-`""` `ratings_html` plumbing in `_assemble_digest_html` (param + dead branch + call
+  arg). The curated Opus §9 is the better product; the table's only edge was completeness. Not
+  Octus-related after all. Recoverable from git. ruff + pytest 49 + live `ratings.py` run green.
+- Corrected the stale premise + "keep the function" across HANDOFF §1 / §6 / §10 / §14.D.
+- **Note:** this touches the load-bearing `SYSTEM_PROMPT`, so the §9 output should be eyeballed on the
+  next digest run. Low-risk (matches existing behavior; `_assemble_digest_html` anchors untouched);
+  `ruff` + `pytest` 49 green offline.
+
+---
+
+## Fed stress alert → numeric check wired in (2026-06-30)
+
+Converted the discount-window stress alert from an LLM-evaluated config rule to a deterministic code
+check (operator chose this over just fixing the threshold, for testability + single-source-of-truth).
+Offline, no Claude call. `ruff` clean, `pytest` **49 green** (+8), alert-box render confirmed.
+
+- **Removed** the stale `alerts_config.json` "Fed stress signal" rule (was "$5B / +$2B WoW" — would
+  mis-fire daily against the corrected ~$8B discount-window baseline, since it was calibrated against
+  the old mislabeled ~$900B TGA series).
+- **Wired `fed_balance_sheet.check_fed_stress(fed_bs)` into `digest.main`** — its $25B-absolute /
+  $10B-WoW-surge signals now merge into the same red "⚠️ ALERTS" box via `build_alerts_html`. Runs even
+  if the LLM alert eval fails. Threshold now lives in exactly one place (code, next to the series).
+- Qualitative Fed events (emergency statements, new facilities) stay covered by the separate LLM
+  "Fed surprise" rule — the numeric check owns only the discount-window *level*.
+- New `tests/test_fed_stress.py` (8 tests): threshold logic (silent at baseline, absolute + surge fire,
+  non-DW rows ignored, `wow_change=None` safe) + the merge rendering in the alert box.
 
 ---
 
@@ -60,6 +105,11 @@ modules import, constants resolve, `python market_data.py` runs (free Yahoo).
   `_parse_date`/`_is_recent` now import `feeds.is_recent` (its divergent `_fetch_feed` stays).
   Behavior-neutral: `ruff` clean, `pytest` 41 green, plus live free-fetcher smoke (edgar_get → dict/text,
   Treasury + CFTC auctions/positioning, fed_research date-filtering) all confirmed.
+- **Bare RSS/data-feed User-Agent centralized** — `"DailyDigest/1.0"` (distinct from the SEC/PACER
+  contact UA) was repeated in 7 files; now one `config.FEED_USER_AGENT`. `feeds.fetch_feed` defaults to
+  it (so news/ratings dropped their redundant local constant + explicit arg); `fed_research`, `cftc_cot`,
+  `fdic_monitor`, `treasury_auctions` import it. Behavior-neutral (same string); ruff + pytest 41 +
+  news/fdic live smoke green.
 - **Intentionally NOT done** (deliberate divergence): `news._clean_html` vs the inline `re.sub` tag
   strips in `ratings.py`/`fed_research.py` — `_clean_html` also unescapes entities, so merging would
   change what's fed to Opus/embeddings (§3.2). The `alerts_config.json` Fed `$5B` threshold is a

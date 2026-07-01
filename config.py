@@ -12,11 +12,15 @@ OPUS_MODEL = "claude-opus-4-8"
 SONNET_MODEL = "claude-sonnet-4-6"
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
-# --- Scraper contact ---
-# Courtesy contact in the User-Agent for the public SEC EDGAR / PACER / FINRA
-# scrapers (fair-access etiquette, not a credential). Used by sec_filings.py,
-# pacer.py, trace_data.py, fund_tracking.py.
+# --- User-Agent strings ---
+# Courtesy contact in the User-Agent for the SEC EDGAR / PACER / FINRA scrapers
+# (fair-access etiquette, not a credential). Used by sec_filings.py, pacer.py,
+# trace_data.py, fund_tracking.py, net_utils.py.
 USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
+# Plain UA for public RSS / open data-feed fetchers that don't need a contact:
+# feeds.py (news + ratings), fed_research.py, cftc_cot.py, fdic_monitor.py,
+# treasury_auctions.py.
+FEED_USER_AGENT = "DailyDigest/1.0"
 
 # --- Pricing ($ per million tokens) ---
 OPUS_PRICE_IN = 5.0

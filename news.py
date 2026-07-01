@@ -26,7 +26,6 @@ RSS_FEEDS = [
 ]
 
 HOURS_LOOKBACK = 24
-USER_AGENT = "DailyDigest/1.0"
 
 
 def _clean_html(text):
@@ -52,7 +51,7 @@ def fetch_wsj_ft_articles(since_datetime=None):
     seen_urls = set()
 
     for feed_url, source in RSS_FEEDS:
-        tree = fetch_feed(feed_url, USER_AGENT)
+        tree = fetch_feed(feed_url)
         if tree is None:
             continue
 

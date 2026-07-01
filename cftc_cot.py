@@ -12,6 +12,7 @@ import urllib.request
 from pathlib import Path
 
 from net_utils import unverified_ssl_context
+from config import FEED_USER_AGENT
 
 SCRIPT_DIR = Path(__file__).parent
 CACHE_DIR = SCRIPT_DIR / "archive" / "cot_cache"
@@ -42,7 +43,7 @@ TRACKED_CONTRACTS = [
 def _fetch_cot(url):
     """Fetch a CFTC text file."""
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", "DailyDigest/1.0")
+    req.add_header("User-Agent", FEED_USER_AGENT)
     try:
         with urllib.request.urlopen(req, timeout=30, context=_SSL_CTX) as resp:
             return resp.read().decode("utf-8", errors="replace")

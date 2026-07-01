@@ -10,9 +10,9 @@ import xml.etree.ElementTree as ET
 import urllib.request
 
 from feeds import is_recent
+from config import FEED_USER_AGENT
 
 HOURS_LOOKBACK = 24
-USER_AGENT = "DailyDigest/1.0"
 
 RESEARCH_FEEDS = [
     ("https://libertystreeteconomics.newyorkfed.org/feed/", "NY Fed (Liberty Street)"),
@@ -47,7 +47,7 @@ RELEVANCE_KEYWORDS = [
 
 def _fetch_feed(url):
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", USER_AGENT)
+    req.add_header("User-Agent", FEED_USER_AGENT)
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             raw = resp.read().decode("utf-8", errors="replace")

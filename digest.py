@@ -43,7 +43,9 @@ from thirteen_d import fetch_wiltw
 from fed_research import fetch_research_articles, format_research_for_prompt
 from treasury_auctions import fetch_treasury_auctions, format_auctions_for_prompt, build_auctions_table_html
 from cftc_cot import fetch_cot_data, format_cot_for_prompt
-from fed_balance_sheet import fetch_fed_balance_sheet, format_fed_bs_for_prompt, build_fed_bs_table_html
+from fed_balance_sheet import (
+    fetch_fed_balance_sheet, format_fed_bs_for_prompt, build_fed_bs_table_html, check_fed_stress,
+)
 from fdic_monitor import fetch_failed_banks, format_fdic_for_prompt
 from archive import archive_daily_content
 from search import index_daily_content
@@ -242,7 +244,12 @@ For Form 4s, note who traded, how many shares, and at what price. \
 For other forms, highlight the most important details. \
 Organize by company. Include ticker, form type, date, and link to the filing.
 
-Sections 9 (Rating Actions), 10 (WSJ/FT Articles), and 11 (Fund Position Changes) \
+9. **Rating Actions** — From the rating agency actions provided (Moody's, S&P, Fitch). \
+One line each: entity (with ticker if known), the action (upgrade/downgrade/outlook change) \
+and specifics (new rating, notches, rationale). Lead with downgrades and fallen angels — \
+they carry the most credit signal. Tag the source at the end of each line.
+
+Sections 10 (WSJ/FT Articles) and 11 (Fund Position Changes) \
 are appended separately — do NOT generate those yourself.
 
 Rules:
@@ -290,6 +297,7 @@ Use inline styles only (no <style> blocks). Every digest must look identical in 
   <!-- Section 6: Worth Reading in Full — hyperlink titles to source URLs -->
   <!-- Section 7: Bloomberg — only if bloomberg.net emails exist -->
   <!-- Section 8: Recent SEC Filings — only if filings exist -->
+  <!-- Section 9: Rating Actions — only if rating agency actions exist -->
 
   <!-- Styling rules for all sections: -->
   <!-- Section headers: h2, 18px, border-bottom, numbered as above -->
@@ -734,7 +742,7 @@ def build_news_html(articles):
 
 def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
                           earnings_html, news_html, trace_html, pacer_html,
-                          ratings_html="", funds_html="",
+                          funds_html="",
                           auctions_html="", fed_bs_html=""):
     """
     Assemble the final digest HTML by injecting pre-built sections
@@ -768,8 +776,6 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
     post_sections = ""
     if news_html:
         post_sections += news_html
-    if ratings_html:
-        post_sections += ratings_html
     if funds_html:
         post_sections += funds_html
     if trace_html:
@@ -1071,6 +1077,22 @@ def main():
         print(f"Alert evaluation failed: {e} — continuing without.")
         triggered_alerts = []
 
+    # --- Fed discount-window stress (numeric, from FRED H.4.1) ---
+    # Deterministic threshold check on the actual discount-window level, merged
+    # into the same alert box. Replaces the old LLM-evaluated "Fed stress signal"
+    # rule (removed from alerts_config.json) so the threshold lives in exactly one
+    # place: fed_balance_sheet.DISCOUNT_WINDOW_ALERT_MM / _SURGE_MM. Runs even if
+    # the LLM alert eval above failed.
+    try:
+        for signal in check_fed_stress(fed_bs):
+            triggered_alerts.append({
+                "name": "Fed stress signal",
+                "detail": signal,
+                "source": "FRED H.4.1",
+            })
+    except Exception as e:
+        print(f"Fed stress check failed: {e} — continuing without.")
+
     # --- Build pre-formatted HTML sections ---
     alerts_html = build_alerts_html(triggered_alerts)
     market_html = build_market_table_html(market_data)
@@ -1079,7 +1101,8 @@ def main():
     news_html = build_news_html(news_articles)
     trace_html = build_trace_html(trace_data)
     pacer_html = build_pacer_html(pacer_entries)
-    ratings_html = ""  # Rating data goes to Opus only (it writes the Rating Actions section)
+    # No ratings section is pre-built here — Opus writes the §9 "Rating Actions" section itself from
+    # the rating data (see SYSTEM_PROMPT), unlike other sources which pre-render their section.
     funds_html = build_funds_html(fund_results)
     auctions_html = build_auctions_table_html(treasury_auctions)
     fed_bs_html = build_fed_bs_table_html(fed_bs)
@@ -1088,7 +1111,7 @@ def main():
     final_html = _assemble_digest_html(
         digest_html, alerts_html, market_html, macro_html,
         earnings_html, news_html, trace_html, pacer_html,
-        ratings_html, funds_html,
+        funds_html,
         auctions_html, fed_bs_html,
     )
 

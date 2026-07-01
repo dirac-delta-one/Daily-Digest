@@ -59,8 +59,9 @@ deferred runtime checks are consolidated in **§11**, and the ordered path to "d
   *blocked an unattended run* on its interactive re-login prompt). Lost: the Octus Intelligence feed and
   the Primary Deal Tracker. The new-issue HY deal table has **no free replacement**; the distressed
   *news* is partly covered by PACER + ratings + the credit Substacks. Existing archived Octus data is
-  left intact (still searchable). **Open question:** with Octus gone, the Rating Actions HTML table
-  (`build_ratings_html`, currently disabled — §6) could be re-enabled; left off pending a decision.
+  left intact (still searchable). *(Note: the free RSS rating data still flows, and **Opus writes the
+  §9 Rating Actions section from it** — confirmed in the 2026-06-30 run. There was never a missing
+  section; the dead `build_ratings_html` raw-table renderer was removed 2026-06-30 — see §6 / §14.D.)*
 - **Anthropic key** ($20 credit) is in `env.bat` — the first credentialed run is unblocked.
 
 **Credential bring-up — COMPLETE (2026-06-30).** The 2026-06-21 blockers below are all resolved;
@@ -197,9 +198,11 @@ Investigated and confirmed as deliberate. Changing them adds risk for no benefit
   because `HOURS_LOOKBACK` is captured as a default-arg value at definition time. Correct placement.
 - **`_clean_pdf_text` aggressive regexes** (`search.py:117–136`): likely rescue logic for
   PyPDF2 character-fragmentation on this corpus. Measure before touching (see Phase 3).
-- **`build_ratings_html` unused in main flow** (`digest.py` sets `ratings_html=""`):
-  was a deliberate product decision ("Octus has better coverage") — but **Octus was removed
-  2026-06-29**, so this could now be re-enabled; left off pending a decision (§1). Keep the function.
+- **Rating Actions §9 is Opus-written, not pre-rendered.** Opus writes the digest's §9 "Rating Actions"
+  from the rating data (SYSTEM_PROMPT), unlike other sources which pre-render their HTML section. The
+  old `build_ratings_html` raw-table renderer was **removed as dead code 2026-06-30** (zero references;
+  it would have *duplicated* Opus's §9; recoverable from git). **Gotcha:** don't "restore" a ratings
+  table without also suppressing Opus's §9, or you'll get two §9 sections. (§14.D)
 - **`_is_recent` returns `True` on unparseable dates** (news/ratings/substack): intentional
   over-inclusion; Opus curates downstream.
 - **`reply_monitor` `while True` daemon:** deliberate (a `--once` mode also exists). Not a bug.
@@ -487,8 +490,9 @@ body extractor (substack's divergent ones left alone); pinned by `tests/test_htm
   plus the §7.1 de-hardcoding, A1 cost accounting, the Opus 4.8 upgrade + model/UA centralization +
   dead-code cleanup.
 - **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional), A2 (structured
-  outputs), Group B/C (cost cuts), the low-value dedup niceties, and two pending decisions
-  (`alerts_config` Fed threshold, re-enable `build_ratings_html`). 2.1 prompt caching dropped (§14.E).
+  outputs), Group B/C (cost cuts). The low-value dedups are all done (§14.C), and both former
+  "decisions" are resolved (Fed alert → numeric; `build_ratings_html` clarified — §9 is already
+  Opus-written, so left off) (§14.D). 2.1 prompt caching dropped (§14.E).
 - **Do NOT fix (intentional / load-bearing — see §6):** module-level argv parse; `_clean_pdf_text`
   blind edits; `_is_recent` true-on-unparseable; reply-monitor daemon; FAISS index type.
 - **Constraint:** Opus is `claude-opus-4-8` (upgraded from 4.6); model IDs centralized in
@@ -672,8 +676,10 @@ all sources flowed, Octus-free). Each item below is a real gap in what the diges
   MBS $1.96T / Discount Window $7.9B / ON RRP $3.5B / Repos $4M. Also **retuned `check_fed_stress`** the
   same day: the old $5B level (calibrated against the mislabeled $900B TGA, so it always tripped) →
   **$25B absolute + $10B WoW-surge** thresholds (`DISCOUNT_WINDOW_ALERT_MM` / `DISCOUNT_WINDOW_SURGE_MM`),
-  sized to genuine primary-credit stress (SVB-era spiked ~$150B); now silent at the ~$8B baseline. (That
-  path is still unused by the digest.)
+  sized to genuine primary-credit stress (SVB-era spiked ~$150B); now silent at the ~$8B baseline.
+  **Wired into the digest 2026-06-30** — `check_fed_stress(fed_bs)` now runs in `digest.main` and merges
+  any signal into the red alert box (the stale LLM `alerts_config.json` "Fed stress signal" rule was
+  removed, so the threshold lives only in code). Pinned by `tests/test_fed_stress.py`.
 
 ### Forwarding completeness (verify with jared)
 The inbox layer = whatever jared forwards to `acorn.research.bot@gmail.com`. The first run's window had
@@ -703,10 +709,12 @@ The inbox layer = whatever jared forwards to `acorn.research.bot@gmail.com`. The
 ## 14. Flagged / deferred — code changes that are fine for now
 
 A single place for everything that's been **flagged but intentionally not done**, so §9's phase
-breakdown reflects only *completed* cleanup. Nothing here is blocking. Each item is gated on a
-permissioned Claude run, waiting on data, conditional on a problem appearing, or a low-value nicety.
-*(Distinct from §6 "Do NOT fix" — those are load-bearing and meant to stay untouched permanently.
-Items here are "fine for now, maybe later.")*
+breakdown reflects only *completed* cleanup. *(Distinct from §6 "Do NOT fix" — those are load-bearing
+and meant to stay untouched permanently. Items here are "fine for now, maybe later.")*
+
+**Status (2026-06-30): the offline, behavior-neutral cleanup is COMPLETE** (§14.C all done), and both
+open product decisions (§14.D) are now resolved. Everything that remains needs either **(A)** a
+permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a problem actually appears).
 
 ### A. Deferred do-and-test (need a permissioned Claude run or more data)
 - **A2 — structured outputs (`output_config.format`)** for alerts/memory + the 4 ranker calls. Needs
@@ -740,22 +748,33 @@ Items here are "fine for now, maybe later.")*
   (sec_filings parses JSON; fund_tracking takes raw text + 20s timeout — both via the one fetcher).
 - The duplicated unverified-SSL context (`treasury_auctions.py` + `cftc_cot.py`) →
   **`net_utils.unverified_ssl_context`**.
+- The bare RSS/data-feed User-Agent `"DailyDigest/1.0"` (in 7 files; distinct from the SEC/PACER
+  contact UA) → one **`config.FEED_USER_AGENT`**. `feeds.fetch_feed` defaults to it (news/ratings
+  dropped their redundant local copy); `fed_research` / `cftc_cot` / `fdic_monitor` /
+  `treasury_auctions` import it.
 
-**Left as-is (intentional):**
+**Left as-is (intentional — NOT a wait-and-see; genuinely not duplication):**
 - **`news._clean_html` vs the inline `re.sub(r'<[^>]+>', …)` strips** in `ratings.py` / `fed_research.py`
   — NOT consolidated: `news._clean_html` also unescapes HTML entities while the inline strips don't, so
   merging would change what's fed to Opus/embeddings (§3.2 left these divergent for exactly this reason).
   Extracting a one-line `re.sub` would also add indirection for no real gain.
 
-### D. Decisions pending (behavior/product, not cleanup)
-- **`alerts_config.json` "Fed stress signal" threshold** still reads "$5B / +$2B WoW" but
-  `check_fed_stress` was retuned to **$25B / $10B** after the §13 series-ID fix (real primary-credit
-  baseline ~$8B). This plain-English alert is Opus-evaluated (separate from the unused
-  `check_fed_stress`), so it would mis-fire against a correctly-labeled baseline. Decide the right
-  trigger wording.
-- **Re-enable `build_ratings_html` (digest §9 Rating Actions table)** — disabled as a product call
-  ("Octus has better coverage"), but **Octus was removed 2026-06-29**, so it could come back. Left off
-  pending a decision (§1/§6); keep the function either way.
+### D. Decisions (both resolved 2026-06-30)
+- ✅ **RESOLVED 2026-06-30 via option (b)** — the discount-window stress alert. The stale LLM
+  `alerts_config.json` "Fed stress signal" rule (was "$5B / +$2B WoW", would mis-fire daily against the
+  corrected ~$8B baseline) was **removed**, and the numeric `fed_balance_sheet.check_fed_stress`
+  ($25B / $10B) is now **wired into `digest.main`** — deterministic, single-source-of-truth threshold in
+  code, merged into the same red alert box, and unit-tested (`tests/test_fed_stress.py`). Qualitative
+  Fed events remain covered by the separate LLM "Fed surprise" rule.
+- ✅ **RESOLVED 2026-06-30 — `build_ratings_html` removed; §9 stays Opus-written.** The earlier item
+  assumed §9 was missing; it isn't — **Opus writes the §9 Rating Actions section itself** from the RSS
+  rating data (confirmed in the 2026-06-30 email; curated prose, not a table). The `build_ratings_html`
+  raw-table renderer was **dead code** (zero references) and would have *duplicated* §9, so it was
+  **deleted** (+ its now-unused `esc`/`safe_href` import; the vestigial `ratings_html` plumbing in
+  `_assemble_digest_html` too). Recoverable from git. The **SYSTEM_PROMPT was fixed** to make §9 an
+  explicit Opus-owned section (it previously said "do NOT generate §9," which Opus ignored — a latent
+  trap). If you ever want the complete raw table over Opus's curation, you'd re-add a renderer *and*
+  suppress Opus's §9.
 
 ### E. Dropped (closed — not pending, kept for context)
 - **2.1 — prompt caching across the two Opus passes.** Counterproductive *as specced*: caching is a

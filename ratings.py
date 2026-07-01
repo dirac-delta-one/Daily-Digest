@@ -9,10 +9,8 @@ import datetime
 import re
 
 from feeds import fetch_feed, parse_date, is_recent
-from config import esc, safe_href
 
 HOURS_LOOKBACK = 24
-USER_AGENT = "DailyDigest/1.0"
 
 # Google News RSS searches for rating actions by agency
 RATING_FEEDS = [
@@ -70,7 +68,7 @@ def fetch_rating_actions(since_datetime=None):
     seen_titles = set()
 
     for feed_url, source in RATING_FEEDS:
-        tree = fetch_feed(feed_url, USER_AGENT)
+        tree = fetch_feed(feed_url)
         if tree is None:
             continue
 
@@ -169,51 +167,10 @@ def format_ratings_for_prompt(actions):
     return "\n".join(lines)
 
 
-def build_ratings_html(actions):
-    """Render rating actions as an HTML section."""
-    if not actions:
-        return ""
-
-    items = ""
-    for a in actions:
-        source = a["source"]
-        title = a["title"]
-        url = a.get("url", "")
-        desc = a.get("description", "")
-
-        # Color by direction
-        title_lower = title.lower()
-        if any(w in title_lower for w in ("downgrade", "negative", "junk", "review for downgrade", "lowers", "cuts")):
-            indicator = '<span style="color: #c0392b; font-weight: 700;">&#x25BC;</span> '
-        elif any(w in title_lower for w in ("upgrade", "positive", "raises")):
-            indicator = '<span style="color: #27ae60; font-weight: 700;">&#x25B2;</span> '
-        else:
-            indicator = ""
-
-        if url:
-            headline = (
-                f'<a href="{safe_href(url)}" style="color: #1a5276; text-decoration: none; '
-                f'border-bottom: 1px solid #ccc;">{esc(title)}</a>'
-            )
-        else:
-            headline = esc(title)
-
-        items += (
-            f'<li style="margin-bottom: 10px; font-size: 14px;">'
-            f'{indicator}{headline} '
-            f'<span style="color: #888; font-size: 11px;">({esc(source)})</span>'
-        )
-        if desc:
-            items += f'<br><span style="color: #555; font-size: 13px;">{esc(desc)}</span>'
-        items += '</li>\n'
-
-    html = (
-        '<h2 style="font-size: 18px; border-bottom: 1px solid #ccc; '
-        'padding-bottom: 6px; margin: 28px 0 12px;">9. Rating Actions</h2>\n'
-        f'<ul style="padding-left: 20px; margin: 0;">\n{items}</ul>\n'
-    )
-
-    return html
+# No build_ratings_html here: unlike the other source modules, ratings has no pre-rendered HTML
+# section. The digest's §9 "Rating Actions" is written by Opus from format_ratings_for_prompt()
+# output (see digest.py SYSTEM_PROMPT). A raw-table renderer lived here until 2026-06-30; it was
+# removed as dead code (it would have duplicated Opus's §9). Recoverable from git if ever wanted.
 
 
 if __name__ == "__main__":

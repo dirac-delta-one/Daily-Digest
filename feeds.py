@@ -12,10 +12,10 @@ import xml.etree.ElementTree as ET
 import urllib.request
 from email.utils import parsedate_to_datetime
 
-DEFAULT_USER_AGENT = "DailyDigest/1.0"
+from config import FEED_USER_AGENT
 
 
-def fetch_feed(url, user_agent=DEFAULT_USER_AGENT, timeout=15):
+def fetch_feed(url, user_agent=FEED_USER_AGENT, timeout=15):
     """Fetch and parse a single RSS feed. Returns an ElementTree or None."""
     req = urllib.request.Request(url)
     req.add_header("User-Agent", user_agent)

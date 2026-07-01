@@ -10,6 +10,7 @@ import datetime
 import urllib.request
 
 from net_utils import unverified_ssl_context
+from config import FEED_USER_AGENT
 
 HOURS_LOOKBACK = 24
 
@@ -27,7 +28,7 @@ _SSL_CTX = unverified_ssl_context()
 
 def _fetch_json(url):
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", "DailyDigest/1.0")
+    req.add_header("User-Agent", FEED_USER_AGENT)
     try:
         with urllib.request.urlopen(req, timeout=20, context=_SSL_CTX) as resp:
             return json.loads(resp.read().decode("utf-8"))
