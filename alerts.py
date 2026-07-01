@@ -10,12 +10,36 @@ from pathlib import Path
 import anthropic
 
 from config import OPUS_MODEL, esc
-from claude_utils import parse_json_response
+from claude_utils import parse_json_response, json_schema_output
 import cost
 
 SCRIPT_DIR = Path(__file__).parent
 ALERTS_CONFIG_FILE = SCRIPT_DIR / "alerts_config.json"
 CLAUDE_MODEL = OPUS_MODEL
+
+# Structured-output schema (A2): a top-level object with a "results" array, so the
+# model can't return malformed JSON that silently drops the whole alert pass.
+ALERTS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "triggered": {"type": "boolean"},
+                    "detail": {"type": ["string", "null"]},
+                    "source": {"type": ["string", "null"]},
+                },
+                "required": ["name", "triggered", "detail", "source"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["results"],
+    "additionalProperties": False,
+}
 
 
 def _load_alerts_config():
@@ -65,7 +89,7 @@ def evaluate_alerts(source_text):
         "Evaluate each alert trigger below against today's source material.\n\n"
         "ALERTS TO EVALUATE:\n"
         f"{alert_defs}"
-        "For each alert, respond with a JSON array. Each element:\n"
+        "For each alert, add one entry to a \"results\" array. Each entry:\n"
         '{"name": "<exact NAME string from above>", "triggered": true/false, '
         '"detail": "1-2 sentence description of what triggered it (or null)", '
         '"source": "the real source name, e.g. Grant\'s, FT, Bloomberg (or null)"}\n\n'
@@ -75,7 +99,7 @@ def evaluate_alerts(source_text):
         f"- Valid names are: {name_list}\n"
         "- The \"source\" must be a real publication/agency name, never \"Cross-Digest Memory\" "
         "or any internal system component.\n\n"
-        "Output ONLY a valid JSON array. No markdown, no explanation.\n\n"
+        "Return a JSON object with a \"results\" array. No markdown, no explanation.\n\n"
         f"SOURCE MATERIAL:\n{'='*40}\n{source_text[:50000]}\n{'='*40}\n"
     )
 
@@ -88,10 +112,11 @@ def evaluate_alerts(source_text):
                 "the source material. Be conservative — only mark TRIGGERED if there "
                 "is clear, specific evidence in the source material. Output only JSON."
             ),
+            output_config=json_schema_output(ALERTS_SCHEMA),
             messages=[{"role": "user", "content": prompt}],
         )
 
-        results = parse_json_response(response.content[0].text)
+        results = parse_json_response(response.content[0].text)["results"]
 
         tokens_in = response.usage.input_tokens
         tokens_out = response.usage.output_tokens

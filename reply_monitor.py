@@ -26,7 +26,7 @@ from digest import get_gmail_service, DIGEST_RECIPIENTS
 
 from search import search
 from config import OPUS_MODEL, SONNET_MODEL
-from claude_utils import parse_json_response
+from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body, strip_html
 
@@ -241,17 +241,18 @@ def _extract_search_queries(reply_text):
             max_tokens=500,
             system=(
                 "Extract the questions or information requests from this email reply. "
-                "Return them as a JSON array of strings — one search query per question. "
+                "Return a JSON object {\"queries\": [ ... ]} — one search-query string per question. "
                 "Rephrase each as a clear search query suitable for searching a research archive. "
                 "If there's only one question, return a single-element array. "
-                "If the message isn't a question (just a comment/thanks), return []. "
-                "Output ONLY a JSON array, nothing else."
+                "If the message isn't a question (just a comment/thanks), return {\"queries\": []}. "
+                "Output ONLY the JSON object, nothing else."
             ),
+            output_config=json_schema_output(wrapped_array_schema("queries", "string")),
             messages=[{"role": "user", "content": reply_text}],
         )
 
         cost.record("reply query-extract", SONNET_MODEL, response.usage)
-        queries = parse_json_response(response.content[0].text)
+        queries = parse_json_response(response.content[0].text)["queries"]
         if isinstance(queries, list) and queries:
             print(f"  Extracted {len(queries)} search queries from reply")
             for q in queries:

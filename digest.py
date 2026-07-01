@@ -24,7 +24,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from config import OPUS_MODEL, HAIKU_MODEL, OPUS_PRICE_IN, OPUS_PRICE_OUT, esc, safe_href
-from claude_utils import parse_json_response
+from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body
 from substack import fetch_substack_articles
@@ -666,14 +666,15 @@ def _rank_news_articles(articles, max_articles=8):
                 "weight-loss drugs, tech product launches, lifestyle, sports, "
                 "entertainment, and anything without a direct credit/macro angle."
             ),
+            output_config=json_schema_output(wrapped_array_schema("indices", "integer")),
             messages=[{"role": "user", "content": (
-                f"Below are {len(articles)} articles. Return ONLY the index numbers of "
-                f"the top {max_articles} most relevant, in order of relevance. "
-                f"Output as a JSON array of integers, nothing else.\n\n{article_list}"
+                f"Below are {len(articles)} articles. Return the index numbers of "
+                f"the top {max_articles} most relevant, in order of relevance, as a JSON "
+                f'object {{"indices": [ ... ]}}, nothing else.\n\n{article_list}'
             )}],
         )
 
-        indices = parse_json_response(response.content[0].text)
+        indices = parse_json_response(response.content[0].text)["indices"]
         ranked = []
         for idx in indices:
             if isinstance(idx, int) and 0 <= idx < len(articles):

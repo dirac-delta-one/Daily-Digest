@@ -20,7 +20,7 @@ from pathlib import Path
 import anthropic
 
 from config import esc, safe_href, SONNET_MODEL, USER_AGENT
-from claude_utils import parse_json_response
+from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 
 SCRIPT_DIR = Path(__file__).parent
@@ -307,9 +307,11 @@ def _filter_by_size(filings):
                 "Consider: Is this a publicly traded company? A large private company? A PE-backed "
                 "platform? A real estate portfolio? If there's not enough info to tell, lean toward "
                 "EXCLUDE — the investor only wants to see large cases.\n\n"
-                "Output ONLY a JSON array of the candidate indices (integers) that are likely >$500M. "
-                "Example: [0, 3, 7]. If none qualify, output []. No explanation."
+                "Return a JSON object {\"indices\": [ ... ]} with the candidate indices (integers) "
+                "that are likely >$500M. Example: {\"indices\": [0, 3, 7]}. If none qualify, "
+                "return {\"indices\": []}. No explanation."
             ),
+            output_config=json_schema_output(wrapped_array_schema("indices", "integer")),
             messages=[{"role": "user", "content": (
                 f"Evaluate these {len(filings)} Chapter 11 filings. "
                 f"Return the indices of those likely >$500M in assets/liabilities.\n"
@@ -317,7 +319,7 @@ def _filter_by_size(filings):
             )}],
         )
 
-        indices = parse_json_response(response.content[0].text)
+        indices = parse_json_response(response.content[0].text)["indices"]
 
         kept = [filings[i] for i in indices if isinstance(i, int) and 0 <= i < len(filings)]
 

@@ -13,12 +13,37 @@ then: the **email identity migrated to `acorn.research.bot@gmail.com`** (OAuth p
 **Octus was removed**, the **$20 Anthropic key + a free FRED key** were installed, and the **first
 credentialed run of the whole stack succeeded**, all → acohen: `digest.py` **$1.52**,
 `reply_monitor.py --once` **$0.20**, `midday.py --force` **$0.01** (~$1.73 of $20). `ruff` clean,
-`pytest` 49 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entry below.
+`pytest` 56 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entry below.
 
 **Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
-TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the deferred do-and-test items
-that need a permissioned run (A2, Group B) or more data (3.3), the wait-and-see items (3.5), one open
-product decision (re-enable `build_ratings_html`), and the **§7.2 server deploy** (= "done"). See §14.
+TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the two remaining do-and-test
+items — **Group B** (Opus→Sonnet cost A/B, needs a permissioned run) and **3.3** (PDF review, needs
+more PDF data) — the wait-and-see items (3.5), and the **§7.2 server deploy** (= "done"). See §14.
+
+---
+
+## A2 — structured outputs (permissioned test run, 2026-06-30)
+
+The one deferred code item that needed a live run. All 5 JSON-returning Claude call sites now use
+`output_config.format` (structured outputs), so the model returns **guaranteed-valid JSON** matching a
+schema — no ```json-fence stripping, no silent parse-failure drops (the key win for alerts/memory,
+which previously discarded the whole pass on a bad parse). ~$0.04 total; small inputs; no email.
+
+- **Support confirmed live** on Opus 4.8 / Sonnet 4.6 / Haiku 4.5 via the native `output_config=`
+  kwarg (SDK 0.109.2 — no `extra_body` needed). The Models-API `capabilities["structured_outputs"]`
+  read back `None` (a pinned-SDK metadata quirk); the live calls prove support.
+- **New `claude_utils` helpers:** `json_schema_output(schema)` and `wrapped_array_schema(key, item_type)`
+  (structured outputs want a top-level object, so array returns are wrapped under a key and unwrapped
+  after parse).
+- **Call sites:** `alerts.evaluate_alerts` (Opus; `results` array, nullable `detail`/`source` via
+  `["string","null"]`), `memory.update_memory` (Opus; nested story object), `digest._rank_news_articles`
+  (Haiku; `indices`), `pacer._filter_by_size` (Sonnet; `indices`), `reply_monitor._extract_search_queries`
+  (Sonnet; `queries`). Prompts describe the object shape; parsing unwraps the key.
+- **Live-confirmed** (small inputs): alerts → correct 2/7 triggers; news rank → the 4 credit items of 9;
+  reply → 2 clean queries; memory → valid nested object (all 6 story fields); pacer → the 2 large
+  entities. Memory + pacer were exercised as isolated schema probes to avoid touching `memory.json` /
+  triggering PACER's web scraping.
+- **Tests:** new `tests/test_claude_utils.py` (parse + schema helpers, +7). `ruff` clean, `pytest` **56**.
 
 ---
 

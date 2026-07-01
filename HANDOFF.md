@@ -86,10 +86,10 @@ monitor unattended 24/7. The work happens in three stages:
    (§7.1; secrets installed, first live end-to-end run green 2026-06-30).
 2. **Apply the Phase 0–3 improvements** — ✅ **DONE and committed**: Phase 0 cleanup, Phase 1
    correctness/escaping, Phase 2 quality/cost, Phase 3.2/3.4, **3.1** (digest-core keyword-only
-   refactor), the §7.1 de-hardcoding, A1 cost accounting, the Gmail hardening, and the **Opus 4.8
-   upgrade + model/User-Agent centralization + dead-code cleanup**. The optional *do-and-test* items
-   remain, each gated on one permissioned run: **A2** structured outputs, **3.3** PDF-extraction
-   review, **3.5** (conditional), and the **Group B** Opus→Sonnet cost A/B (§11/§12).
+   refactor), **A2** (structured outputs, live-confirmed 2026-06-30), the §7.1 de-hardcoding, A1 cost
+   accounting, the Gmail hardening, and the **Opus 4.8 upgrade + model/User-Agent centralization +
+   dead-code cleanup**. The optional *do-and-test* items remaining: **3.3** PDF-extraction review,
+   **3.5** (conditional), and the **Group B** Opus→Sonnet cost A/B (§11/§12).
 3. **Deploy to the dedicated Windows server** — ⬜ **the remaining work** (§7.2), and the definition
    of "done."
 
@@ -489,8 +489,9 @@ body extractor (substack's divergent ones left alone); pinned by `tests/test_htm
 - **Done (cleanup phases — see §9):** Phase 0 (0.1–0.6), 1.1, 1.2, 2.2, 2.3, 2.4, 3.1, 3.2, 3.4 —
   plus the §7.1 de-hardcoding, A1 cost accounting, the Opus 4.8 upgrade + model/UA centralization +
   dead-code cleanup.
-- **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional), A2 (structured
-  outputs), Group B/C (cost cuts). The low-value dedups are all done (§14.C), and both former
+- **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional), Group B/C
+  (cost cuts). **A2 structured outputs — done + live-confirmed 2026-06-30.** The low-value dedups are
+  all done (§14.C), and both former
   "decisions" are resolved (Fed alert → numeric; `build_ratings_html` clarified — §9 is already
   Opus-written, so left off) (§14.D). 2.1 prompt caching dropped (§14.E).
 - **Do NOT fix (intentional / load-bearing — see §6):** module-level argv parse; `_clean_pdf_text`
@@ -539,9 +540,9 @@ sources are live. **Step 4 remains** (the `.bat` wrappers + `setup_tasks.bat`), 
 5. **FRED sources:** set `FRED_API_KEY`, then `python macro_data.py` + `python fed_balance_sheet.py`
    (skipped silently without the key today).
 
-**Then the deferred do-AND-test items** (each its own small permissioned run — see §12): A2
-structured outputs, 3.3 PDF-extraction review, and the Group B cost A/B (embedded Opus → Sonnet).
-(3.1 digest-core arg refactor is **done** — verified offline, no run needed.) Per-area detail follows.
+**Then the deferred do-AND-test items** (each its own small permissioned run — see §12): 3.3
+PDF-extraction review and the Group B cost A/B (embedded Opus → Sonnet). (A2 structured outputs and
+3.1 digest-core arg refactor are **done** — A2 live-confirmed 2026-06-30, 3.1 offline.) Per-area detail follows.
 
 ### Phase 0 (committed `1f400f6`)
 
@@ -609,18 +610,22 @@ free-RSS runs); no deferred verification of their own logic. The credentialed `d
 (step 1 above) will additionally exercise the `claude_utils` / `feeds` / `html_utils` wiring in the
 live paths. 2.1 was dropped (no test needed).
 
-### Cost/efficiency optimizations (A1 committed `a04f892`; A2 deferred)
+### Cost/efficiency optimizations (A1 committed `a04f892`; A2 done 2026-06-30)
 
 - **A1 — per-run cost accounting (`cost.py`)** — code-complete + offline-tested (pricing math +
   multi-tier aggregation). The live behavior (the end-of-run cost summary printed by `digest.py` /
   `midday.py` / `reply_monitor.py`) will be exercised by the eventual credentialed run — just
   confirm the printed totals look sane. Measurement only, no logic risk.
-- **A2 — structured outputs (`output_config.format`) — DEFERRED to the credentialed phase
-  (decision 2026-06-19).** When secrets land: (1) confirm opus-4-6 support via
-  `client.models.retrieve("claude-opus-4-6").capabilities["structured_outputs"]`; (2) iterate the
-  JSON schemas (array-vs-object top level, `additionalProperties:false`, nullable `detail`/`source`)
-  against the live API for alerts/memory + the 4 ranker calls; (3) apply + test. Value is
-  concentrated in alerts/memory (which silently drop on a parse failure today).
+- **A2 — structured outputs (`output_config.format`) — ✅ DONE + live-confirmed 2026-06-30.** All 5
+  JSON call sites now pass `output_config=json_schema_output(SCHEMA)` so Claude returns
+  guaranteed-valid JSON — no fence-stripping, no silent parse-failure drops (the key win for
+  alerts/memory). Support confirmed live on Opus 4.8 / Sonnet 4.6 / Haiku 4.5 via the native
+  `output_config=` kwarg (SDK 0.109.2; no `extra_body` needed). Schemas (in `claude_utils`
+  `json_schema_output` / `wrapped_array_schema`): alerts → object with a `results` array (nullable
+  `detail`/`source` via `["string","null"]`); memory → nested story object; the 3 rankers (news/Haiku,
+  pacer/Sonnet, reply/Sonnet) → object with a wrapped `indices`/`queries` array (structured outputs
+  want a top-level object, so array returns are wrapped + unwrapped after parse). All 5 exercised live
+  on small inputs (~$0.04 total); offline unit tests in `tests/test_claude_utils.py`.
 - **Bigger cost cuts still on the table (need a permissioned A/B):** Group B — move the embedded
   Opus calls (memory, alerts, 13D summary, reply answer) to Sonnet (~40%/call) after a quality
   check; Group C — the dropped 2.1 caching restructure / conditional pass 2 (§3/§6-constrained).
@@ -639,11 +644,11 @@ The remaining work is gated on secrets. In order:
 2. **First credentialed end-to-end run** — the §11 ordered test plan. Validates the whole committed
    stack at once and clears the §11 backlog. **Ask permission before the Claude calls; run once, on a
    small input, to acohen** (never `DIGEST_RECIPIENTS`/jared during testing).
-3. **Do-and-test the deferred items** (each permissioned, once): **A2** structured outputs (confirm
-   opus support → iterate schemas → apply); **3.3** `_clean_pdf_text` review vs real archived PDFs
-   (once the broker-research PDFs forward in — the archive has only a 13D PDF today); then the
-   **Group B cost cut** (embedded Opus → Sonnet) behind a quality A/B. (Group C / conditional pass 2
-   only if justified — §3/§6.) **3.1 is already done** (offline — §9).
+3. **Do-and-test the deferred items** (each permissioned, once): **3.3** `_clean_pdf_text` review vs
+   real archived PDFs (once the broker-research PDFs forward in — the archive has only a 13D PDF today);
+   then the **Group B cost cut** (embedded Opus → Sonnet) behind a quality A/B. (Group C / conditional
+   pass 2 only if justified — §3/§6.) **A2 (structured outputs, live-confirmed 2026-06-30) and 3.1 are
+   already done.**
 4. **§7.2 deploy** to the dedicated always-on Windows server — the definition of "done": always-on +
    headless, runs whether or not anyone is logged in, machine-level env vars, headless
    Playwright/Chromium, log rotation + failure alerting, correct TZ, and backups of `archive/` +
@@ -717,9 +722,10 @@ open product decisions (§14.D) are now resolved. Everything that remains needs 
 permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a problem actually appears).
 
 ### A. Deferred do-and-test (need a permissioned Claude run or more data)
-- **A2 — structured outputs (`output_config.format`)** for alerts/memory + the 4 ranker calls. Needs
-  live-API schema iteration + an Opus capability check. Value is concentrated in alerts/memory, which
-  silently drop on a JSON parse failure today. Detail: §11 "Cost/efficiency."
+- ✅ **A2 — structured outputs — DONE + live-confirmed 2026-06-30.** All 5 JSON call sites
+  (alerts/memory + the 3 rankers) use `output_config.format` for guaranteed-valid JSON — no more silent
+  parse-failure drops. Confirmed live on Opus 4.8 / Sonnet 4.6 / Haiku 4.5 (~$0.04). Detail: §11
+  "Cost/efficiency."
 - **3.3 — PDF-extraction review (`_clean_pdf_text`; PyPDF2→pypdf)** — measure the aggressive
   single-char-rejoin regexes against real `archive/*/pdfs/` (how often they fire, cleaned-vs-raw diff,
   retrieval quality before/after), then decide whether to gate them behind a fragmentation heuristic

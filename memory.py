@@ -12,12 +12,38 @@ from pathlib import Path
 import anthropic
 
 from config import OPUS_MODEL
-from claude_utils import parse_json_response
+from claude_utils import parse_json_response, json_schema_output
 import cost
 
 SCRIPT_DIR = Path(__file__).parent
 MEMORY_FILE = SCRIPT_DIR / "memory.json"
 CLAUDE_MODEL = OPUS_MODEL
+
+# Structured-output schema (A2) — guarantees a well-formed memory object so a parse
+# failure can't silently wipe the running memory. Top-level object, no wrapping.
+_STORY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "topic": {"type": "string"},
+        "first_seen": {"type": "string"},
+        "last_updated": {"type": "string"},
+        "summary": {"type": "string"},
+        "key_data_points": {"type": "array", "items": {"type": "string"}},
+        "sources": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["topic", "first_seen", "last_updated", "summary", "key_data_points", "sources"],
+    "additionalProperties": False,
+}
+MEMORY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "last_updated": {"type": "string"},
+        "active_stories": {"type": "array", "items": _STORY_SCHEMA},
+        "resolved_stories": {"type": "array", "items": _STORY_SCHEMA},
+    },
+    "required": ["last_updated", "active_stories", "resolved_stories"],
+    "additionalProperties": False,
+}
 
 
 def _load_memory():
@@ -108,6 +134,7 @@ def update_memory(digest_html):
                 "memory of evolving investment stories and themes. Output only valid JSON. "
                 "Be concise — summaries should be 2-3 sentences, key_data_points capped at 5 per story."
             ),
+            output_config=json_schema_output(MEMORY_SCHEMA),
             messages=[{"role": "user", "content": prompt}],
         )
 
