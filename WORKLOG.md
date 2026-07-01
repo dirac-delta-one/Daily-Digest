@@ -29,15 +29,30 @@ writes the source/PDF prefix to cache, pass 2 reads it (~0.1×) instead of re-se
 (~$0.10/run text-day, ~$0.54/run on a 5 MB-PDF day). Validated output-equivalent + cache-engaging via a
 permissioned before/after (~$3.5). Detail in the sections below.
 
-➡️ **NEXT (cost):** the biggest safe cost wins are banked. Remaining cost ideas are lower-value (Group C
-conditional pass-2; 13D text-extraction) — see §14. **Other tracks:** the §7.2 server deploy and the §13
-coverage gaps; the Part-2 memory/retrieval refactor (reranker + hybrid search + PDF→md indexing) is
-scoped but not started.
+➡️ **COST REFACTOR COMPLETE.** Remaining cost ideas are lower-value (conditional pass-2 skip; 13D
+text-extraction) — see §14; not worth the effort/risk. **NEXT MAJOR TRACK: the memory / retrieval
+refactor, fully scoped in `MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search → entity
+metadata → System A↔B convergence; mostly local/free to build + test; recommended start = its Stage 0 +
+Stage 1). **Other tracks:** the §7.2 server deploy (= "done") and the §13 coverage gaps.
 
 **Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
 TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaining do-and-test item
 **3.3** (PDF review, needs more PDF data), the wait-and-see items (3.5), and the **§7.2 server deploy**
 (= "done"). See HANDOFF §14.
+
+---
+
+## Memory / retrieval refactor — scoped (2026-07-01)
+
+Planning only (no code). Wrote **`MEMORY_REFACTOR_SPEC.md`** — a standalone staged plan to improve
+retrieval and converge the two "memory" systems. Captures the TL;DR of both systems and the disconnect
+(System A = the cross-digest `memory.json` storylines, only feeds the digest; System B = the FAISS
+archive + reply bot, answers questions but can't piece together across time), plus Stages 0–5:
+(0) eval harness, (1) cross-encoder reranker, (2) hybrid BM25+dense (RRF), (3) index upgrade — entity/date
+metadata + stronger embeddings (one reindex), (4) smarter reply-bot retrieval (query understanding +
+MMR/dedup), (5) System A↔B convergence (queryable story-timeline store wired into the bot). Mostly
+local/free to build + test (only the reply answer, Opus, costs). **Thin-archive caveat:** only 1 day is
+indexed today, so retrieval-quality measurement is directional until more days accrue. Nothing started.
 
 ---
 

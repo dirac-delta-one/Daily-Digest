@@ -22,10 +22,12 @@ around every source, sensible secret hygiene. No rewrite is warranted — only i
 low-risk improvements.
 
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30) and now being
-*optimized*. **All work is committed** on `ava-updates` (working tree clean). `ruff` clean, `pytest`
-**56** green. The Group B cost A/B is **DONE** (2026-07-01 — A/B'd all four calls, kept all Opus). What
-remains is a short list of gated items (a data-gated PDF review, a couple of wait-and-see items) plus
-the server deploy — see **§11 / §12 / §14**.
+*optimized*. `ruff` clean, `pytest` **60** green. The **cost refactor is complete** (2026-07-01 — the
+Group B A/B kept all Opus; then landed the 13D summary cache, memory→Sonnet, and 2-pass prompt caching;
+see §11 / §14 + `WORKLOG`). The **next major track is the memory / retrieval refactor**, now fully scoped
+in **`MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search → entity metadata → System A↔B
+convergence) — **not yet started**. Other open items: the **§7.2 server deploy** (the definition of
+"done"), the **§13** coverage gaps, and the data-gated **3.3** PDF review — see **§11 / §12 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -37,9 +39,14 @@ the server deploy — see **§11 / §12 / §14**.
 > impact); (2) **memory → Sonnet** — a *cost* follow-up (memory output near-identical, ~$0.16/run);
 > (3) **2-pass digest prompt caching** — restructured so pass 1 writes the source/PDF prefix to cache and
 > pass 2 reads it (~$0.10/run text-day, ~$0.54/run PDF-day). Validated output-equivalent + cache-engaging
-> via a permissioned before/after; supersedes the old §14.E "2.1 dropped" finding. **Other open tracks:**
-> §7.2 server deploy (= "done"), §13 coverage gaps, and the scoped-but-unstarted Part-2 memory/retrieval
-> refactor (reranker + hybrid search + PDF→md indexing).
+> via a permissioned before/after; supersedes the old §14.E "2.1 dropped" finding.
+>
+> ➡️ **NEXT MAJOR TRACK — the memory / retrieval refactor, fully scoped in `MEMORY_REFACTOR_SPEC.md`
+> (not started).** Improves the RAG reply bot (reranker → hybrid search → entity/date metadata) and
+> converges the two "memory" systems (the cross-digest `memory.json` storylines vs. the FAISS archive)
+> so it can "piece together" across time. Mostly local/free to build + test; recommended start is its
+> Stage 0 + Stage 1 (eval harness + cross-encoder reranker). **Other open tracks:** §7.2 server deploy
+> (= "done"), §13 coverage gaps.
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 
