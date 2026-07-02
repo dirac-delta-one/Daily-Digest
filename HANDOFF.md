@@ -566,8 +566,14 @@ separate `midday.py` and `reply_monitor.py` runs.
 
 **✅ EXECUTED 2026-06-30 (see WORKLOG).** Steps 0–3 + 5 below are DONE and green — the credentialed
 `digest.py` / `reply_monitor.py --once` / `midday.py --force` runs all passed → acohen, and the FRED
-sources are live. **Step 4 remains** (the `.bat` wrappers + `setup_tasks.bat`), to be done with the
-§7.2 deploy. Original plan retained below for reference.
+sources are live. **Step 4 is now MOSTLY DONE (2026-07-02):** `run_digest.bat` ran end-to-end green
+under the wrapper (and caught a real bug — `call env.bat` didn't resolve relative in every launcher
+context; fixed to `call "%~dp0env.bat"` in all 3 wrappers), and a `DailyDigest\MorningDigest`
+scheduled task (Mon–Thu 08:00, WakeToRun) is registered for the archive-accrual week — first
+scheduled fire Mon 2026-07-06 confirms the Task Scheduler path. Still untested: `setup_tasks.bat`
+itself, `run_midday.bat`/`run_reply_monitor.bat` under the scheduler (kept OFF this machine to avoid
+racing jared's production reply monitor) — those close out with the §7.2 deploy. Original plan
+retained below for reference.
 
 **Once secrets land — ordered test plan (one pass validates the whole committed stack):**
 

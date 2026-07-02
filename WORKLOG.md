@@ -43,6 +43,43 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Daily-run week started + §11 step-4 wrapper bug found & fixed (2026-07-02)
+
+**Plan (operator-approved):** accrue archive for the retrieval refactor — one manual run today
+(Thursday), then **scheduled runs Mon–Thu next week** (~$5–7 total; checkpoint session Friday
+2026-07-10: re-run the eval matrix multi-day → decide the rerank/hybrid flips + Stage 3b, build
+Stage 4). Holiday Friday 7/3 + weekend deliberately skipped (markets closed, thin sources).
+
+**Scheduled task registered:** `DailyDigest\MorningDigest` → `run_digest.bat`, WEEKLY MON–THU 08:00,
+first fire **Mon 2026-07-06**; `WakeToRun` enabled + wake timers confirmed allowed on AC (the box
+sleeps at 3h idle — without WakeToRun the 8 AM trigger would never fire). Logon mode is
+"Interactive only": the machine must be **on/asleep with KimCohen logged in** (locked is fine).
+Created via `schtasks` directly (NOT `setup_tasks.bat` — midday + reply monitor stay OFF this
+machine so we don't race jared's production reply monitor on the shared bot inbox). Task recurs
+weekly until deleted — the 7/10 checkpoint decides extend-or-stop.
+
+**§11 step-4 finding — `call env.bat` fixed to `call "%~dp0env.bat"` (all 3 wrappers).** The first
+wrapper-driven digest run crashed at pass 1: `env.bat` never loaded (no ANTHROPIC/FRED keys) even
+though `cd /d "%~dp0"` had set the right cwd. Diagnosis: relative `call env.bat` failed to resolve
+in the sandboxed agent shell (absolute-path `call` worked; plain cmd/Task Scheduler is likely fine)
+— but absolute `%~dp0` resolution matches how the wrappers already invoke the venv python and is
+robust under any launcher. $0 spent on the crashed run (auth failed before any Claude call); side
+effect: PACER discovery marked its first-scan backlog (30 mostly-stale entries) as seen, so today's
+PACER section is thin — self-heals tomorrow.
+
+**Today's run (fixed wrapper) — green, $1.07:** 6 emails **incl. 2 real broker PDFs (MENA, Taiwan
+— the first §13 inbox PDFs; extracted + indexed → the 3.3 corpus is finally accruing)**; 5 Substack;
+9 filings; 122 WSJ/FT (ranked to 15); 4 ratings; FRED 12 + Fed BS 6 (working with env.bat loaded);
+WILTW 2026-07-02 not posted yet at run time (graceful skip; Monday's run pays the ~$0.65 within the
+6-day window). **2-pass prompt cache fully engaged on a PDF day: pass 1 wrote 54,348 tok, pass 2
+read 54,348 (2-pass $0.73)**. 3 alerts triggered; sent to acohen; archive/index +400 chunks →
+**1,029 vectors / 2 days**; memory (Sonnet, first real daily update) 18 → **25 active + 2 resolved**
+— no story-loss signal. Stage-3a auto-tagging live: 40/400 new chunks tagged (CRWV 12, RWT 11,
+ABR 7; off-watchlist $TICK caught VEON/MAA/KLAC/SBAC). Budget: ~$11.7 of the $20 remains; the
+Mon–Thu week fits with ~$6 buffer.
+
+---
+
 ## Memory / retrieval refactor — Stage 3a: entity tags + date-range filter (2026-07-02)
 
 Metadata-only (no reindex, vectors untouched), offline/free. `ruff` clean, `pytest` **92** green (+11).
