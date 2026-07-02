@@ -29,8 +29,9 @@ in **`MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search �
 convergence) — **Stages 0–3a built 2026-07-01/02** (eval harness + baseline; reranker + date-filter
 fix; BM25+RRF hybrid + the now-LIVE search-state cache; entity tags + entity/date-range filters —
 the rerank/hybrid production flips are deferred until the archive is deep enough for the eval to
-discriminate); **recommended next: accrue ~2 weeks of daily archive, then the flips revisit +
-Stage 4**. Other open items: the
+discriminate). An archive-accrual week is armed (scheduled Mon–Thu runs, checkpoint ~Fri 7/10) and
+**the full forward roadmap now lives in `NEXT_STEPS_SPEC.md`** (checkpoint procedure + decision
+gates; efficiency track; cost-track closure audit; server-deploy readiness). Other open items: the
 **§7.2 server deploy** (the definition of
 "done"), the **§13** coverage gaps, and the data-gated **3.3** PDF review — see **§11 / §12 / §13 / §14**.
 
@@ -729,6 +730,11 @@ live paths. 2.1 was dropped (no test needed).
 ---
 
 ## 12. Path from here (next steps)
+
+> ➡️ **SUPERSEDED 2026-07-02 by `NEXT_STEPS_SPEC.md`** — the current roadmap (accrual-week
+> checkpoint procedure + decision gates, memory-track sequencing, efficiency track, cost-track
+> closure, server-deploy readiness) lives there. The list below is the original secrets-gated
+> plan, retained as history; its steps 1–3 are done.
 
 Everything safely doable/verifiable offline is committed (Phases 0–2, de-hardcoding, A1, 3.4, 3.2).
 The remaining work is gated on secrets. In order:

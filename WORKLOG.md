@@ -43,6 +43,24 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## NEXT_STEPS_SPEC.md written — forward roadmap (2026-07-02)
+
+Docs only (operator-requested, plan-mode approved). New **`NEXT_STEPS_SPEC.md`** captures:
+(§1) the post-accrual-week **checkpoint procedure with pre-committed decision gates** (rerank/
+hybrid flips, Stage 3b, the memory→Sonnet watch verdict, extend+top-up, the 3.3 trigger) and a
+**code freeze on the daily path during the accrual week**; (§2.1) memory-track sequencing (flips
+→ Stage 4 → Stage 5; `MEMORY_REFACTOR_SPEC.md` stays the source of truth); (§2.2) the new
+**general-efficiency track** — runtime (E1 parallel fetch, E2 reindex-via-reconstruct, E3 Gmail
+batch), code simplicity (S1 `main()` source registry; rejected ideas recorded), operational (O1
+log rotation, O2 hung-run watchdog — accrual-week-safe, O3 content monitor, O4 backups); (§2.3)
+the **cost track formally CLOSED** with residual ideas EV'd (remaining savings ride along with
+memory Stages 4–5); (§3) fresh suggestions — F1 server-deploy readiness pack (OAuth production
+status = top deploy risk), F2 the now-data-unblocked 3.3 PDF review, F3 golden-set cadence, F4
+SSL-context note. Operator decisions embedded: efficiency = all three flavors; **memory refactor
+finishes before the server deploy**. HANDOFF §1 updated + §12 marked superseded by the new spec.
+
+---
+
 ## Run-failure alerting (§7.2 observability, first slice) (2026-07-02)
 
 Unattended failures are no longer silent. Free to build/test (one Gmail send, no Claude calls).
