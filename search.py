@@ -171,6 +171,73 @@ def _load_index():
     return index, []
 
 
+def _tokenize(text):
+    """Lowercased alphanumeric tokens for BM25 (Stage 2).
+
+    Deliberately keeps 1-2 char tokens — dropping short tickers (GM, X) is the
+    exact failure mode BM25 exists to fix. A leading '$' is not a token char,
+    so "$ABR" and "ABR" both normalize to "abr" and match each other.
+    """
+    return re.findall(r'[a-z0-9]+', (text or "").lower())
+
+
+def _rrf_fuse(rankings, k=60):
+    """Reciprocal Rank Fusion: {id: sum of 1/(k + rank)} across rankings (Stage 2).
+
+    Standard RRF with the conventional k=60 — ids ranked well by BOTH the dense
+    and lexical lists float to the top without needing score normalization.
+    """
+    scores = {}
+    for ranking in rankings:
+        for rank, id_ in enumerate(ranking, 1):
+            scores[id_] = scores.get(id_, 0.0) + 1.0 / (k + rank)
+    return scores
+
+
+def _bm25_top_ids(bm25, query, pool, allowed_ids=None):
+    """Best-first chunk ids by BM25 score (score > 0 only), optionally restricted."""
+    scores = bm25.get_scores(_tokenize(query))
+    ids = allowed_ids if allowed_ids is not None else range(len(scores))
+    scored = [(i, scores[i]) for i in ids if scores[i] > 0]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [i for i, _ in scored[:pool]]
+
+
+# In-process search-state cache (Stage 2): search() previously re-read the FAISS
+# index + full metadata JSON from disk on EVERY call — fine at 629 chunks, multi-
+# second at archive scale. One signature-checked cache covers the index, metadata,
+# and the BM25 corpus (which needs the same staleness logic), so the long-running
+# reply monitor picks up the day the morning digest appends without restarting.
+_search_state = None
+
+
+def _file_sig(path):
+    """(mtime_ns, size) staleness signature for a file, or None if missing."""
+    try:
+        s = path.stat()
+        return (s.st_mtime_ns, s.st_size)
+    except OSError:
+        return None
+
+
+def _get_search_state():
+    """Cached (index, metadata, bm25) for search(); reloads only when the
+    on-disk index/metadata files change."""
+    global _search_state
+    key = (_file_sig(INDEX_FILE), _file_sig(METADATA_FILE))
+    if _search_state is not None and _search_state["key"] == key:
+        return _search_state
+
+    index, metadata = _load_index()
+    bm25 = None
+    if metadata:
+        from rank_bm25 import BM25Okapi
+        bm25 = BM25Okapi([_tokenize(m.get("text", "")) for m in metadata])
+
+    _search_state = {"key": key, "index": index, "metadata": metadata, "bm25": bm25}
+    return _search_state
+
+
 def _save_index(index, metadata):
     """Save FAISS index and metadata to disk."""
     import faiss
@@ -606,9 +673,10 @@ def _rerank_candidates(query, candidates, top_k):
     return ranked[:top_k]
 
 
-def search(query, top_k=10, date_filter=None, rerank=False):
+def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False):
     """
-    Search the archive: dense retrieval, then keyword boost or cross-encoder rerank.
+    Search the archive: dense retrieval (optionally fused with BM25), then
+    keyword boost or cross-encoder rerank.
 
     Args:
         query: The search query string.
@@ -618,13 +686,18 @@ def search(query, top_k=10, date_filter=None, rerank=False):
             queries keep working as the archive grows.
         rerank: If True, re-score the candidate pool with the cross-encoder and
             rank by that (scores in the result are then logits, not cosine).
+            If False (default), rank by the retrieval scoring below.
+        hybrid: If True, fuse the dense ranking with a BM25 lexical ranking via
+            Reciprocal Rank Fusion (scores are then RRF sums, not cosine) —
+            fixes exact-token retrieval (tickers, CUSIPs) that embeddings miss.
             If False (default), keep the original cosine + keyword-boost scoring.
 
     Returns:
         List of (metadata_dict, score) tuples, best-first.
     """
 
-    index, metadata = _load_index()
+    state = _get_search_state()
+    index, metadata, bm25 = state["index"], state["metadata"], state["bm25"]
     if index.ntotal == 0:
         print("Search index is empty. Run indexing first.")
         return []
@@ -644,17 +717,27 @@ def search(query, top_k=10, date_filter=None, rerank=False):
         if not allowed_ids:
             return []
 
-    # Retrieve more candidates than needed for boost/rerank re-ordering
-    scores, indices = _search_vectors(index, query_vec, top_k * 10, allowed_ids)
+    # Retrieve more candidates than needed for fuse/boost/rerank re-ordering
+    pool = top_k * 10
+    scores, indices = _search_vectors(index, query_vec, pool, allowed_ids)
 
-    candidates = []
-    for score, idx in zip(scores, indices):
-        if idx < 0 or idx >= len(metadata):
-            continue
-        candidates.append((metadata[idx], float(score)))
+    if hybrid and bm25 is not None:
+        # Stage 2: dense + BM25 -> RRF fuse -> candidate pool
+        dense_ids = [int(i) for i in indices if 0 <= i < len(metadata)]
+        lexical_ids = _bm25_top_ids(bm25, query, pool, allowed_ids)
+        fused = _rrf_fuse([dense_ids, lexical_ids])
+        ranked_ids = sorted(fused, key=fused.get, reverse=True)[:pool]
+        candidates = [(metadata[i], fused[i]) for i in ranked_ids]
+    else:
+        candidates = [(metadata[idx], float(score))
+                      for score, idx in zip(scores, indices)
+                      if 0 <= idx < len(metadata)]
 
     if rerank:
         return _rerank_candidates(query, candidates, top_k)
+
+    if hybrid and bm25 is not None:
+        return candidates[:top_k]
 
     # Legacy scoring: keyword boost (words 3+ chars) over the cosine score
     query_words = [w.lower() for w in re.findall(r'\b\w{3,}\b', query)]
@@ -681,6 +764,7 @@ if __name__ == "__main__":
         print('  python search.py "your query here"')
         print('  python search.py "query" --date 2026-04')
         print('  python search.py "query" --rerank')
+        print('  python search.py "query" --hybrid')
         print("  python search.py --rebuild")
         print("  python search.py --index 2026-04-04")
         sys.exit(1)
@@ -700,7 +784,8 @@ if __name__ == "__main__":
                 date_filter = sys.argv[di + 1]
 
         results = search(query, top_k=10, date_filter=date_filter,
-                         rerank="--rerank" in sys.argv)
+                         rerank="--rerank" in sys.argv,
+                         hybrid="--hybrid" in sys.argv)
 
         if not results:
             print("No results found.")

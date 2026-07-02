@@ -11,7 +11,7 @@
 |---|---|---|
 | 0 | Eval harness (golden Q→source set) | ✅ done 2026-07-01 — `tools/eval_retrieval.py` + `eval_golden.json` (15 Qs); baseline hit@1=0.93, MRR=0.96 (near-saturated: 1-day archive) |
 | 1 | Cross-encoder reranker + date-filter fix | ✅ built 2026-07-01 — `search(rerank=True)` + subset date-filter search, unit-tested; **reply-bot opt-in deferred** (1-day eval can't discriminate: rerank hit@1 0.867 vs 0.933, an artifact of digest-chunk duplication — see Stage 1 notes) |
-| 2 | Hybrid search (BM25 + dense, RRF) + index caching | ⬜ not started |
+| 2 | Hybrid search (BM25 + dense, RRF) + index caching | ✅ built 2026-07-02 — `search(hybrid=True)` + mtime-cached index/metadata/BM25 (cache is LIVE, behavior-neutral); **hybrid default-flip deferred** (same 1-day-eval ceiling as Stage 1 — see notes) |
 | 3a | Entity/date metadata tags + date-range filter (no reindex needed) | ⬜ not started |
 | 3b | Stronger embeddings / structure-aware chunking (reindex) | ⬜ conditional on Stage 0/1 evidence |
 | 4 | Smarter retrieval in the reply bot (query understanding + MMR/dedup) | ⬜ not started |
@@ -149,6 +149,16 @@ ranking via Reciprocal Rank Fusion — replacing the crude `+0.05` keyword boost
 - **Pipeline:** dense + BM25 → RRF fuse → candidate pool → (Stage 1) rerank → top-k.
 - **Dep:** `rank_bm25`. **Test:** Stage-0 eval, esp. ticker/number queries; unit-test RRF +
   cache invalidation. **Risk:** low, reversible.
+- **Built 2026-07-02 — findings:** mechanism landed (`hybrid=` param: dense + BM25 → RRF k=60 →
+  pool → optional Stage-1 rerank; `_tokenize` keeps 1–2 char tickers and normalizes `$ABR`→`abr`;
+  `rank_bm25==0.2.2` pinned). The **search-state cache is live for all callers** (index + metadata +
+  BM25 behind one mtime/size signature; default path eval-identical to baseline, so behavior-neutral
+  confirmed). Hybrid evals at hit@1 0.867 vs 0.933 — the same 1-day duplication ceiling as Stage 1
+  (a digest chunk and the WILTW PDF's oil discussion outrank the golden set's preferred sources; both
+  defensible answers). **Decision: keyword-boost stays the default; the hybrid flip (and the reply-bot
+  opt-in) wait for the same multi-day eval evidence as Stage 1.** Revisit both together at ~2 weeks of
+  archive — BM25's discriminating case (a ticker dense retrieval *misses*) can't occur when every
+  chunk fits in the candidate pool anyway.
 
 ### Stage 3a — Entity/date metadata tags + date-range filter *(free, offline, NO reindex)*
 Tagging only rewrites `chunk_metadata.json` — the vectors are untouched — so this is decoupled from

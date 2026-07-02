@@ -43,6 +43,35 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Memory / retrieval refactor — Stage 2: BM25+RRF hybrid + search-state cache (2026-07-02)
+
+Built offline/free (no Claude calls). New dep `rank_bm25==0.2.2` (pure Python, pinned).
+`ruff` clean, `pytest` **81** green (+8).
+
+**What landed (`search.py`):**
+- **Search-state cache — LIVE for all callers:** `_get_search_state()` holds the FAISS index +
+  metadata + BM25 corpus behind one mtime/size file signature, replacing the per-call disk
+  reload/JSON parse (multi-second at archive scale). The long-running reply monitor picks up the
+  day the morning digest appends without restarting. Behavior-neutral: the default path is
+  eval-identical to the committed baseline.
+- **Hybrid retrieval, param-gated:** `search(hybrid=True)` fuses the dense ranking with a BM25
+  lexical ranking via RRF (k=60), feeding the fused pool to the optional Stage-1 rerank. New
+  `_tokenize` keeps 1–2 char tickers (GM, X) and normalizes `$ABR`↔`ABR` — the short-ticker
+  failure mode the old `\w{3,}` boost regex had. CLI/eval `--hybrid` flags.
+- Unit tests (+8): tokenizer (short tickers, $-normalization), RRF math + both-lists-beats-solo,
+  BM25 exact-token + allowed-ids restriction + zero-score cut, cache hit/invalidation round-trip
+  on a real tiny FAISS index.
+
+**Eval:** default = baseline exactly (hit@1=0.933/MRR=0.956 — cache neutrality confirmed); hybrid
+(and hybrid+rerank) = 0.867/0.922 — the same 1-day duplication ceiling as Stage 1 (digest chunk +
+the WILTW PDF's oil discussion outrank the golden set's preferred sources; both defensible).
+Snapshot `2026-07-02_stage2-hybrid.json`. **Decision: keyword boost stays default; the hybrid flip
+joins the reply-bot rerank opt-in as a single revisit once ~2 weeks of archive accrue** — BM25's
+discriminating case (dense retrieval *missing* a ticker) can't occur while one day's chunks all fit
+in the candidate pool. Next: Stage 3a (entity tags + date-range filter, no reindex).
+
+---
+
 ## Memory / retrieval refactor — Stage 1: reranker + date-filter fix (2026-07-01)
 
 Built entirely offline/free (no Claude calls; one-time ~90MB `ms-marco-MiniLM-L-6-v2` download).
