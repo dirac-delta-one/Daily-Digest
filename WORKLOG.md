@@ -43,6 +43,28 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Run-failure alerting (§7.2 observability, first slice) (2026-07-02)
+
+Unattended failures are no longer silent. Free to build/test (one Gmail send, no Claude calls).
+`ruff` clean, `pytest` **98** green (+6).
+
+- **New `run_alert.py`:** `run_alert.py <label> [--test]` emails the DIGEST_TO/production recipients
+  a red failure notice with the last 40 lines of `logs/<label>.log`. **Deliberately self-contained**
+  (no `import digest` — the failure path must not depend on the code that just failed) and
+  **refresh-only Gmail auth** (never opens an interactive consent at 8 AM; if the token itself is
+  dead it logs + exits, and the missing digest email stays the fallback signal). The `--test` flag
+  marks the subject as a drill.
+- **Wrappers wired:** `run_digest.bat` / `run_midday.bat` fire the alert on
+  `%ERRORLEVEL% NEQ 0`; `run_reply_monitor.bat` alerts on **any** exit (it's a daemon — exiting at
+  all is abnormal; note this also fires on a deliberate manual stop, acceptable).
+- **Validated end-to-end:** unit tests for the log-tail + HTML building (escaping incl.
+  `<script>`), plus one real `--test` send delivered to acohen.
+- **Covers** the "email acohen@ if a run errors" half of §7.2 item 4; the "key section empty N days
+  running" content-monitoring half remains a §7.2 deploy item. Also NOT covered: a *hung* run
+  (never exits → no alert) — the missing digest email remains the signal for that case.
+
+---
+
 ## Daily-run week started + §11 step-4 wrapper bug found & fixed (2026-07-02)
 
 **Plan (operator-approved):** accrue archive for the retrieval refactor — one manual run today
