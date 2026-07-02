@@ -43,6 +43,37 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Memory / retrieval refactor — Stage 3a: entity tags + date-range filter (2026-07-02)
+
+Metadata-only (no reindex, vectors untouched), offline/free. `ruff` clean, `pytest` **92** green (+11).
+
+**What landed (`search.py`):**
+- **Entity tagging:** `_extract_entities` tags chunks with (a) watchlist tickers — case-sensitive
+  word match, so lowercase "main" can't tag MAIN; (b) **any** `$TICK` mention, watchlist or not
+  (caught 13D's $ALM/$AGI and the KBW note's IBKR/OCFC); (c) tracked-fund names + distinctive
+  first-word aliases ("Oaktree" → "Oaktree Capital Management"; "Avenue"/"Canyon" excluded as
+  generic). Applied at index time in `_chunks_for_date` (covers daily + rebuild); existing chunks
+  backfilled via new **`python search.py --retag`** (rewrites `chunk_metadata.json` only).
+- **New filters:** `search(entity_filter=, date_from=, date_to=)` — combined with the Stage-1 date
+  prefix in one pre-retrieval `_filter_ids` (entity match is $- and case-insensitive; inclusive ISO
+  range). CLI: `--entity`, `--from`, `--to`. Not yet consumed in production — Stage 4's query
+  understanding will drive them.
+- Unit tests +11 (tagger + combined filtering, incl. chunks predating tagging).
+
+**Verified on the real archive:** `--retag` → **66/629 chunks tagged** (MSTR 11, Elliott 11, Ares 12,
+RWT 7, PGY 6, WYNN 2, ALM 2 …). Eval: all 15 prior items unchanged (hit@1=0.933-equivalent); new
+entity-filtered golden case — vague query "capital framework preferred securities announcement" +
+`entity_filter=MSTR` — **hits the MSTR 8-K at rank 1** (16 Qs now: hit@1=0.938, MRR=0.958; snapshot
+`2026-07-02_stage3a.json`). Coverage expectation per spec: watchlist + $TICK + tracked funds only
+(no general NER) — "Wynn Resorts" spelled out untagged unless $WYNN/WYNN appears.
+
+**Track status:** Stages 0/1/2/3a done. Recommended next: **let the archive accrue (~2 weeks of daily
+runs)**, then revisit the deferred rerank/hybrid flips with a discriminating eval, and build Stage 4
+(query understanding → these filters + MMR/dedup + same-day-digest exclusion) against a real multi-day
+archive. Stage 3b stays conditional.
+
+---
+
 ## Memory / retrieval refactor — Stage 2: BM25+RRF hybrid + search-state cache (2026-07-02)
 
 Built offline/free (no Claude calls). New dep `rank_bm25==0.2.2` (pure Python, pinned).

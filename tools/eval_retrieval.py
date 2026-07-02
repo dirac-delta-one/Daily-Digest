@@ -62,12 +62,13 @@ def run_eval(top_k, rerank=False, hybrid=False):
     for item in golden:
         results = search(item["question"], top_k=top_k,
                          date_filter=item.get("date_filter"),
+                         entity_filter=item.get("entity_filter"),
                          rerank=rerank, hybrid=hybrid)
         rank = _first_match_rank(results, item["expect"])
         top = results[0][0] if results else None
         rows.append({
             "id": item["id"],
-            "date_filter": item.get("date_filter"),
+            "date_filter": item.get("date_filter") or item.get("entity_filter"),
             "rank": rank,
             "n_results": len(results),
             "top1": (f"{top['source_type']}:{top['source_name'][:40]}" if top else "(none)"),

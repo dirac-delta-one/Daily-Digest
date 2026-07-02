@@ -1,6 +1,7 @@
 """Phase 3.4 — pin behavior of search._chunk_text (chunking math).
 Stage 1 (memory refactor) — pin _search_vectors subset search + rerank ordering.
-Stage 2 — pin the BM25 tokenizer, RRF fusion math, and search-state cache invalidation."""
+Stage 2 — pin the BM25 tokenizer, RRF fusion math, and search-state cache invalidation.
+Stage 3a — pin entity extraction and the combined date/entity id-filtering."""
 
 import json
 
@@ -194,3 +195,72 @@ def test_search_state_cache_and_invalidation(tmp_path, monkeypatch):
     assert len(s2["metadata"]) == 3
     # the BM25 corpus was rebuilt too
     assert search._bm25_top_ids(s2["bm25"], "gamma", pool=3) == [2]
+
+
+# --- _extract_entities (Stage 3a: watchlist + $TICK + tracked funds) ---
+
+def test_extract_entities_watchlist_ticker():
+    assert "MSTR" in search._extract_entities("MSTR announced a capital framework")
+
+
+def test_extract_entities_dollar_ticker_off_watchlist():
+    # $-prefixed symbols tag even when not on the watchlist (e.g. 13D names)
+    tags = search._extract_entities("Almonty Industries ($ALM) on the tungsten squeeze")
+    assert "ALM" in tags
+
+
+def test_extract_entities_case_sensitive_tickers():
+    # lowercase "main" (the word) must NOT tag the MAIN ticker
+    assert "MAIN" not in search._extract_entities("the main driver of spreads")
+    assert "MAIN" in search._extract_entities("MAIN reported NII of $1.02")
+
+
+def test_extract_entities_fund_alias():
+    tags = search._extract_entities("Oaktree added a new distressed position")
+    assert "Oaktree Capital Management" in tags
+
+
+def test_extract_entities_generic_fund_word_skipped():
+    # "Avenue"/"Canyon" alone are too generic to tag the funds
+    assert search._extract_entities("Fifth Avenue real estate") == []
+    tags = search._extract_entities("Avenue Capital Group added notes")
+    assert "Avenue Capital Group" in tags
+
+
+def test_extract_entities_empty():
+    assert search._extract_entities("") == []
+    assert search._extract_entities(None) == []
+
+
+# --- _filter_ids (Stage 3a: combined date/range/entity restriction) ---
+
+_META = [
+    {"date": "2026-06-29", "entities": ["MSTR"]},
+    {"date": "2026-06-30", "entities": ["ABR", "Oaktree Capital Management"]},
+    {"date": "2026-07-01", "entities": []},
+    {"date": "2026-07-02"},  # no entities key at all (pre-retag chunk)
+]
+
+
+def test_filter_ids_none_when_no_filters():
+    assert search._filter_ids(_META) is None
+
+
+def test_filter_ids_date_prefix():
+    assert search._filter_ids(_META, date_filter="2026-06") == [0, 1]
+
+
+def test_filter_ids_date_range_inclusive():
+    assert search._filter_ids(_META, date_from="2026-06-30", date_to="2026-07-01") == [1, 2]
+
+
+def test_filter_ids_entity_normalized():
+    # "$abr" matches the "ABR" tag ($- and case-insensitive)
+    assert search._filter_ids(_META, entity_filter="$abr") == [1]
+    assert search._filter_ids(_META, entity_filter="oaktree capital management") == [1]
+
+
+def test_filter_ids_combined_and_missing_entities_key():
+    # entity + range combine with AND; chunks without an entities key never match
+    assert search._filter_ids(_META, entity_filter="MSTR", date_from="2026-06-30") == []
+    assert search._filter_ids(_META, entity_filter="MSTR", date_to="2026-06-29") == [0]

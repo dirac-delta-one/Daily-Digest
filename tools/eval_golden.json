@@ -8,8 +8,8 @@
     "`source_name_contains` (case-insensitive substring), `text_contains_any` (case-insensitive,",
     "at least one substring present in the chunk text).",
     "",
-    "Optional per-item `date_filter` is passed straight to search() — keep at least one such item",
-    "to exercise the day-filtered path (the Stage-1 date-filter fix).",
+    "Optional per-item `date_filter` / `entity_filter` are passed straight to search() — keep at",
+    "least one of each to exercise the filtered paths (Stage-1 date-filter fix; Stage-3a entity tags).",
     "",
     "GROW THIS FILE as archived days accrue: add a few questions per interesting day, and add a",
     "true 1-2 character ticker query (Stage-2 tokenizer case) when one first appears in the archive",
@@ -38,6 +38,15 @@
       "question": "What did Strategy announce about its Digital Credit Capital Framework?",
       "expect": [
         {"source_type": "filing", "text_contains_any": ["Digital Credit Capital Framework"]}
+      ]
+    },
+    {
+      "id": "mstr-entityfiltered",
+      "question": "capital framework preferred securities announcement",
+      "entity_filter": "MSTR",
+      "expect": [
+        {"source_type": "filing", "text_contains_any": ["Digital Credit Capital Framework", "Strategy"]},
+        {"source_type": "digest", "text_contains_any": ["MSTR", "Strategy"]}
       ]
     },
     {

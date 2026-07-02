@@ -181,6 +181,95 @@ def _tokenize(text):
     return re.findall(r'[a-z0-9]+', (text or "").lower())
 
 
+# ======================================================================
+# ENTITY TAGGING (Stage 3a — metadata-only, no re-embedding)
+# ======================================================================
+
+# Fund first-words too generic to use as standalone aliases ("Avenue", "Canyon"
+# match street addresses / geography far more often than the fund).
+_GENERIC_FUND_WORDS = {"avenue", "canyon"}
+
+_entity_lexicon_cache = None
+
+
+def _entity_lexicon():
+    """(watchlist tickers, {alias_lower: canonical fund name}) — built once.
+
+    Lazy import so search.py stays importable standalone; coverage is
+    deliberately just the SEC watchlist + tracked funds + $TICK patterns
+    (full company NER is deferred — see MEMORY_REFACTOR_SPEC Stage 3a).
+    """
+    global _entity_lexicon_cache
+    if _entity_lexicon_cache is None:
+        from sec_filings import WATCHLIST
+        from fund_tracking import TRACKED_FUNDS
+        aliases = {}
+        for _cik, name in TRACKED_FUNDS:
+            aliases[name.lower()] = name
+            first = name.split()[0]
+            if first.lower() not in _GENERIC_FUND_WORDS:
+                aliases[first.lower()] = name
+        _entity_lexicon_cache = (set(WATCHLIST), aliases)
+    return _entity_lexicon_cache
+
+
+def _extract_entities(text):
+    """Entity tags for one chunk: watchlist tickers, $TICK mentions, fund names.
+
+    Tickers match case-sensitively on word boundaries (lowercase "main" must not
+    tag MAIN; all-caps filing headers can still false-positive — accepted noise).
+    $-prefixed symbols are tagged even off-watchlist ($ALM, $AGI from 13D).
+    Fund aliases match case-insensitively. Returns a sorted, deduped list.
+    """
+    if not text:
+        return []
+    watchlist, fund_aliases = _entity_lexicon()
+
+    tags = set()
+    # Any $TICK-style mention (strong ticker signal, watchlist or not)
+    for sym in re.findall(r'\$([A-Za-z]{1,5})\b', text):
+        tags.add(sym.upper())
+    # Watchlist tickers as bare uppercase words
+    for ticker in watchlist:
+        if re.search(rf'\b{re.escape(ticker)}\b', text):
+            tags.add(ticker)
+    # Tracked-fund names / distinctive aliases
+    lowered = text.lower()
+    for alias, canonical in fund_aliases.items():
+        if re.search(rf'\b{re.escape(alias)}\b', lowered):
+            tags.add(canonical)
+
+    return sorted(tags)
+
+
+def _entity_key(s):
+    """Normalize an entity for matching: '$ABR' / 'abr' / 'ABR' all compare equal."""
+    return (s or "").lstrip("$").strip().lower()
+
+
+def _filter_ids(metadata, date_filter=None, date_from=None, date_to=None,
+                entity_filter=None):
+    """Chunk ids passing all supplied filters (Stage 1 date prefix + Stage 3a
+    range/entity). Returns None when no filter is active (= search everything)."""
+    if not (date_filter or date_from or date_to or entity_filter):
+        return None
+
+    ent = _entity_key(entity_filter) if entity_filter else None
+    allowed = []
+    for i, m in enumerate(metadata):
+        d = m.get("date", "")
+        if date_filter and not d.startswith(date_filter):
+            continue
+        if date_from and d < date_from:
+            continue
+        if date_to and d > date_to:
+            continue
+        if ent and ent not in (_entity_key(t) for t in m.get("entities") or []):
+            continue
+        allowed.append(i)
+    return allowed
+
+
 def _rrf_fuse(rankings, k=60):
     """Reciprocal Rank Fusion: {id: sum of 1/(k + rank)} across rankings (Stage 2).
 
@@ -525,6 +614,11 @@ def _chunks_for_date(date_str):
         except Exception:
             pass
 
+    # Entity tags (Stage 3a) — one place covers both index_daily_content and
+    # rebuild_index; existing metadata is backfilled via `python search.py --retag`.
+    for text, meta in chunks:
+        meta["entities"] = _extract_entities(text)
+
     return chunks
 
 
@@ -577,6 +671,30 @@ def index_daily_content(date_str):
 
     print(f"  Indexed {len(chunks)} chunks. Total index: {index.ntotal} vectors.")
     return len(chunks)
+
+
+def retag_metadata():
+    """Backfill entity tags onto existing chunk metadata (Stage 3a).
+
+    Rewrites chunk_metadata.json ONLY — the FAISS vectors are untouched, so this
+    is safe to run anytime and takes seconds. New chunks are tagged at index
+    time; this exists for chunks indexed before tagging landed (or after a
+    lexicon change — new watchlist ticker, new tracked fund).
+    """
+    _index, metadata = _load_index()
+    if not metadata:
+        print("No metadata to retag.")
+        return 0
+
+    tagged = 0
+    for m in metadata:
+        m["entities"] = _extract_entities(m.get("text", ""))
+        if m["entities"]:
+            tagged += 1
+
+    METADATA_FILE.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+    print(f"Retagged {len(metadata)} chunks ({tagged} carry at least one entity tag).")
+    return len(metadata)
 
 
 def rebuild_index():
@@ -673,7 +791,8 @@ def _rerank_candidates(query, candidates, top_k):
     return ranked[:top_k]
 
 
-def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False):
+def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
+           entity_filter=None, date_from=None, date_to=None):
     """
     Search the archive: dense retrieval (optionally fused with BM25), then
     keyword boost or cross-encoder rerank.
@@ -691,6 +810,11 @@ def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False):
             Reciprocal Rank Fusion (scores are then RRF sums, not cosine) —
             fixes exact-token retrieval (tickers, CUSIPs) that embeddings miss.
             If False (default), keep the original cosine + keyword-boost scoring.
+        entity_filter: Optional entity tag (Stage 3a) — restrict to chunks tagged
+            with this ticker/fund ("$ABR", "ABR", "Oaktree Capital Management";
+            case- and $-insensitive). Coverage = watchlist + $TICK + tracked funds.
+        date_from / date_to: Optional inclusive ISO date range (Stage 3a), e.g.
+            date_from="2026-06-01", date_to="2026-06-30". Combines with the others.
 
     Returns:
         List of (metadata_dict, score) tuples, best-first.
@@ -708,14 +832,13 @@ def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False):
     query_vec = model.encode([query], normalize_embeddings=True)
     query_vec = np.array(query_vec, dtype=np.float32)
 
-    # Date filter (Stage-1 fix): restrict the searched vectors up front instead
-    # of discarding non-matching dates from a global top-k afterwards.
-    allowed_ids = None
-    if date_filter:
-        allowed_ids = [i for i, m in enumerate(metadata)
-                       if m.get("date", "").startswith(date_filter)]
-        if not allowed_ids:
-            return []
+    # Filters (Stage 1 + 3a): restrict the searched vectors up front instead
+    # of discarding non-matching chunks from a global top-k afterwards.
+    allowed_ids = _filter_ids(metadata, date_filter=date_filter,
+                              date_from=date_from, date_to=date_to,
+                              entity_filter=entity_filter)
+    if allowed_ids is not None and not allowed_ids:
+        return []
 
     # Retrieve more candidates than needed for fuse/boost/rerank re-ordering
     pool = top_k * 10
@@ -763,27 +886,39 @@ if __name__ == "__main__":
         print("Usage:")
         print('  python search.py "your query here"')
         print('  python search.py "query" --date 2026-04')
+        print('  python search.py "query" --entity ABR')
+        print('  python search.py "query" --from 2026-06-01 --to 2026-06-30')
         print('  python search.py "query" --rerank')
         print('  python search.py "query" --hybrid')
         print("  python search.py --rebuild")
         print("  python search.py --index 2026-04-04")
+        print("  python search.py --retag   (backfill entity tags; metadata only)")
         sys.exit(1)
 
     if sys.argv[1] == "--rebuild":
         rebuild_index()
+
+    elif sys.argv[1] == "--retag":
+        retag_metadata()
 
     elif sys.argv[1] == "--index" and len(sys.argv) >= 3:
         index_daily_content(sys.argv[2])
 
     else:
         query = sys.argv[1]
-        date_filter = None
-        if "--date" in sys.argv:
-            di = sys.argv.index("--date")
-            if di + 1 < len(sys.argv):
-                date_filter = sys.argv[di + 1]
 
-        results = search(query, top_k=10, date_filter=date_filter,
+        def _flag_value(flag):
+            if flag in sys.argv:
+                fi = sys.argv.index(flag)
+                if fi + 1 < len(sys.argv):
+                    return sys.argv[fi + 1]
+            return None
+
+        results = search(query, top_k=10,
+                         date_filter=_flag_value("--date"),
+                         entity_filter=_flag_value("--entity"),
+                         date_from=_flag_value("--from"),
+                         date_to=_flag_value("--to"),
                          rerank="--rerank" in sys.argv,
                          hybrid="--hybrid" in sys.argv)
 

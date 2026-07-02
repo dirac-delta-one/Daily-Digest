@@ -26,10 +26,11 @@ low-risk improvements.
 Group B A/B kept all Opus; then landed the 13D summary cache, memory→Sonnet, and 2-pass prompt caching;
 see §11 / §14 + `WORKLOG`). The **next major track is the memory / retrieval refactor**, scoped + reviewed
 in **`MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search → entity metadata → System A↔B
-convergence) — **Stages 0–2 built 2026-07-01/02** (eval harness + baseline; reranker + date-filter
-fix; BM25+RRF hybrid + the now-LIVE search-state cache — the rerank/hybrid production flips are
-deferred until the archive is deep enough for the eval to discriminate, revisit ~2 weeks in);
-**Stage 3a (entity tags + date-range filter) is next**. Other open items: the
+convergence) — **Stages 0–3a built 2026-07-01/02** (eval harness + baseline; reranker + date-filter
+fix; BM25+RRF hybrid + the now-LIVE search-state cache; entity tags + entity/date-range filters —
+the rerank/hybrid production flips are deferred until the archive is deep enough for the eval to
+discriminate); **recommended next: accrue ~2 weeks of daily archive, then the flips revisit +
+Stage 4**. Other open items: the
 **§7.2 server deploy** (the definition of
 "done"), the **§13** coverage gaps, and the data-gated **3.3** PDF review — see **§11 / §12 / §13 / §14**.
 
@@ -46,16 +47,19 @@ deferred until the archive is deep enough for the eval to discriminate, revisit 
 > via a permissioned before/after; supersedes the old §14.E "2.1 dropped" finding.
 >
 > ➡️ **NEXT MAJOR TRACK — the memory / retrieval refactor, scoped + reviewed in `MEMORY_REFACTOR_SPEC.md`
-> (Stages 0–2 built 2026-07-01/02; Stage 3a next).** Improves the RAG reply bot (reranker → hybrid
-> search → entity/date metadata) and converges the two "memory" systems (the cross-digest `memory.json`
+> (Stages 0–3a built 2026-07-01/02).** Improves the RAG reply bot (reranker → hybrid search →
+> entity/date metadata) and converges the two "memory" systems (the cross-digest `memory.json`
 > storylines vs. the FAISS archive) so it can "piece together" across time. Mostly local/free to build
 > + test. The 2026-07-01 review restructured the spec (Stage 3 split into 3a metadata / 3b conditional
 > reindex) and surfaced two latent `search()` findings — **both now fixed**: the post-retrieval
 > date-filter scaling bug (Stage 1) and the per-call index reload (Stage 2's mtime-cached search
-> state, live). The Stage-1 reranker and Stage-2 BM25+RRF hybrid are built + param-gated but their
-> **production flips are deferred** — the 1-day-archive eval can't discriminate (digest/PDF
-> duplication ceiling; see the spec's Stage 1–2 notes and WORKLOG); revisit both at ~2 weeks of
-> archive. **Other open tracks:** §7.2 server deploy (= "done"), §13 coverage gaps.
+> state, live). Entity tags + entity/date-range filters are live in `search()` (Stage 3a; `--retag`
+> backfill done, 66/629 chunks tagged) but nothing consumes them in production until Stage 4. The
+> Stage-1 reranker and Stage-2 BM25+RRF hybrid are built + param-gated with their **production flips
+> deferred** — the 1-day-archive eval can't discriminate (digest/PDF duplication ceiling; see the
+> spec's Stage 1–2 notes and WORKLOG). **Recommended next: let the daily archive accrue ~2 weeks,
+> then revisit the flips + build Stage 4 against a real multi-day archive.** **Other open tracks:**
+> §7.2 server deploy (= "done"), §13 coverage gaps.
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 

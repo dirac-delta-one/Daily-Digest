@@ -12,7 +12,7 @@
 | 0 | Eval harness (golden Q→source set) | ✅ done 2026-07-01 — `tools/eval_retrieval.py` + `eval_golden.json` (15 Qs); baseline hit@1=0.93, MRR=0.96 (near-saturated: 1-day archive) |
 | 1 | Cross-encoder reranker + date-filter fix | ✅ built 2026-07-01 — `search(rerank=True)` + subset date-filter search, unit-tested; **reply-bot opt-in deferred** (1-day eval can't discriminate: rerank hit@1 0.867 vs 0.933, an artifact of digest-chunk duplication — see Stage 1 notes) |
 | 2 | Hybrid search (BM25 + dense, RRF) + index caching | ✅ built 2026-07-02 — `search(hybrid=True)` + mtime-cached index/metadata/BM25 (cache is LIVE, behavior-neutral); **hybrid default-flip deferred** (same 1-day-eval ceiling as Stage 1 — see notes) |
-| 3a | Entity/date metadata tags + date-range filter (no reindex needed) | ⬜ not started |
+| 3a | Entity/date metadata tags + date-range filter (no reindex needed) | ✅ built 2026-07-02 — tags live at index time + `--retag` backfill (66/629 chunks tagged); `search(entity_filter=, date_from=, date_to=)`; entity-filtered eval case hits rank 1 |
 | 3b | Stronger embeddings / structure-aware chunking (reindex) | ⬜ conditional on Stage 0/1 evidence |
 | 4 | Smarter retrieval in the reply bot (query understanding + MMR/dedup) | ⬜ not started |
 | 5 | Converge System A ↔ B (story-timeline memory wired into the bot) | ⬜ not started |
@@ -173,6 +173,18 @@ any re-embedding and can land anytime (even before Stage 2):
   `date_to`) is a small `search()` change on the existing `date` field — no metadata change at all.
 - **Test:** ticker tags populate; filters work; Stage-0 eval unchanged (this adds capability, not
   ranking changes). **Risk:** low, reversible.
+- **Built 2026-07-02 — findings:** `_extract_entities` (watchlist tickers case-sensitive on word
+  boundaries; any `$TICK` mention even off-watchlist — caught 13D's $ALM and the KBW note's
+  IBKR/OCFC; tracked-fund names + distinctive first-word aliases, with "Avenue"/"Canyon" excluded as
+  too generic). Tags are applied at index time in `_chunks_for_date` and backfilled via
+  `python search.py --retag` (metadata-only rewrite; vectors untouched). New `search()` params
+  `entity_filter` / `date_from` / `date_to` (all pre-retrieval via the shared `_filter_ids`;
+  $- and case-insensitive entity matching). Real-archive backfill: **66/629 chunks tagged** (MSTR 11,
+  RWT 7, PGY 6, WYNN/ALM 2, plus fund names). Eval: all prior items unchanged; the new
+  entity-filtered golden case (vague query + `entity_filter=MSTR`) hits rank 1. Unit tests +11
+  (tagger incl. case-sensitivity + generic-word skip; combined date/range/entity filtering incl.
+  pre-retag chunks without an `entities` key). Nothing consumes the filters in production yet —
+  that's Stage 4's query understanding.
 
 ### Stage 3b — Stronger embeddings / structure-aware chunking *(reindex; CONDITIONAL)*
 The pieces that genuinely require re-embedding, held until the Stage-0/1 evidence says they're
