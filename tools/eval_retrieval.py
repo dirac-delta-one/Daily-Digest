@@ -12,6 +12,7 @@ Entirely local/free: embeddings run on-device, no Claude calls, no network.
 
 Usage:
   python tools/eval_retrieval.py                 # eval at top_k=10, print report
+  python tools/eval_retrieval.py --rerank        # eval the Stage-1 cross-encoder path
   python tools/eval_retrieval.py --top-k 20      # deeper cutoff
   python tools/eval_retrieval.py --save baseline # also write tools/eval_results/<date>_baseline.json
 """
@@ -53,13 +54,13 @@ def _first_match_rank(results, expects):
     return None
 
 
-def run_eval(top_k):
+def run_eval(top_k, rerank=False):
     golden = json.loads(GOLDEN_FILE.read_text(encoding="utf-8"))["questions"]
 
     rows = []
     for item in golden:
         results = search(item["question"], top_k=top_k,
-                         date_filter=item.get("date_filter"))
+                         date_filter=item.get("date_filter"), rerank=rerank)
         rank = _first_match_rank(results, item["expect"])
         top = results[0][0] if results else None
         rows.append({
@@ -111,12 +112,15 @@ def summarize(rows, top_k):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--top-k", type=int, default=10)
+    ap.add_argument("--rerank", action="store_true",
+                    help="use the Stage-1 cross-encoder rerank path")
     ap.add_argument("--save", metavar="LABEL",
                     help="also write metrics+rows to tools/eval_results/<date>_<LABEL>.json")
     args = ap.parse_args()
 
-    rows = run_eval(args.top_k)
+    rows = run_eval(args.top_k, rerank=args.rerank)
     metrics = summarize(rows, args.top_k)
+    metrics["rerank"] = args.rerank
 
     if args.save:
         RESULTS_DIR.mkdir(exist_ok=True)

@@ -17,7 +17,13 @@
     "",
     "Note: the WILTW report is indexed TWICE — the Opus summary (source_type 'wiltw') and the raw",
     "PDF (source_type 'pdf', source_name 'Wiltw ...'). Both are correct answers for 13D questions,",
-    "so WILTW items accept either."
+    "so WILTW items accept either.",
+    "",
+    "Note on 'digest' chunks: the digest summarizes every source, so its chunks are topical matches",
+    "for almost any question — but the reply bot loads the day's digest separately as context, so",
+    "retrieval surfacing same-day digest chunks adds little. Default to expecting the UNDERLYING",
+    "source; only list a digest alternative where a digest-level answer is genuinely sufficient.",
+    "(This asymmetry is why the Stage-1 reranker scored nominally lower — it promotes digest chunks.)"
   ],
   "questions": [
     {

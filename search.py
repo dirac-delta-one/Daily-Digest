@@ -29,6 +29,11 @@ METADATA_FILE = ARCHIVE_DIR / "chunk_metadata.json"
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 
+# Stage-1 reranker (MEMORY_REFACTOR_SPEC): cross-encoder that re-scores
+# (query, chunk) pairs from the dense candidate pool. ~90MB one-time download,
+# CPU-fine. Param-gated via search(rerank=True) — the reply bot opts in.
+RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
 CHUNK_SIZE = 800       # chars (~150-200 tokens) — larger for better context
 CHUNK_OVERLAP = 150    # more overlap to avoid splitting key details across chunks
 
@@ -118,6 +123,7 @@ def _extract_pdf_text(pdf_path):
 # ======================================================================
 
 _model = None
+_reranker = None
 
 
 def _get_model():
@@ -131,6 +137,15 @@ def _get_model():
         from sentence_transformers import SentenceTransformer
         _model = SentenceTransformer(EMBEDDING_MODEL_NAME)
     return _model
+
+
+def _get_reranker():
+    """Load (once) and return the cross-encoder reranker (same singleton pattern)."""
+    global _reranker
+    if _reranker is None:
+        from sentence_transformers import CrossEncoder
+        _reranker = CrossEncoder(RERANKER_MODEL_NAME)
+    return _reranker
 
 
 def _load_index():
@@ -549,17 +564,64 @@ def rebuild_index():
 # SEARCH
 # ======================================================================
 
-def search(query, top_k=10, date_filter=None):
+def _search_vectors(index, query_vec, k, allowed_ids=None):
+    """FAISS top-k search, optionally restricted to a subset of vector ids.
+
+    The subset path is the Stage-1 date-filter fix: filtering *after* a global
+    top-k retrieval (the old approach) surfaces few/no matches once the index
+    spans many dates — the target day's chunks get crowded out of the global
+    candidate pool. Restricted searches instead brute-force score exactly the
+    allowed vectors (IndexFlat vectors are reconstructable; one day is only
+    ~hundreds of chunks), which is exact and cheap at this scale.
+
+    Returns (scores, ids) as parallel 1-D arrays, best-first.
     """
-    Hybrid search: vector similarity + keyword boost.
+    if allowed_ids is None:
+        k = min(k, index.ntotal)
+        scores, indices = index.search(query_vec, k)
+        return scores[0], indices[0]
+
+    vecs = np.vstack([index.reconstruct(int(i)) for i in allowed_ids])
+    sims = vecs @ query_vec[0]
+    order = np.argsort(-sims)[:k]
+    return sims[order], np.array([allowed_ids[j] for j in order])
+
+
+def _rerank_candidates(query, candidates, top_k):
+    """Re-score (query, chunk-text) pairs with the cross-encoder (Stage 1).
+
+    Returns the top_k candidates by cross-encoder score. NOTE: the returned
+    scores are cross-encoder logits, not cosine similarities — don't compare
+    them against non-reranked scores.
+    """
+    if not candidates:
+        return []
+
+    reranker = _get_reranker()
+    pairs = [(query, meta.get("text", "")) for meta, _ in candidates]
+    scores = reranker.predict(pairs, show_progress_bar=False)
+
+    ranked = [(meta, float(s)) for (meta, _), s in zip(candidates, scores)]
+    ranked.sort(key=lambda x: x[1], reverse=True)
+    return ranked[:top_k]
+
+
+def search(query, top_k=10, date_filter=None, rerank=False):
+    """
+    Search the archive: dense retrieval, then keyword boost or cross-encoder rerank.
 
     Args:
         query: The search query string.
         top_k: Number of results to return.
         date_filter: Optional date prefix filter (e.g. "2026-04" or "2026-04-04").
+            Applied BEFORE retrieval (restricted vector search), so day-filtered
+            queries keep working as the archive grows.
+        rerank: If True, re-score the candidate pool with the cross-encoder and
+            rank by that (scores in the result are then logits, not cosine).
+            If False (default), keep the original cosine + keyword-boost scoring.
 
     Returns:
-        List of (metadata_dict, similarity_score) tuples, sorted by combined score.
+        List of (metadata_dict, score) tuples, best-first.
     """
 
     index, metadata = _load_index()
@@ -573,37 +635,40 @@ def search(query, top_k=10, date_filter=None):
     query_vec = model.encode([query], normalize_embeddings=True)
     query_vec = np.array(query_vec, dtype=np.float32)
 
-    # Retrieve more candidates than needed for hybrid re-ranking
-    search_k = min(top_k * 10, index.ntotal)
+    # Date filter (Stage-1 fix): restrict the searched vectors up front instead
+    # of discarding non-matching dates from a global top-k afterwards.
+    allowed_ids = None
+    if date_filter:
+        allowed_ids = [i for i, m in enumerate(metadata)
+                       if m.get("date", "").startswith(date_filter)]
+        if not allowed_ids:
+            return []
 
-    scores, indices = index.search(query_vec, search_k)
-
-    # Extract keywords from query for boosting (words 3+ chars, lowered)
-    query_words = [w.lower() for w in re.findall(r'\b\w{3,}\b', query)]
+    # Retrieve more candidates than needed for boost/rerank re-ordering
+    scores, indices = _search_vectors(index, query_vec, top_k * 10, allowed_ids)
 
     candidates = []
-    for score, idx in zip(scores[0], indices[0]):
+    for score, idx in zip(scores, indices):
         if idx < 0 or idx >= len(metadata):
             continue
+        candidates.append((metadata[idx], float(score)))
 
-        meta = metadata[idx]
+    if rerank:
+        return _rerank_candidates(query, candidates, top_k)
 
-        # Apply date filter
-        if date_filter and not meta.get("date", "").startswith(date_filter):
-            continue
+    # Legacy scoring: keyword boost (words 3+ chars) over the cosine score
+    query_words = [w.lower() for w in re.findall(r'\b\w{3,}\b', query)]
 
-        # Keyword boost: add 0.05 per query keyword found in the chunk text
+    boosted = []
+    for meta, score in candidates:
         text_lower = meta.get("text", "").lower()
         keyword_hits = sum(1 for w in query_words if w in text_lower)
-        boost = keyword_hits * 0.05
-
-        combined_score = float(score) + boost
-        candidates.append((meta, combined_score))
+        boosted.append((meta, score + keyword_hits * 0.05))
 
     # Sort by combined score descending
-    candidates.sort(key=lambda x: x[1], reverse=True)
+    boosted.sort(key=lambda x: x[1], reverse=True)
 
-    return candidates[:top_k]
+    return boosted[:top_k]
 
 
 # ======================================================================
@@ -615,6 +680,7 @@ if __name__ == "__main__":
         print("Usage:")
         print('  python search.py "your query here"')
         print('  python search.py "query" --date 2026-04')
+        print('  python search.py "query" --rerank')
         print("  python search.py --rebuild")
         print("  python search.py --index 2026-04-04")
         sys.exit(1)
@@ -633,7 +699,8 @@ if __name__ == "__main__":
             if di + 1 < len(sys.argv):
                 date_filter = sys.argv[di + 1]
 
-        results = search(query, top_k=10, date_filter=date_filter)
+        results = search(query, top_k=10, date_filter=date_filter,
+                         rerank="--rerank" in sys.argv)
 
         if not results:
             print("No results found.")

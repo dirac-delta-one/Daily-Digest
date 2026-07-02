@@ -43,6 +43,37 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Memory / retrieval refactor — Stage 1: reranker + date-filter fix (2026-07-01)
+
+Built entirely offline/free (no Claude calls; one-time ~90MB `ms-marco-MiniLM-L-6-v2` download).
+`ruff` clean, `pytest` **73** green (+5).
+
+**What landed (`search.py`):**
+- **Date-filter fix (both paths):** `date_filter` is now applied *before* retrieval — new
+  `_search_vectors(index, query_vec, k, allowed_ids)` brute-force scores exactly the matching
+  vectors (IndexFlat reconstruct; exact, cheap at ~hundreds of chunks/day) instead of discarding
+  non-matching dates from a global top-k. Kills the §2B scaling bug before it could bite. Pinned by
+  unit tests (subset-only results, exact dot-product scores, k-cut, global path = FAISS order).
+- **Cross-encoder reranker, param-gated:** `search(rerank=True)` re-scores the `top_k*10` candidate
+  pool with a CrossEncoder singleton (`_get_reranker`, same lazy pattern as the embedder) and ranks
+  by logit; default `rerank=False` keeps the cosine+keyword-boost scoring byte-identical. CLI
+  `--rerank` on search.py; `--rerank` on the eval harness too.
+
+**Eval (Stage-0 golden set):** the refactored default path is **identical to the committed baseline**
+(hit@1=0.933, MRR=0.956 — behavior-neutral refactor confirmed). The rerank path scored *nominally
+lower* (hit@1=0.867, MRR=0.922) — inspection shows an eval artifact, not a quality loss: the
+reranker promotes **digest chunks** (dense summaries matching almost any question) over the raw
+source chunks the strict golden set expects. Snapshot saved (`2026-07-01_stage1-rerank.json`).
+
+**Decision — reply-bot opt-in DEFERRED:** flipping `_search_multiple` to `rerank=True` on a 1-day
+archive would mean overriding the eval we just built ("it's probably wrong") — the opposite of the
+Stage-0 discipline. Revisit once ~2 weeks of archive accrue and the eval can discriminate. **Insight
+banked for Stage 4:** the reply bot already loads the day's digest as separate context, so same-day
+digest chunks in retrieval are redundant for it — exclude/deprioritize them in the reply path
+(MMR/dedup). Golden-set readme updated with the digest-chunk expectation convention.
+
+---
+
 ## Memory / retrieval refactor — spec review + Stage 0 eval harness (2026-07-01)
 
 Reviewed `MEMORY_REFACTOR_SPEC.md` against the actual code and **restructured it** (operator-approved):

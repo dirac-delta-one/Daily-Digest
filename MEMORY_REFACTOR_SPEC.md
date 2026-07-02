@@ -10,7 +10,7 @@
 | Stage | What | State |
 |---|---|---|
 | 0 | Eval harness (golden Q→source set) | ✅ done 2026-07-01 — `tools/eval_retrieval.py` + `eval_golden.json` (15 Qs); baseline hit@1=0.93, MRR=0.96 (near-saturated: 1-day archive) |
-| 1 | Cross-encoder reranker + date-filter fix | ⬜ not started |
+| 1 | Cross-encoder reranker + date-filter fix | ✅ built 2026-07-01 — `search(rerank=True)` + subset date-filter search, unit-tested; **reply-bot opt-in deferred** (1-day eval can't discriminate: rerank hit@1 0.867 vs 0.933, an artifact of digest-chunk duplication — see Stage 1 notes) |
 | 2 | Hybrid search (BM25 + dense, RRF) + index caching | ⬜ not started |
 | 3a | Entity/date metadata tags + date-range filter (no reindex needed) | ⬜ not started |
 | 3b | Stronger embeddings / structure-aware chunking (reindex) | ⬜ conditional on Stage 0/1 evidence |
@@ -123,6 +123,17 @@ with a CrossEncoder (`bge-reranker-base` or `ms-marco-MiniLM`), return top-k by 
   CPU-fine, ~50–200 ms/query — irrelevant for an async email bot; note the disk footprint in the
   §7.2 server provisioning list).
 - **Test:** Stage-0 eval before/after; unit-test rerank ordering. **Risk:** low, reversible.
+- **Built 2026-07-01 — findings:** mechanism landed (`rerank=` param, `_rerank_candidates`,
+  `ms-marco-MiniLM-L-6-v2` singleton) and the date-filter fix (`_search_vectors` subset search) is
+  in for BOTH paths, pinned by unit tests. The no-rerank default is eval-identical to the Stage-0
+  baseline. The rerank path scored *nominally lower* (hit@1 0.867 vs 0.933, MRR 0.922 vs 0.956) —
+  inspection shows an artifact, not a quality loss: the reranker promotes **digest chunks** (dense
+  summaries of everything) over raw source chunks, and the strict golden set prefers the underlying
+  source. Real insight for Stage 4: the reply bot already loads the day's digest as separate context,
+  so same-day digest chunks in retrieval are REDUNDANT for it — consider excluding/deprioritizing
+  them there (MMR/dedup). **Decision: reply-bot opt-in (`rerank=True` in `_search_multiple`) is
+  deferred until the archive has enough days for the eval to discriminate** — flipping production on
+  "the eval is probably wrong" would defeat the Stage-0 discipline. Revisit at ~2 weeks of archive.
 
 ### Stage 2 — Hybrid search: BM25 + dense (RRF) + index caching *(free, offline)*
 Add a BM25 lexical ranking (`rank_bm25`, built in-memory from `chunk_metadata`) and fuse with the dense

@@ -26,8 +26,9 @@ low-risk improvements.
 Group B A/B kept all Opus; then landed the 13D summary cache, memory→Sonnet, and 2-pass prompt caching;
 see §11 / §14 + `WORKLOG`). The **next major track is the memory / retrieval refactor**, scoped + reviewed
 in **`MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search → entity metadata → System A↔B
-convergence) — **Stage 0 (eval harness) built 2026-07-01** (`tools/eval_retrieval.py` + golden set;
-baseline hit@1=0.93 / MRR=0.96 on the 1-day archive); **Stage 1 is next**. Other open items: the
+convergence) — **Stages 0–1 built 2026-07-01** (eval harness + baseline; reranker mechanism + the
+date-filter fix — the reply-bot rerank opt-in is deferred until the archive is deep enough for the
+eval to discriminate); **Stage 2 (hybrid BM25 + caching) is next**. Other open items: the
 **§7.2 server deploy** (the definition of
 "done"), the **§13** coverage gaps, and the data-gated **3.3** PDF review — see **§11 / §12 / §13 / §14**.
 
@@ -44,13 +45,15 @@ baseline hit@1=0.93 / MRR=0.96 on the 1-day archive); **Stage 1 is next**. Other
 > via a permissioned before/after; supersedes the old §14.E "2.1 dropped" finding.
 >
 > ➡️ **NEXT MAJOR TRACK — the memory / retrieval refactor, scoped + reviewed in `MEMORY_REFACTOR_SPEC.md`
-> (Stage 0 built 2026-07-01; Stage 1 next).** Improves the RAG reply bot (reranker → hybrid search →
+> (Stages 0–1 built 2026-07-01; Stage 2 next).** Improves the RAG reply bot (reranker → hybrid search →
 > entity/date metadata) and converges the two "memory" systems (the cross-digest `memory.json`
 > storylines vs. the FAISS archive) so it can "piece together" across time. Mostly local/free to build
-> + test. The 2026-07-01 review also restructured the spec: Stage 3 split into 3a (metadata tags, no
-> reindex) / 3b (embedder swap / re-chunking, conditional on eval evidence), and two latent `search()`
-> findings were added — the post-retrieval date-filter scaling bug (→ Stage 1) and the per-call index
-> reload (→ Stage 2). **Other open tracks:** §7.2 server deploy (= "done"), §13 coverage gaps.
+> + test. The 2026-07-01 review restructured the spec (Stage 3 split into 3a metadata / 3b conditional
+> reindex) and surfaced two latent `search()` findings: the post-retrieval date-filter scaling bug
+> (**fixed in Stage 1**) and the per-call index reload (→ Stage 2). Stage 1's reranker is built +
+> param-gated but the **reply-bot opt-in is deferred** — the 1-day-archive eval can't discriminate
+> (digest-chunk duplication artifact; see the spec's Stage 1 notes and WORKLOG). **Other open
+> tracks:** §7.2 server deploy (= "done"), §13 coverage gaps.
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 
