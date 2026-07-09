@@ -25,6 +25,7 @@ import anthropic
 from digest import get_gmail_service, DIGEST_RECIPIENTS
 
 from search import search, extract_entities, dedupe_near_duplicates
+from memory import match_stories
 from config import OPUS_MODEL, SONNET_MODEL
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
@@ -331,7 +332,7 @@ def _extract_query_filters(question, digest_date=None):
     return entities, None, None
 
 
-def _search_multiple(queries, digest_date=None, question=None):
+def _search_multiple(queries, digest_date=None, question=None, stories=None):
     """Search for multiple queries and merge results, deduped by chunk_id.
 
     Stage 4 behavior on top of the original day-then-broad phases:
@@ -342,6 +343,11 @@ def _search_multiple(queries, digest_date=None, question=None):
       filtered phases driving the Stage-3a search params.
     - Near-duplicate chunks (same PDF forwarded twice) are dropped before the
       final cap.
+    Stage 5: matched storylines (`stories`, from memory.match_stories) add
+    targeted phases — the story's entities searched inside its lifespan
+    window. This reaches entities the question-side regex can't (e.g. "the
+    Wynn story" -> the story's WYNN tag) and anchors cross-day questions to
+    the dates the story actually spans.
     """
     entities, date_from, date_to = [], None, None
     if question:
@@ -382,9 +388,49 @@ def _search_multiple(queries, digest_date=None, question=None):
         _collect(search(query, top_k=SEARCH_TOP_K,
                         exclude_digest_date=digest_date))
 
+    # Phase 5 (Stage 5): storyline-driven — search the question against each
+    # matched story's entities inside the story's lifespan window
+    for story in (stories or [])[:2]:
+        search_text = question or (queries[0] if queries else "")
+        if not search_text:
+            break
+        for ent in (story.get("entities") or [])[:2]:
+            _collect(search(search_text, top_k=SEARCH_TOP_K // 2,
+                            entity_filter=ent,
+                            date_from=story.get("first_seen") or None,
+                            date_to=story.get("last_updated") or None,
+                            exclude_digest_date=digest_date))
+
     # Sort by score, drop near-duplicate texts, cap
     all_results.sort(key=lambda x: x[1], reverse=True)
     return dedupe_near_duplicates(all_results)[:SEARCH_TOP_K]
+
+
+def _story_context_block(stories):
+    """Render matched storylines (Stage-5 router) as answer context.
+
+    The timeline is the narrative spine System B can't retrieve on its own —
+    dated developments across days. Capped small (<=2 stories, last 8 entries
+    each); the header tells Opus to cite the ORIGINAL sources, matching the
+    digest's never-cite-the-memory-system rule.
+    """
+    if not stories:
+        return ""
+    parts = []
+    for story in stories:
+        lines = [
+            f"TRACKED STORYLINE: {story.get('topic', '')} "
+            f"({story.get('first_seen', '?')} → {story.get('last_updated', '?')}, "
+            f"{story.get('status', 'active')}) "
+            "[assembled from prior digests — cite the original sources named below, "
+            "never this tracking system]",
+            f"Summary: {story.get('summary', '')}",
+        ]
+        for entry in (story.get("timeline") or [])[-8:]:
+            src = f" ({', '.join(entry['sources'])})" if entry.get("sources") else ""
+            lines.append(f"  {entry.get('date', '?')}: {entry.get('update', '')}{src}")
+        parts.append("\n".join(lines))
+    return "\n\n".join(parts) + "\n\n"
 
 
 def answer_question(question, digest_date=None):
@@ -405,6 +451,17 @@ def answer_question(question, digest_date=None):
     # Extract individual search queries from the reply
     queries = _extract_search_queries(question)
 
+    # Stage-5 router: match the question against tracked storylines (free,
+    # local). A match contributes its timeline as context and drives
+    # story-targeted retrieval; no match changes nothing.
+    try:
+        stories = match_stories(question)
+    except Exception as e:
+        print(f"  Story router failed ({e}) — continuing without.")
+        stories = []
+    if stories:
+        print(f"  Matched storylines: {[s.get('id') for s in stories]}")
+
     if not queries:
         return (
             '<div style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; '
@@ -414,8 +471,9 @@ def answer_question(question, digest_date=None):
         )
 
     # Search for all queries, merge and dedupe results (question drives the
-    # Stage-4 entity/date-window filters)
-    results = _search_multiple(queries, digest_date=digest_date, question=question)
+    # Stage-4 entity/date-window filters; stories drive the Stage-5 phases)
+    results = _search_multiple(queries, digest_date=digest_date, question=question,
+                               stories=stories)
 
     if not results:
         return (
@@ -441,9 +499,12 @@ def answer_question(question, digest_date=None):
                 f"{'='*40}\n{digest_text}\n{'='*40}\n\n"
             )
 
+    # Storyline timelines (Stage 5) join the context as the narrative spine
+    story_context = _story_context_block(stories)
+
     # Build context from retrieved chunks
     context_parts = []
-    total_chars = len(digest_context)
+    total_chars = len(digest_context) + len(story_context)
     for chunk_meta, score in results:
         entry = (
             f"[Source: {chunk_meta['source_name']} | "
@@ -463,7 +524,7 @@ def answer_question(question, digest_date=None):
         context_parts.append(entry)
         total_chars += len(entry)
 
-    context = digest_context + "\n---\n".join(context_parts)
+    context = digest_context + story_context + "\n---\n".join(context_parts)
 
     print(f"  Retrieved {len(context_parts)} chunks ({total_chars:,} chars). Asking Opus...")
 

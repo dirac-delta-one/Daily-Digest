@@ -43,6 +43,65 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Memory / retrieval refactor — Stage 5 DONE: story-timeline memory + reply router (2026-07-09)
+
+Built offline/free, then validated with one permissioned delta replay ($0.098 — see bottom of this
+entry). `ruff` clean, `pytest` **136** green (+21). The last stage of `MEMORY_REFACTOR_SPEC.md` —
+**the memory/retrieval refactor track is complete.**
+
+**What landed (`memory.py` rewritten; `reply_monitor.py` wired):**
+- **v2 story-timeline store:** each story gets a stable `id`, `entities[]`, `status`, and a dated
+  `timeline[]` of updates alongside the rolling summary/data points. v1 files migrate **in memory
+  on load** (no write); the first v2 save backs up the v1 file once (`memory_v1_backup.json`,
+  gitignored).
+- **Incremental delta updates:** `update_memory` sends Sonnet a compact story index (**31%** of the
+  old full-JSON resend on the real 48-story file) + the HTML-stripped digest, and gets back only a
+  structured delta (`story_updates` by id, `new_stories`). Code appends timeline entries, refreshes
+  summaries, resolves concluded stories — the model **cannot silently drop a story anymore** (the
+  v1 wholesale rewrite re-emitted everything every day). The 30-day staleness rule moved from
+  prompt instruction to deterministic code (`_age_stale_stories`).
+- **Reply-bot router (`memory.match_stories` → `reply_monitor`):** questions match tracked
+  storylines by entity hits (2x; lexicon or literal word), store-unique topic words (1.5x — a df=1
+  word like "wynn" identifies a story alone), and common topic words (1x, need ≥2). Matched stories
+  add **story-targeted retrieval phases** (story entities inside the story's lifespan window — this
+  reaches entities the Stage-4 question-side lexicon can't) and their **timeline joins the answer
+  context** as the narrative spine (≤2 stories, last 8 entries, cite-original-sources header).
+  No match ⇒ byte-identical Stage-4 behavior.
+- **Contracts held:** `get_memory_context()` renders **byte-identical output** on the real
+  48-story file (33,665 chars, verified against the v1 renderer); `update_memory(digest_html)`
+  signature unchanged; digest.main untouched.
+
+**Real-data finding (the Stage-5 thesis, proven in our own store):** the Wynn Moody's downgrade —
+in the 6/30 digest AND the eval golden set — **never entered v1 memory at all**: the 7/02 snapshot
+(= the 6/30 run's output, 18 stories) has no Wynn story, and none ever appeared. The Group B A/B
+had even flagged it ("Opus kept 2 more credit stories — Wynn Moody's cut"); the production Sonnet
+rewrite just never created it, and every later rewrite compounded the omission. Under v2 a created
+story is permanent until explicitly resolved. (Router consequence today: "the Wynn story" finds no
+storyline — inherited v1 gap, falls back to Stage-4 chunk retrieval, where wynn-moodys hits rank 1.)
+
+**Permissioned delta replay — DONE same day, $0.098. STAGE 5 COMPLETE; THE MEMORY/RETRIEVAL
+REFACTOR IS DONE.** Replayed the archived 7/09 digest against the 7/09 pre-update snapshot
+(39 active + 4 resolved) in a temp store (real memory.json untouched):
+- **Delta quality:** 13 stories updated — specific, dated, correctly-id'd entries (Hormuz transit
+  shift + IRGC firing; CRWV triple Form 4s with prices; hawkish Fed minutes; TPI/First Brands on
+  the LME wave) — and 6 new stories created with sane entity tags (Burry GPU-depreciation →
+  AMZN/CRWV/META/NVDA; DMRC governance flag). Every pre-state story retained by construction.
+- **Cost, same-transition apples-to-apples:** v1's actual 7/09 memory pass cost **$0.274**
+  (32,041 in + 11,839 out) vs v2's **$0.098** (10,344 in + 4,439 out) — **64% cheaper**, and the
+  log shows v1's cost compounding with store size all week ($0.189 → $0.209 → $0.250 → $0.274)
+  while v2 scales with the day's news instead. At v1's growth rate this saving widens every week
+  the system runs.
+- **Fidelity, same day:** v1's wholesale rewrite merged/reshaped 3 existing stories into new
+  umbrella topics (both Hormuz threads → "stably unstable new normal"; TelePacific → "serial LME
+  wave"), destroying their first_seen lineage and dated history; v2 updated the same stories in
+  place. New-story coverage comparable (5 of 6 v2-new match v1-new topics; one unique pick each —
+  normal variance).
+- Budget after run: ~**$6.08**. The optional substrate swap stays dead (filtering runs fine on
+  FAISS-flat + JSON). Next per NEXT_STEPS: the efficiency batch (E1+S1, E2, O1, O3), then
+  F1/F1a → the §7.2 server deploy.
+
+---
+
 ## Memory / retrieval refactor — Stage 4: reply-bot retrieval built; rerank retest FAILED → parked (2026-07-09)
 
 Built offline/free (no Claude calls). `ruff` clean, `pytest` **115** green (+17).

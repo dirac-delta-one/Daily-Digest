@@ -35,7 +35,13 @@ reserved for refactor testing, top-up at deploy; ~$6.18 after the Stage-4 valida
 DONE + live-validated (2026-07-09, $0.12):** query understanding drives the live entity/date
 filters, same-day digest chunks are excluded from reply retrieval, near-dup chunks deduped; the
 **rerank retest FAILED its gate → rerank + hybrid parked permanently** (param-gated code stays).
-**Next: Stage 5 → the efficiency batch →
+**Stage 5 is DONE + delta-replay-validated (2026-07-09, $0.098):** `memory.json` v2 story-timeline
+store with incremental Sonnet delta updates (no more wholesale rewrites — v1 had silently lost the
+Wynn story and merged 3 more on 7/09 alone; v2 is 64% cheaper than v1's same-day $0.274 and scales
+with the news, not the store) + the reply-bot storyline router; `get_memory_context()` verified
+byte-identical, v1 migrated read-compatibly. **THE MEMORY/RETRIEVAL REFACTOR TRACK IS COMPLETE**
+(~$6.08 credit remains).
+**Next: the efficiency batch →
 server deploy**, all sequenced in **`NEXT_STEPS_SPEC.md`**; the accrual week also produced a list of
 **deploy-blocking fixes (§7.2 field findings)**. Other open items: the **§13** coverage gaps and the
 now-unblocked **3.3** PDF review (10 unique archived PDFs: 8 broker notes + 2 WILTWs — the trigger's
@@ -197,8 +203,10 @@ monitor unattended 24/7. The work happens in three stages:
 - **Two-pass / pass 1 / pass 2:** Opus generates a draft digest (pass 1), then a second Opus call
   reviews the draft against the *same* source material and produces the final (pass 2). This is
   intentional and valued — keep it.
-- **Cross-digest memory:** `memory.json`, an Opus-maintained running summary of evolving storylines
-  injected into the next day's prompt (`memory.py`).
+- **Cross-digest memory:** `memory.json`, a model-maintained store of evolving storylines injected
+  into the next day's prompt (`memory.py`; Sonnet since 2026-07-01). Since Stage 5 (2026-07-09) it
+  is a **story-timeline store** updated by incremental deltas (per-story dated update history, no
+  wholesale rewrites) and also feeds the reply bot's storyline router.
 - **Archive / indexing / embedding:** After each run, raw content is saved to `archive/<date>/`,
   then chunked, **embedded** (text → 384-dim vectors via `sentence-transformers`) and **indexed**
   into a **FAISS** store (`search.py`). The reply-bot embeds an incoming question, finds nearest

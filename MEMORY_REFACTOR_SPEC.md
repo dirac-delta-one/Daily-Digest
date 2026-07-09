@@ -15,7 +15,7 @@
 | 3a | Entity/date metadata tags + date-range filter (no reindex needed) | ✅ built 2026-07-02 — tags live at index time + `--retag` backfill (66/629 chunks tagged); `search(entity_filter=, date_from=, date_to=)`; entity-filtered eval case hits rank 1 |
 | 3b | Stronger embeddings / structure-aware chunking (reindex) | ❌ SKIPPED (2026-07-09 checkpoint) — default retrieval has hit@3 = 1.0 on the 6-day eval; no headroom a bigger embedder addresses |
 | 4 | Smarter retrieval in the reply bot (query understanding + MMR/dedup) | ✅ done 2026-07-09 — query understanding → live entity/date-window filters; same-day digest exclusion; near-dup dedup; rerank retest run + failed (parked). **Live-validated same day ($0.12):** MSTR cross-week question fired entity+window filters and produced a high-quality cross-day answer |
-| 5 | Converge System A ↔ B (story-timeline memory wired into the bot) | ⬜ not started |
+| 5 | Converge System A ↔ B (story-timeline memory wired into the bot) | ✅ done 2026-07-09 — v2 story-timeline store + incremental delta updates; v1 migrated read-compatibly, `get_memory_context()` byte-identical on the real 48-story file; reply-bot router live. **Delta-replay validated same day ($0.098 vs v1's actual $0.274 on the same 7/09 transition — 64% cheaper, zero story loss; v1 merged/reshaped 3 stories that day)** |
 | — | Optional: substrate swap (LanceDB / sqlite-vec) | ⬜ conditional |
 
 *(Restructured 2026-07-01 after review: Stage 3 split — tagging only rewrites `chunk_metadata.json`,
@@ -229,6 +229,32 @@ would, so measure first:
 - **Touches** `memory.py` (model-driven → permissioned) and the reply bot; must stay compatible with
   the digest's `get_memory_context()` reader. **Risk:** medium-high; keep the old format readable
   during transition.
+- **Built 2026-07-09 — findings:** memory.json v2 = `{version, last_updated, stories[]}`, each story
+  `{id, topic, status, first_seen, last_updated, entities[], summary, key_data_points[], sources[],
+  timeline[{date, update, sources}]}`. `update_memory` now sends Sonnet a **compact story index**
+  (31% of the old full-JSON resend on the real file) + the HTML-stripped digest, and receives a
+  structured **delta** (`story_updates` by id / `new_stories`); code appends timeline entries —
+  stories can no longer be silently dropped, and the 30-day staleness rule moved from prompt to
+  code. v1 files migrate in memory on load (no write; one-time `memory_v1_backup.json` before the
+  first v2 save). **Contract checks on the real 48-story file:** migration preserves 41+7,
+  `get_memory_context()` output byte-identical (33,665 chars). **Router:** `match_stories()` scores
+  entity hits (2x, lexicon or literal word), store-unique topic words (1.5x, match alone), common
+  topic words (1x, need 2); matched stories add entity/lifespan-window retrieval phases +
+  their timeline as answer context; no match = Stage-4 behavior exactly. **Motivating datapoint
+  found in the real data:** the Wynn downgrade — in the digest AND the golden set — never entered
+  v1 memory at all (the wholesale rewrite never created it), exactly the fidelity failure the
+  append-only design removes. `pytest` 136 (+21), `ruff` clean.
+- **Validated 2026-07-09 (permissioned delta replay, $0.098):** replayed the archived 7/09 digest
+  against the 7/09 pre-update snapshot (39 active + 4 resolved) in a temp store. The delta updated
+  13 stories with specific, dated, correctly-id'd entries and created 6 new ones (entities
+  auto/model-tagged, e.g. the Burry GPU-depreciation story → AMZN/CRWV/META/NVDA); every pre-state
+  story retained by construction. The real v1 run on the SAME transition cost **$0.274** (32k in +
+  11.8k out — v1's cost grew every day with the store: $0.189→$0.209→$0.250→$0.274 across the week)
+  vs v2's **$0.098**, and v1 that day merged/reshaped 3 existing stories into new umbrella topics
+  (both Hormuz threads, TelePacific→"serial LME wave"), losing their per-story lineage — v2 updated
+  the same stories in place. New-story coverage comparable (5 of 6 v2-new correspond to v1-new
+  topics; each had one unique pick — normal variance). **STAGE 5 COMPLETE — the memory/retrieval
+  refactor is DONE** (optional substrate swap stays dead: filtering runs fine on FAISS-flat+JSON).
 
 ### Optional infra — substrate swap
 Swap FAISS-flat + JSON for a metadata-native embedded store (**LanceDB / sqlite-vec / Chroma**) **only

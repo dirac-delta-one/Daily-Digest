@@ -14,6 +14,7 @@ trace_cache.json
 pacer_seen.json
 wiltw_cache.json
 memory.json
+memory_v1_backup.json
 
 # Archive / generated data
 archive/

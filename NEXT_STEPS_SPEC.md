@@ -14,7 +14,7 @@
 | Track | State |
 |---|---|
 | §1 Checkpoint (post-accrual-week decision session) | ✅ RUN 2026-07-09 — week 6/6 green; rerank + hybrid flips REJECTED on the 26-question eval (default won every metric); 3b SKIPPED; Sonnet watch CLOSED (stays); runs stopped (task disabled, operator decision); 3.3 trigger met at the margin (10 unique PDFs: 8 broker + 2 WILTW). Token swap still pending (before 7/14). Full detail in WORKLOG |
-| §2.1 Memory layer (Stages 4–5 + flips) | 🔄 in progress — Stages 0–4 DONE (Stage 4 done + live-validated 2026-07-09, $0.12: query understanding + digest exclusion + dedup; **rerank retest FAILED → rerank + hybrid parked permanently**); only Stage 5 remains; see `MEMORY_REFACTOR_SPEC.md` |
+| §2.1 Memory layer (Stages 4–5 + flips) | ✅ **DONE 2026-07-09** — all stages complete (Stage 4 live-validated $0.12; Stage 5 delta-replay-validated $0.098: 64% cheaper than v1's same-day $0.274, zero story loss; **rerank + hybrid parked permanently** after the failed retest); see `MEMORY_REFACTOR_SPEC.md` |
 | §2.2 General efficiency (E/S/O items) | ⬜ specced here; O2 allowed during accrual week, rest after checkpoint |
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
 | §3.F1 Server-deploy readiness (§7.2) | ⬜ queued after memory track; checklist pre-work can start anytime |
@@ -218,8 +218,8 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 | ~~Accrual week (7/6–7/9)~~ | ✅ DONE — 6/6 runs green; §7.2 field findings collected (→ F1a) |
 | ~~Checkpoint (7/09)~~ | ✅ RUN — flips rejected, 3b skipped, Sonnet watch closed, runs stopped; see WORKLOG |
 | ~~Next~~ | ✅ **Stage 4 DONE 2026-07-09** (query understanding + dedup + digest-exclusion; rerank retest run + FAILED → rerank/hybrid parked permanently; live-validated same day, $0.12) |
-| Then | **Stage 5** — memory convergence (6 daily `memory.json` snapshots archived to design against) |
-| Then | Efficiency batch: **E1+S1** together, **E2**, **O1**, **O3** (E3 only if still needed) |
+| ~~Then~~ | ✅ **Stage 5 DONE 2026-07-09** — v2 story-timeline store, incremental delta updates, reply router; delta-replay validated ($0.098 vs v1's $0.274 same-transition, zero story loss). **Memory track complete** |
+| Next | Efficiency batch: **E1+S1** together, **E2**, **O1**, **O3** (E3 only if still needed) |
 | Then | **F1 + F1a → §7.2 server deploy** — the project's "done" |
 | Unblocked, anytime | **F2** (3.3 PDF review — 10 unique PDFs archived, trigger met at the margin) |
 
