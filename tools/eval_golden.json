@@ -1,6 +1,6 @@
 {
   "_readme": [
-    "Golden retrieval-eval set (MEMORY_REFACTOR_SPEC Stage 0). Each item: a question a user",
+    "Golden retrieval-eval set (memory-refactor Stage 0; track closed 2026-07-09, residuals in HANDOFF 14.F). Each item: a question a user",
     "might ask the reply bot, plus what search() should surface. Run: python tools/eval_retrieval.py",
     "",
     "Match semantics: a returned chunk satisfies an item if it matches ANY entry in `expect`.",

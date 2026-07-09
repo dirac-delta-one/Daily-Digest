@@ -9,10 +9,12 @@ This handles scanned PDFs, image-heavy reports, etc.
 """
 
 import os
+import io
 import sys
 import base64
 import time
 import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.mime.text import MIMEText
 from pathlib import Path
 
@@ -28,7 +30,7 @@ from claude_utils import parse_json_response, json_schema_output, wrapped_array_
 import cost
 from html_utils import extract_gmail_body
 from substack import fetch_substack_articles
-from sec_filings import fetch_recent_filings
+from sec_filings import fetch_recent_filings, WATCHLIST as SEC_WATCHLIST
 from news import fetch_wsj_ft_articles
 from market_data import fetch_market_data, build_market_table_html, format_market_data_for_prompt
 from macro_data import fetch_macro_data, build_macro_table_html, format_macro_for_prompt
@@ -915,6 +917,129 @@ def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject_
                 raise
 
 
+# ======================================================================
+# SOURCE REGISTRY + PARALLEL FETCH (efficiency S1 + E1, 2026-07-09)
+# ======================================================================
+
+# S1: the 14 independent fetchers main() runs before the Claude passes, as a
+# table instead of 14 near-identical try/except blocks. Each row:
+# (result key, progress line, failure label, zero-arg callable). Any source
+# failing yields [] and the run continues — the same per-source isolation the
+# old blocks provided. Gmail, Substack, and 13D are deliberately NOT here:
+# Gmail is the auth root, Substack reuses the Gmail service (magic-link
+# renewal), and 13D drives Playwright — all three stay serial in main().
+SOURCE_FETCHERS = [
+    ("sec_filings", "Checking SEC EDGAR filings...", "EDGAR fetch",
+     fetch_recent_filings),
+    ("news_articles", "Fetching WSJ/FT headlines...", "WSJ/FT fetch",
+     fetch_wsj_ft_articles),
+    ("market_data", "Fetching market data...", "Market data fetch",
+     fetch_market_data),
+    ("macro_data", "Fetching FRED macro data...", "Macro data fetch",
+     fetch_macro_data),
+    ("earnings", "Checking earnings calendar...", "Earnings calendar",
+     lambda: fetch_earnings_calendar(extra_tickers=SEC_WATCHLIST)),
+    ("trace_data", "Fetching TRACE bond data...", "TRACE fetch",
+     fetch_trace_data),
+    ("pacer_entries", "Checking PACER dockets...", "PACER fetch",
+     fetch_pacer_docket),
+    ("rating_actions", "Fetching rating actions...", "Rating actions",
+     fetch_rating_actions),
+    ("fund_results", "Checking 13F fund filings...", "13F tracking",
+     fetch_fund_holdings),
+    ("research_articles", "Fetching central bank research...", "Research blogs",
+     fetch_research_articles),
+    ("treasury_auctions", "Fetching Treasury auctions...", "Treasury auctions",
+     fetch_treasury_auctions),
+    ("cot_data", "Checking CFTC positioning...", "CFTC COT",
+     fetch_cot_data),
+    ("fed_bs", "Fetching Fed balance sheet...", "Fed balance sheet",
+     fetch_fed_balance_sheet),
+    ("bank_failures", "Checking FDIC for bank failures...", "FDIC check",
+     fetch_failed_banks),
+]
+
+MAX_FETCH_WORKERS = 6
+
+
+class _ThreadLocalStdout:
+    """stdout proxy that routes each worker thread's prints to its own buffer.
+
+    The fetcher modules print() progress liberally; running them in a pool
+    would interleave those lines into log soup. Workers register a per-thread
+    buffer; unregistered threads (the main thread) pass through to the real
+    stdout. contextlib.redirect_stdout can't do this — it swaps the ONE global
+    sys.stdout, so it isn't thread-safe.
+    """
+
+    def __init__(self, default):
+        import threading
+        self._default = default
+        self._local = threading.local()
+
+    def register(self, buffer):
+        self._local.buffer = buffer
+
+    def unregister(self):
+        self._local.buffer = None
+
+    def write(self, s):
+        buf = getattr(self._local, "buffer", None)
+        return (buf if buf is not None else self._default).write(s)
+
+    def flush(self):
+        buf = getattr(self._local, "buffer", None)
+        (buf if buf is not None else self._default).flush()
+
+
+def _fetch_all_sources(registry=None, max_workers=MAX_FETCH_WORKERS):
+    """Run the registry fetchers in parallel (E1). Returns {key: result}.
+
+    The pure-HTTP sources are independent, so the ~5-8 min serial fetch phase
+    collapses to roughly the slowest source. Each source's output is buffered
+    and printed as one coherent block when it completes (completion order);
+    per-source rate-limit sleeps stay correct inside their own threads. A
+    failed source prints its old failure line and yields [] — isolation
+    unchanged from the serial version.
+    """
+    registry = SOURCE_FETCHERS if registry is None else registry
+    results = {}
+    proxy = _ThreadLocalStdout(sys.stdout)
+    real_stdout = sys.stdout
+    started = time.time()
+
+    def _run(entry):
+        key, _start_msg, fail_label, fetch = entry
+        buffer = io.StringIO()
+        proxy.register(buffer)
+        try:
+            result = fetch()
+        except Exception as e:
+            print(f"{fail_label} failed: {e} — continuing without.")
+            result = []
+        finally:
+            proxy.unregister()
+        return key, result, buffer.getvalue()
+
+    labels = {entry[0]: entry[1] for entry in registry}
+    sys.stdout = proxy
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [pool.submit(_run, entry) for entry in registry]
+            for future in as_completed(futures):
+                key, result, output = future.result()
+                results[key] = result
+                real_stdout.write(labels[key] + "\n")
+                if output:
+                    real_stdout.write(output if output.endswith("\n") else output + "\n")
+    finally:
+        sys.stdout = real_stdout
+
+    print(f"Fetch phase: {time.time() - started:.0f}s "
+          f"({len(registry)} sources, {max_workers} workers)")
+    return results
+
+
 def main():
     print(f"[{datetime.datetime.now()}] Starting daily digest...")
 
@@ -940,119 +1065,22 @@ def main():
         print(f"13D WILTW failed: {e} — continuing without.")
         wiltw = None
 
-    # --- SEC EDGAR ---
-    print("Checking SEC EDGAR filings...")
-    try:
-        sec_filings = fetch_recent_filings()
-    except Exception as e:
-        print(f"EDGAR fetch failed: {e} — continuing without.")
-        sec_filings = []
-
-    # --- WSJ / FT ---
-    print("Fetching WSJ/FT headlines...")
-    try:
-        news_articles = fetch_wsj_ft_articles()
-    except Exception as e:
-        print(f"WSJ/FT fetch failed: {e} — continuing without.")
-        news_articles = []
-
-    # --- Market Data ---
-    print("Fetching market data...")
-    try:
-        market_data = fetch_market_data()
-    except Exception as e:
-        print(f"Market data fetch failed: {e} — continuing without.")
-        market_data = []
-
-    # --- FRED Macro Data ---
-    print("Fetching FRED macro data...")
-    try:
-        macro_data = fetch_macro_data()
-    except Exception as e:
-        print(f"Macro data fetch failed: {e} — continuing without.")
-        macro_data = []
-
-    # --- Earnings Calendar ---
-    print("Checking earnings calendar...")
-    try:
-        # Include SEC watchlist tickers
-        from sec_filings import WATCHLIST as SEC_WATCHLIST
-        earnings = fetch_earnings_calendar(extra_tickers=SEC_WATCHLIST)
-    except Exception as e:
-        print(f"Earnings calendar failed: {e} — continuing without.")
-        earnings = []
-
-    # --- FINRA TRACE ---
-    print("Fetching TRACE bond data...")
-    try:
-        trace_data = fetch_trace_data()
-    except Exception as e:
-        print(f"TRACE fetch failed: {e} — continuing without.")
-        trace_data = []
-
-    # --- PACER Docket ---
-    print("Checking PACER dockets...")
-    try:
-        pacer_entries = fetch_pacer_docket()
-    except Exception as e:
-        print(f"PACER fetch failed: {e} — continuing without.")
-        pacer_entries = []
-
-    # --- Rating Agency Actions ---
-    print("Fetching rating actions...")
-    try:
-        rating_actions = fetch_rating_actions()
-    except Exception as e:
-        print(f"Rating actions failed: {e} — continuing without.")
-        rating_actions = []
-
-    # --- 13F Fund Tracking ---
-    print("Checking 13F fund filings...")
-    try:
-        fund_results = fetch_fund_holdings()
-    except Exception as e:
-        print(f"13F tracking failed: {e} — continuing without.")
-        fund_results = []
-
-    # --- Central Bank Research ---
-    print("Fetching central bank research...")
-    try:
-        research_articles = fetch_research_articles()
-    except Exception as e:
-        print(f"Research blogs failed: {e} — continuing without.")
-        research_articles = []
-
-    # --- Treasury Auctions ---
-    print("Fetching Treasury auctions...")
-    try:
-        treasury_auctions = fetch_treasury_auctions()
-    except Exception as e:
-        print(f"Treasury auctions failed: {e} — continuing without.")
-        treasury_auctions = []
-
-    # --- CFTC COT ---
-    print("Checking CFTC positioning...")
-    try:
-        cot_data = fetch_cot_data()
-    except Exception as e:
-        print(f"CFTC COT failed: {e} — continuing without.")
-        cot_data = []
-
-    # --- Fed Balance Sheet ---
-    print("Fetching Fed balance sheet...")
-    try:
-        fed_bs = fetch_fed_balance_sheet()
-    except Exception as e:
-        print(f"Fed balance sheet failed: {e} — continuing without.")
-        fed_bs = []
-
-    # --- FDIC Bank Failures ---
-    print("Checking FDIC for bank failures...")
-    try:
-        bank_failures = fetch_failed_banks()
-    except Exception as e:
-        print(f"FDIC check failed: {e} — continuing without.")
-        bank_failures = []
+    # --- The 14 independent sources (S1 registry, fetched in parallel — E1) ---
+    fetched = _fetch_all_sources()
+    sec_filings = fetched["sec_filings"]
+    news_articles = fetched["news_articles"]
+    market_data = fetched["market_data"]
+    macro_data = fetched["macro_data"]
+    earnings = fetched["earnings"]
+    trace_data = fetched["trace_data"]
+    pacer_entries = fetched["pacer_entries"]
+    rating_actions = fetched["rating_actions"]
+    fund_results = fetched["fund_results"]
+    research_articles = fetched["research_articles"]
+    treasury_auctions = fetched["treasury_auctions"]
+    cot_data = fetched["cot_data"]
+    fed_bs = fetched["fed_bs"]
+    bank_failures = fetched["bank_failures"]
 
     # --- Check if anything to digest ---
     if not emails and not substack_articles and not sec_filings and not news_articles:

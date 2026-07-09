@@ -2,8 +2,9 @@
 
 > Forward roadmap for the whole project: the post-accrual-week checkpoint procedure, the three
 > operator-requested refactor tracks, and fresh suggestions. Companion to `HANDOFF.md` (overall
-> state), `WORKLOG.md` (running log), and `MEMORY_REFACTOR_SPEC.md` (**which remains the source
-> of truth for the memory track** — this spec only sequences it). Written 2026-07-02.
+> state), `WORKLOG.md` (running log), and — for the memory track, now ✅ complete — `HANDOFF.md`
+> §14.F (residuals/watch-items; the standalone spec was retired/deleted 2026-07-09).
+> Written 2026-07-02.
 >
 > **Operator decisions embedded here (2026-07-02):** "general efficiency" = all three flavors
 > (runtime + code simplicity + operational); after the checkpoint, **the memory refactor
@@ -14,7 +15,7 @@
 | Track | State |
 |---|---|
 | §1 Checkpoint (post-accrual-week decision session) | ✅ RUN 2026-07-09 — week 6/6 green; rerank + hybrid flips REJECTED on the 26-question eval (default won every metric); 3b SKIPPED; Sonnet watch CLOSED (stays); runs stopped (task disabled, operator decision); 3.3 trigger met at the margin (10 unique PDFs: 8 broker + 2 WILTW). Token swap still pending (before 7/14). Full detail in WORKLOG |
-| §2.1 Memory layer (Stages 4–5 + flips) | ✅ **DONE 2026-07-09** — all stages complete (Stage 4 live-validated $0.12; Stage 5 delta-replay-validated $0.098: 64% cheaper than v1's same-day $0.274, zero story loss; **rerank + hybrid parked permanently** after the failed retest); see `MEMORY_REFACTOR_SPEC.md` |
+| §2.1 Memory layer (Stages 4–5 + flips) | ✅ **DONE 2026-07-09** — all stages complete (Stage 4 live-validated $0.12; Stage 5 delta-replay-validated $0.098: 64% cheaper than v1's same-day $0.274, zero story loss; **rerank + hybrid parked permanently** after the failed retest). Residuals/watch-items → **HANDOFF §14.F** (spec retired/deleted 2026-07-09) |
 | §2.2 General efficiency (E/S/O items) | ⬜ specced here; O2 allowed during accrual week, rest after checkpoint |
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
 | §3.F1 Server-deploy readiness (§7.2) | ⬜ queued after memory track; checklist pre-work can start anytime |
@@ -82,7 +83,7 @@ failure mode the dedicated server eliminates).
 
 ## 2. Refactor tracks
 
-### 2.1 Memory layer — IN PROGRESS (source of truth: `MEMORY_REFACTOR_SPEC.md`)
+### 2.1 Memory layer — ✅ DONE 2026-07-09 (residuals/watch-items: HANDOFF §14.F)
 
 Sequencing only (details live in that spec): **flips** (data-gated, §1 above) → **Stage 4**
 (built at the checkpoint) → **Stage 5** — the memory convergence, now designable against a
@@ -142,6 +143,48 @@ stays readable during transition. Stage 5 also carries the last meaningful **cos
   cookie, dead 13D session) that per-source `try/except` deliberately swallows.
 - **O4 — Backups** of `archive/`, `memory.json`, and the FAISS index (scheduled copy).
   Finalize as part of the server deploy; interim: any simple periodic copy.
+
+#### Implementation order (staged 2026-07-09; operator green-lights each stage)
+
+Sequenced so behavior-neutral refactors land before behavior-adding ones, items sharing a
+review surface land together, and the one paid validation comes last in the stage that needs
+it. Each stage is independently committable; test between stages per HANDOFF §8.
+
+1. **Stage 1 — S1 + E1 (`digest.main` registry, then parallel fetch).** One function, one
+   review, deliberately in this order: first the behavior-neutral registry refactor (16
+   fetch-blocks → a table; pinned by the existing `tests/test_digest_prompt.py` sentinels),
+   then the `ThreadPoolExecutor` over the pure-HTTP fetchers in that registry (Gmail /
+   Substack / 13D stay serial; per-source output buffered to keep logs readable).
+   *Verify:* unit tests + free standalone fetchers offline; then **one permissioned live
+   digest run (~$1.0–1.5, → acohen)** — the batch's only Claude spend — confirming
+   output-equivalence and apportioning the remaining wall-clock (Gmail vs Claude passes)
+   for the E3 gate.
+   **🔄 BUILT 2026-07-09** — 143 tests green; free live check measured the pool at
+   **serial 21s → parallel 7s (3×)**, correcting the original 5–8-min estimate (that time
+   lives outside the registry: Gmail / Substack / 13D / PACER / the Claude passes). Live
+   run pending — do it on a fresh archive day, or back up `archive/` + `memory.json` +
+   the FAISS index first (doubles as interim O4).
+2. **Stage 2 — E2 (re-index via `reconstruct`, no re-embedding).** `search.index_daily_content`'s
+   re-index branch rebuilds prior chunks' vectors from the existing FAISS index instead of
+   re-encoding every chunk. *Verify:* offline unit test — reconstructed index byte-equal for
+   retained chunks on a tiny fixture + the real archive; free.
+3. **Stage 3 — O1 (log rotation).** Date-stamped logs + a keep-~30-days cleanup line in the
+   three wrappers; `run_alert._tail` follows the new naming. *Verify:* wrapper dry run,
+   rotation/cleanup logic unit-tested; free.
+4. **Stage 4 — O3 + O2 together (the alerting pair — both extend `run_alert`).** O3: persist
+   per-source item counts each run (small JSON); a normally-nonzero source at 0 for 3
+   consecutive runs ⇒ alert. O2: `run_alert.py --check-completed <label>` (digest: is
+   `archive/<today>/digest_sent_at.txt` fresh?). **O2's scheduled-task half (the ~9 AM
+   weekday check) is NOT registered here** — it registers once, the F1a-#2
+   `Register-ScheduledTask` way, at deploy — so the watchdog code ships now but arms at
+   deploy, when unattended runs exist again. *Verify:* unit tests + one real `--test`-style
+   alert send (free Gmail); no Claude.
+5. **Unstaged, anytime — interim O4.** A scheduled copy of `archive/` + `memory.json` + the
+   FAISS index; blocked only on the operator picking a destination (second drive / network
+   share / synced folder). The exposure (single-copy paid data + the eval corpus on one
+   laptop) exists today, so earlier is better.
+6. **Explicitly NOT scheduled — E3 (Gmail batch fetch).** Gate: only if the Stage-1 live run
+   shows the Gmail phase is still the visible bottleneck after E1. Expected outcome: skip.
 
 ### 2.3 Cost reduction — CLOSED (audit result: nothing left justifies a standalone project)
 
@@ -219,7 +262,7 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 | ~~Checkpoint (7/09)~~ | ✅ RUN — flips rejected, 3b skipped, Sonnet watch closed, runs stopped; see WORKLOG |
 | ~~Next~~ | ✅ **Stage 4 DONE 2026-07-09** (query understanding + dedup + digest-exclusion; rerank retest run + FAILED → rerank/hybrid parked permanently; live-validated same day, $0.12) |
 | ~~Then~~ | ✅ **Stage 5 DONE 2026-07-09** — v2 story-timeline store, incremental delta updates, reply router; delta-replay validated ($0.098 vs v1's $0.274 same-transition, zero story loss). **Memory track complete** |
-| Next | Efficiency batch: **E1+S1** together, **E2**, **O1**, **O3** (E3 only if still needed) |
+| Next | Efficiency batch, staged order in §2.2: **1)** S1+E1 → **2)** E2 → **3)** O1 → **4)** O3+O2 (watchdog code now, task arms at deploy); interim O4 anytime (needs a destination); E3 only if Stage 1 leaves Gmail the bottleneck |
 | Then | **F1 + F1a → §7.2 server deploy** — the project's "done" |
 | Unblocked, anytime | **F2** (3.3 PDF review — 10 unique PDFs archived, trigger met at the margin) |
 

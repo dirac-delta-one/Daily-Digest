@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Retrieval eval harness (MEMORY_REFACTOR_SPEC Stage 0).
+Retrieval eval harness (memory-refactor Stage 0; track closed 2026-07-09 —
+re-test gates and residuals in HANDOFF §14.F).
 
 Runs every golden question in tools/eval_golden.json through search.search()
 and reports, per question, the rank of the first chunk that satisfies the

@@ -2,7 +2,8 @@
 """
 Cross-Digest Memory — story-timeline store (Stage 5)
 
-System A restructured (MEMORY_REFACTOR_SPEC Stage 5): memory.json is a
+System A restructured (memory-refactor Stage 5, 2026-07-09 — residuals in
+HANDOFF §14.F): memory.json is a
 queryable story-timeline store, updated INCREMENTALLY after each digest.
 The model returns only a DELTA — which tracked stories today's digest
 advances (plus any genuinely new ones) — and code applies it: appends dated

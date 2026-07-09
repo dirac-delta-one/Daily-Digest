@@ -24,23 +24,22 @@ low-risk improvements.
 
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), then run daily
 through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**; `ruff` clean,
-`pytest` **98** green. The **cost refactor is complete** (2026-07-01; see §11 / §14 + `WORKLOG`).
-The **memory / retrieval refactor** (`MEMORY_REFACTOR_SPEC.md`) has **Stages 0–3a built** and passed
-its **2026-07-09 checkpoint**: on the 6-day / 26-question eval the simple default retrieval **beat
-both upgrades** — the rerank and hybrid production flips were **REJECTED** (mechanisms stay
-param-gated; one rerank retest inside Stage 4), **Stage 3b was SKIPPED** (hit@3 = 1.0, no headroom),
-and the **memory→Sonnet watch CLOSED** (healthy: 18 → 41 active + 7 resolved stories over the week —
-Sonnet stays). Daily runs are **stopped** (task disabled; operator decision — remaining ~$6.30 credit
-reserved for refactor testing, top-up at deploy; ~$6.18 after the Stage-4 validation). **Stage 4 is
-DONE + live-validated (2026-07-09, $0.12):** query understanding drives the live entity/date
-filters, same-day digest chunks are excluded from reply retrieval, near-dup chunks deduped; the
-**rerank retest FAILED its gate → rerank + hybrid parked permanently** (param-gated code stays).
-**Stage 5 is DONE + delta-replay-validated (2026-07-09, $0.098):** `memory.json` v2 story-timeline
-store with incremental Sonnet delta updates (no more wholesale rewrites — v1 had silently lost the
-Wynn story and merged 3 more on 7/09 alone; v2 is 64% cheaper than v1's same-day $0.274 and scales
-with the news, not the store) + the reply-bot storyline router; `get_memory_context()` verified
-byte-identical, v1 migrated read-compatibly. **THE MEMORY/RETRIEVAL REFACTOR TRACK IS COMPLETE**
-(~$6.08 credit remains).
+`pytest` **136** green. The **cost refactor is complete** (2026-07-01; see §11 / §14 + `WORKLOG`).
+**The memory / retrieval refactor is COMPLETE (Stages 0–5, closed 2026-07-09).** Its 7/09
+checkpoint had the 6-day / 26-question eval **rejecting both "best-practice" upgrades** — the
+rerank and hybrid production flips (rerank also failed its one Stage-4 retest → **both parked
+permanently**, mechanisms stay param-gated in `search()`), **Stage 3b SKIPPED** (hit@3 = 1.0, no
+headroom), and the **memory→Sonnet watch CLOSED** (Sonnet stays). **Stage 4** (live-validated
+$0.12): query understanding drives the live entity/date filters, same-day digest chunks excluded
+from reply retrieval, near-dup dedup. **Stage 5** (delta-replay-validated $0.098): `memory.json`
+v2 story-timeline store with incremental Sonnet deltas (no more wholesale rewrites — v1 had
+silently lost the Wynn story and merged 3 more on 7/09 alone; v2 is 64% cheaper than v1's same-day
+$0.274 and scales with the news, not the store) + the reply-bot storyline router;
+`get_memory_context()` verified byte-identical, v1 migrated read-compatibly. **Residuals /
+watch-items → §14.F** (the standalone spec is retired — deleted 2026-07-09, recoverable from
+git). Daily runs are **stopped** (task
+disabled; operator decision — credit reserved for refactor testing, **~$6.08 remains**, top-up at
+deploy).
 **Next: the efficiency batch →
 server deploy**, all sequenced in **`NEXT_STEPS_SPEC.md`**; the accrual week also produced a list of
 **deploy-blocking fixes (§7.2 field findings)**. Other open items: the **§13** coverage gaps and the
@@ -59,19 +58,18 @@ lower bound) — see **§11 / §12 / §13 / §14**.
 > pass 2 reads it (~$0.10/run text-day, ~$0.54/run PDF-day). Validated output-equivalent + cache-engaging
 > via a permissioned before/after; supersedes the old §14.E "2.1 dropped" finding.
 >
-> ➡️ **NEXT MAJOR TRACK — the memory / retrieval refactor (`MEMORY_REFACTOR_SPEC.md`), post-checkpoint.**
-> Stages 0–3a are built (eval harness; reranker + date-filter fix; BM25+RRF hybrid + the LIVE
-> search-state cache; entity tags + entity/date-range filters — `--retag` backfill done, tags applied
-> automatically at index time since 7/02). **The 2026-07-09 checkpoint settled the open questions with
-> data** (6 days / 3,554 chunks / 26 golden questions): default retrieval hit@1 0.846 / hit@3 1.0 /
-> MRR 0.904 vs rerank 0.769/0.885/0.839 and hybrid 0.808/0.962/0.872 — **both flips REJECTED** (the
-> cross-encoder promotes digest/broker-email chunks over primary sources; BM25 token-flooding caused a
-> genuine top-10 miss), **3b SKIPPED**, **Sonnet memory watch CLOSED (stays)**. Mechanisms remain
-> param-gated in `search()`; rerank gets one retest inside Stage 4 (with same-day-digest exclusion),
-> else both park. **Remaining: Stage 4** (query understanding → the live entity/date filters,
-> MMR/dedup, digest-exclusion; ~$0.20 to validate) **→ Stage 5** (memory convergence — the archive
-> holds 6 daily `memory.json` snapshots to design against) — then the `NEXT_STEPS_SPEC.md` efficiency
-> batch and the §7.2 deploy (see the §7.2 **field findings** for the deploy-blocking fixes the accrual
+> ✅ **The memory / retrieval refactor — COMPLETE 2026-07-09 (Stages 0–5).** Durable wins: the eval
+> harness + 26-question golden set; the date-filter scaling fix + search-state cache (live for all
+> callers); entity/date filters driven by production query understanding; same-day digest exclusion
+> + near-dup dedup in the reply path; the v2 story-timeline memory (incremental deltas — 64% cheaper
+> than the wholesale rewrite and it can't silently drop stories, which v1 demonstrably did) and the
+> reply-bot storyline router. **Measured-and-rejected:** the rerank and hybrid production flips
+> (lost the checkpoint eval AND the Stage-4 retest; both mechanisms stay param-gated in `search()`),
+> and Stage 3b (no headroom — hit@3 = 1.0). **Everything not implemented, with re-test gates and
+> watch-item triggers, is recorded in §14.F** — the standalone spec is retired (deleted
+> 2026-07-09; recoverable from git); history in
+> `WORKLOG.md`. Next per `NEXT_STEPS_SPEC.md`: the efficiency batch, then the §7.2 deploy (see the
+> §7.2 **field findings** for the deploy-blocking fixes the accrual
 > week surfaced). **Other open tracks:** §13 coverage gaps; 3.3 PDF review (marginally unblocked —
 > 10 unique PDFs: 8 broker notes + 2 WILTWs).
 
@@ -957,3 +955,77 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
   (Group C — unify `system`, put the shared source/PDF prefix first with a `cache_control` breakpoint,
   move per-pass instructions after it) **was built and validated** (output-equivalent + cache-engaging;
   pass 2 reads the cached prefix). See §14.A "Group C" and WORKLOG (2026-07-01).
+
+### F. Memory/retrieval refactor residuals — the closed track's not-done list (2026-07-09)
+
+The memory/retrieval track (Stages 0–5) **completed 2026-07-09**; this subsection is the durable
+record of everything the spec mentioned that was deliberately NOT implemented.
+**`MEMORY_REFACTOR_SPEC.md` was retired/deleted 2026-07-09** (recoverable from git history) — a
+future session can act on any item below from this section alone (full history stays in
+`WORKLOG.md`; eval snapshots in `tools/eval_results/`). The re-test kit is `tools/eval_retrieval.py` + `tools/eval_golden.json`
+(26 questions; grow it per §F3 of `NEXT_STEPS_SPEC.md` whenever new archive days accrue).
+
+**F1. Not implemented — testing proved them unnecessary** (measured on the 6-day / 3,554-chunk /
+26-question eval; the losing mechanisms are BUILT and stay **param-gated** in `search.py`, so
+re-testing is a flag, not a rebuild):
+- **Cross-encoder rerank as the production ranker** (`search(rerank=True)`,
+  `ms-marco-MiniLM-L-6-v2`). Lost the 7/09 checkpoint (MRR 0.839 vs default 0.904) and lost the
+  Stage-4 retest even in its best case, with ALL digest chunks excluded (0.876 vs 0.924) — it
+  promotes digest/broker-email/substack chunks over primary sources. **PARKED PERMANENTLY.**
+  Re-test only if the corpus character changes fundamentally (e.g. far larger archive, new source
+  mix); gate: ≥ default on hit@3 AND MRR, no new misses.
+- **Hybrid BM25+RRF retrieval** (`search(hybrid=True)`). Lost the checkpoint (MRR 0.872 vs 0.904)
+  and caused the eval's only genuine top-10 miss (BM25 'oil' token-flooding); its win condition —
+  an exact-token query dense retrieval outright misses — never once occurred, because at this
+  corpus size every exact-token chunk already lands in the 10×top-k candidate pool. **PARKED with
+  rerank.** Re-test trigger: a real dense-retrieval ticker miss observed at much larger archive
+  scale (add a strict 1–2 char ticker golden question first — the current `et-newissue` item is
+  only a loose probe).
+- **Stage 3b — stronger embedder (`bge-base-en-v1.5`, 768-dim) / structure-aware chunking /
+  PDF→md extraction (a full reindex).** Skipped at the checkpoint: default retrieval had
+  hit@3 = 1.0 — no embedder-addressable headroom. Consequence accepted knowingly: uniform 800-char
+  chunking still splits tables/filings mid-fact. Revisit only if the eval develops misses that a
+  stronger bi-encoder plausibly fixes; do embedder and chunking as SEPARATE measured reindexes.
+- **Fewer reply chunks (SEARCH_TOP_K 20 → ~10, ~$0.06/reply).** Was conditioned on rerank's
+  precision, which never materialized. Dead unless rerank is ever un-parked.
+- **Vector-substrate swap (LanceDB / sqlite-vec / Chroma).** Conditional trigger ("metadata
+  filtering makes FAISS-flat + JSON clumsy") never fired — Stage 3a/4/5 filtering runs fine at
+  3.5k chunks. Also note: the Stage-4 digest-exclusion path brute-force scores a nearly-full id
+  list, fine now, worth rechecking near the ~100k-chunk FAISS ceiling (§6).
+
+**F2. Not implemented — a safer alternative shipped instead:**
+- **Sonnet-schema query understanding** (extending the reply bot's paid query-extract call to also
+  return entities/date-ranges, per the spec's "regex + the existing Sonnet extract"). Shipped
+  **regex-only** (`reply_monitor._extract_query_filters`) using the index's own tag lexicon —
+  deterministic, free, and can never emit an unmatchable filter. Validated judgment: in the Stage-4
+  live run Sonnet's query rewrites hallucinated the year ("2025") while the regex filters stayed
+  correct. Revisit only if regex coverage proves too narrow in practice.
+- **True MMR (embedding-based maximal-marginal-relevance) in the reply path.** Needs candidate
+  vectors → an invasive `search()` return-shape change or per-reply re-embedding. Shipped
+  **token-Jaccard dedup** (`search.dedupe_near_duplicates`, ≥0.85) instead, which kills the
+  observed failure (near-verbatim twins from the same PDF forwarded on consecutive days) at zero
+  architectural cost. See F3 for its known limit.
+- **Live inbox reply testing.** Validations ran `answer_question()` / `update_memory()` directly on
+  archived inputs (the Group-B isolation method) rather than injecting live replies — avoids racing
+  jared's production reply monitor on the shared bot inbox and needs no Gmail token. The skipped
+  Gmail glue (`check_for_replies` / `send_reply` threading) is unchanged since its 2026-06-30 live
+  validation. Use the same method for future permissioned tests.
+
+**F3. Holding off — implement only if the output says otherwise (watch → trigger → fix):**
+- **Paraphrase-level dedup / true MMR.** Watch: reply answers feel repetitive — the same story's
+  *reworded* chunks from different days crowding the context (Jaccard 0.85 only catches
+  near-verbatim twins). Fix: real MMR over candidate vectors (accept the `search()` return-shape
+  change), or simply drop the Jaccard threshold after measuring.
+- **Real company NER for entity tags.** Coverage is deliberately watchlist + $TICK + tracked funds
+  only — "Wynn Resorts" spelled out is untaggable (this contributed to v1 memory losing the Wynn
+  story unnoticed). Mitigations now live: story-level entities from memory deltas + the router's
+  df-unique topic-word matching. Watch: entity-filtered retrieval or the story router repeatedly
+  missing name-only entities. Fix: NER at index time (spaCy or a cheap model pass) + `--retag`.
+- **`source_type` include-filter on `search()`.** Flagged as a weakness in the spec's §2B but never
+  staged; the only production need (excluding same-day digests) shipped as `exclude_digest_date`.
+  Watch: query understanding wanting "only filings / only ratings" retrieval. Fix: ~5 lines in
+  `search._filter_ids` + a param, same pattern as `entity_filter`.
+- **Memory-store growth.** v2 never deletes (stories only resolve); the compact index sent to
+  Sonnet grows with total story count. Watch: the memory pass's input tokens creeping back up in
+  the per-run cost logs. Fix: drop resolved stories from the index text (keep ids only), or archive
+  resolved stories older than ~90 days to a side file.

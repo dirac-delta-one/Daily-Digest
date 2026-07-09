@@ -43,6 +43,42 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Efficiency Stage 1 — S1 source registry + E1 parallel fetch built (2026-07-09)
+
+Built offline/free. `ruff` clean, `pytest` **143** green (+7). Awaiting the one permissioned live
+digest run (~$1.0–1.5) that closes the stage.
+
+**What landed (`digest.py`):**
+- **S1 — source registry.** The 14 near-identical fetch-with-try/except blocks in `main()` are now
+  one `SOURCE_FETCHERS` table (key, progress line, failure label, callable) + a 16-line unpack;
+  per-source failure isolation unchanged (any source → `[]` + its old failure message). Gmail,
+  Substack, and 13D deliberately stay serial outside the registry (auth root / shared Gmail
+  service / Playwright). Registry keys are pinned against `summarize_with_claude`'s kwargs by test
+  so a misnamed key can't silently drop a source from the prompt.
+- **E1 — parallel fetch.** `_fetch_all_sources` runs the registry on a 6-worker
+  `ThreadPoolExecutor`; each source's prints are buffered via a thread-local stdout proxy and
+  emitted as one coherent block on completion (no log soup), with a `Fetch phase: Ns` timing line.
+  Rate-limit sleeps stay per-thread-correct; `cost.record` appends are GIL-safe.
+
+**Measured (free live check, 13 sources, PACER stubbed — Claude/seen-state):
+serial 21s → parallel 7s (3×).** Honest correction to the spec's estimate: the pure-HTTP pool was
+never the "5–8 min fetch phase" — that time lives OUTSIDE the registry (Gmail's sequential
+per-message fetch + attachments, Substack, 13D Playwright, PACER's court+Google sleeps, and the
+2-pass Claude calls). So E1's absolute win is ~15–30s/run (more on heavy PACER days, which the pool
+now absorbs), S1's value is the cleanup itself, and **the E3 (Gmail batch) gate question is now the
+interesting one** — the live run should apportion the remaining wall-clock (Gmail vs Claude passes)
+to settle it. Result counts on the check were sane (12 FRED, 6 fed-BS, 6 market, 125 news, 5
+filings; COT correctly Thursday-skipped; TRACE 0 = known-broken).
+
+**Remaining for Stage 1:** one permissioned live digest run → acohen (~$1.0–1.5) for
+output-equivalence + phase timing. ⚠️ Scheduling note: run on a FRESH day (or back up
+`archive/2026-07-09` + `memory.json` + the FAISS index first — doubles as the interim O4): a rerun
+today would overwrite the archived 7/09 day and re-index it, shifting the eval corpus under the
+golden set. It will also trigger the FIRST real v2 memory delta on the live store (v1 backup is
+automatic).
+
+---
+
 ## Memory / retrieval refactor — Stage 5 DONE: story-timeline memory + reply router (2026-07-09)
 
 Built offline/free, then validated with one permissioned delta replay ($0.098 — see bottom of this

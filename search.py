@@ -29,9 +29,10 @@ METADATA_FILE = ARCHIVE_DIR / "chunk_metadata.json"
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 
-# Stage-1 reranker (MEMORY_REFACTOR_SPEC): cross-encoder that re-scores
+# Stage-1 reranker (memory refactor): cross-encoder that re-scores
 # (query, chunk) pairs from the dense candidate pool. ~90MB one-time download,
-# CPU-fine. Param-gated via search(rerank=True) — the reply bot opts in.
+# CPU-fine. Param-gated via search(rerank=True); PARKED after losing the eval
+# twice — re-test gates in HANDOFF §14.F.
 RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 CHUNK_SIZE = 800       # chars (~150-200 tokens) — larger for better context
@@ -197,7 +198,7 @@ def _entity_lexicon():
 
     Lazy import so search.py stays importable standalone; coverage is
     deliberately just the SEC watchlist + tracked funds + $TICK patterns
-    (full company NER is deferred — see MEMORY_REFACTOR_SPEC Stage 3a).
+    (full company NER is deferred — watch-item in HANDOFF §14.F).
     """
     global _entity_lexicon_cache
     if _entity_lexicon_cache is None:
