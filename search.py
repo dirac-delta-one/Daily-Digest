@@ -76,7 +76,20 @@ def _chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
 
 
 def _clean_pdf_text(text):
-    """Clean up PDF extraction artifacts for better indexing."""
+    """Clean up PDF extraction artifacts for better indexing.
+
+    Deliberately conservative (3.3 review, 2026-07-09): the original version
+    also carried aggressive "rescue" rules for character-fragmented PDFs
+    (ligature glue, mid-word space rejoin, single-char-run rejoin). Measured
+    against the real 10-PDF corpus they NEVER rescued anything — the
+    fragmentation pathology doesn't occur with PyPDF2 3.0.1 here — while the
+    mid-word rule fired 5,852 times, 96% of them gluing a real word onto a
+    following "of/to/in/is…" ("the wifeof oneof our colleagues"), corrupting
+    99% of indexed PDF chunks. If a genuinely fragmented PDF ever shows up,
+    reintroduce rescue rules GATED behind a fragmentation heuristic (e.g.
+    only when single-char-token density is high), never unconditionally.
+    Details in WORKLOG 2026-07-09.
+    """
     # Rejoin hyphenated line breaks: "subscrip-\ntion" → "subscription"
     text = re.sub(r'(\w)-\s*\n\s*(\w)', r'\1\2', text)
     # Rejoin words split across lines (lowercase letter, newline, lowercase letter)
@@ -85,15 +98,8 @@ def _clean_pdf_text(text):
     text = re.sub(r'[ \t]+', ' ', text)
     # Collapse multiple newlines
     text = re.sub(r'\n{3,}', '\n\n', text)
-    # Fix common OCR/column artifacts
-    text = text.replace('fi ', 'fi').replace('fl ', 'fl')
+    # Tidy space-before-punctuation
     text = text.replace(' .', '.').replace(' ,', ',')
-    # Fix spaces inserted mid-word by column-layout PDFs (e.g. "m anagement" → "management")
-    # Pattern: lowercase letter, space, lowercase letter(s) that form a word continuation
-    text = re.sub(r'(\w) (\w{1,3}) (\w)', lambda m: m.group(0) if len(m.group(2)) > 2 else m.group(1) + m.group(2) + ' ' + m.group(3), text)
-    # Simpler: rejoin single space between single lowercase chars: "s o l d" → "sold"
-    text = re.sub(r'\b(\w) (\w) (\w) (\w)\b', r'\1\2\3\4', text)
-    text = re.sub(r'\b(\w) (\w) (\w)\b', r'\1\2\3', text)
     return text.strip()
 
 

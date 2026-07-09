@@ -42,9 +42,9 @@ disabled; operator decision — credit reserved for refactor testing, **~$6.08 r
 deploy).
 **Next: the efficiency batch →
 server deploy**, all sequenced in **`NEXT_STEPS_SPEC.md`**; the accrual week also produced a list of
-**deploy-blocking fixes (§7.2 field findings)**. Other open items: the **§13** coverage gaps and the
-now-unblocked **3.3** PDF review (10 unique archived PDFs: 8 broker notes + 2 WILTWs — the trigger's
-lower bound) — see **§11 / §12 / §13 / §14**.
+**deploy-blocking fixes (§7.2 field findings — all code halves now DONE)**. Other open items: the
+**§13** coverage gaps (**3.3** PDF review ✅ DONE 2026-07-09 — the aggressive clean rules were the
+damage, not the rescue; trimmed + index rebuilt) — see **§11 / §12 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -70,8 +70,8 @@ lower bound) — see **§11 / §12 / §13 / §14**.
 > 2026-07-09; recoverable from git); history in
 > `WORKLOG.md`. Next per `NEXT_STEPS_SPEC.md`: the efficiency batch, then the §7.2 deploy (see the
 > §7.2 **field findings** for the deploy-blocking fixes the accrual
-> week surfaced). **Other open tracks:** §13 coverage gaps; 3.3 PDF review (marginally unblocked —
-> 10 unique PDFs: 8 broker notes + 2 WILTWs).
+> week surfaced). **Other open tracks:** §13 coverage gaps. (3.3 PDF review — ✅ DONE 2026-07-09,
+> §14.A: the aggressive clean rules were the damage, not the rescue; trimmed + index rebuilt.)
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 
@@ -251,8 +251,10 @@ used** by current code (Substack is cookie/magic-link based) — README is stale
 - **Account binding:** the whole pipeline authenticates via the account-bound secret files above
   (Gmail = the bot `acorn.research.bot@gmail.com` since 2026-06-30; Substack cookie + 13D session
   = jared's accounts). Running on a new machine reuses those identities unless re-provisioned.
-- **PDF extraction quality (reply-bot only):** PyPDF2 can fragment text; `_clean_pdf_text` patches
-  this aggressively. Do not change without measuring against real archived PDFs.
+- **PDF extraction quality (reply-bot only):** measured 2026-07-09 (3.3) — PyPDF2 3.0.1 extracts
+  the real corpus cleanly; `_clean_pdf_text` is now conservative (the old aggressive patches were
+  themselves the damage — see §6). Residual risk: a future genuinely-fragmented PDF would index
+  poorly until a gated rescue rule is added.
 
 ---
 
@@ -262,8 +264,13 @@ Investigated and confirmed as deliberate. Changing them adds risk for no benefit
 
 - **Module-level `--email_time=` argv parse** (`digest.py:51–57`): must run before the `def`s
   because `HOURS_LOOKBACK` is captured as a default-arg value at definition time. Correct placement.
-- **`_clean_pdf_text` aggressive regexes** (`search.py:117–136`): likely rescue logic for
-  PyPDF2 character-fragmentation on this corpus. Measure before touching (see Phase 3).
+- ~~**`_clean_pdf_text` aggressive regexes**: likely rescue logic for PyPDF2
+  character-fragmentation. Measure before touching.~~ **MEASURED 2026-07-09 (3.3) — the
+  assumption was wrong:** the fragmentation pathology never occurs on the real corpus, and the
+  aggressive rules were the main *source* of damage (5,852 glue events, 96% corrupting real
+  words; 99% of PDF chunks affected). The function is now conservative (hyphen/line-join +
+  whitespace only); index rebuilt clean, eval unchanged. If a fragmented PDF ever appears,
+  reintroduce rescue rules gated behind a fragmentation heuristic — never unconditionally.
 - **Rating Actions §9 is Opus-written, not pre-rendered.** Opus writes the digest's §9 "Rating Actions"
   from the rating data (SYSTEM_PROMPT), unlike other sources which pre-render their HTML section. The
   old `build_ratings_html` raw-table renderer was **removed as dead code 2026-06-30** (zero references;
@@ -891,12 +898,14 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
   (alerts/memory + the 3 rankers) use `output_config.format` for guaranteed-valid JSON — no more silent
   parse-failure drops. Confirmed live on Opus 4.8 / Sonnet 4.6 / Haiku 4.5 (~$0.04). Detail: §11
   "Cost/efficiency."
-- **3.3 — PDF-extraction review (`_clean_pdf_text`; PyPDF2→pypdf)** — measure the aggressive
-  single-char-rejoin regexes against real `archive/*/pdfs/` (how often they fire, cleaned-vs-raw diff,
-  retrieval quality before/after), then decide whether to gate them behind a fragmentation heuristic
-  and/or switch the PDF lib. **Gated on data:** the archive holds only one PDF today (a 13D report),
-  not the broker-research corpus these rules target — revisit once research PDFs forward in. Also gates
-  the `PyPDF2 3.0.1` pin (don't bump first). `_clean_pdf_text` is measure-before-touch per §6.
+- ✅ **3.3 — PDF-extraction review — DONE 2026-07-09.** Measured the aggressive regexes against the
+  real 10-PDF corpus: the fragmentation pathology they target **never occurs** (0 fires for the
+  ligature/single-char rules), while the mid-word rejoin fired 5,852 times with **96% gluing real
+  words** ("the wifeof oneof our colleagues") — 99% of indexed PDF chunks were corrupted.
+  `_clean_pdf_text` trimmed to the conservative rules (hyphen/line-join + whitespace); full index
+  rebuilt clean (3,569 chunks); eval re-baselined identical (0.846/1.0/0.904); known glued tokens
+  verified gone. **PyPDF2→pypdf bump: deferred, no longer gated** (extraction itself was clean —
+  bump opportunistically). Detail in WORKLOG 2026-07-09.
 - ✅ **Group B — embedded Opus → Sonnet cost A/B — DONE 2026-07-01.** Ran all four (memory, alerts, 13D,
   reply) through both models (~$1.89). A/B quality verdict: **keep all four on Opus** — reply Sonnet
   render bug (```html fence + full HTML doc), 13D Sonnet over-length (~1,900 words), memory/alerts savings

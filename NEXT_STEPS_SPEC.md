@@ -19,7 +19,7 @@
 | §2.2 General efficiency (E/S/O items) | ⬜ specced here; O2 allowed during accrual week, rest after checkpoint |
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
 | §3.F1 Server-deploy readiness (§7.2) | ⬜ queued after memory track; checklist pre-work can start anytime |
-| §3.F2 PDF-extraction review (3.3) | ⬜ data-gated — runnable at ~8–10 archived inbox PDFs |
+| §3.F2 PDF-extraction review (3.3) | ✅ **DONE 2026-07-09** — the aggressive rules were the damage (96% of 5,852 fires glued real words; 99% of PDF chunks corrupted), not the rescue (0 fragmentation in the corpus); `_clean_pdf_text` trimmed, index rebuilt clean, eval identical; pypdf bump ungated but deferred |
 
 ---
 
@@ -247,13 +247,15 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
   allowlisting of `acorn.research.bot@gmail.com`** at every production recipient (Abnormal AI
   flagged the 7/2 digest as malicious — quarantine silences digests AND alerts). Known
   behavior, no fix: WILTW posts after 8 AM Thursdays → picked up next scheduled run.
-- **F2 — 3.3 PDF-extraction review** — no longer hypothetical: the broker-PDF corpus started
-  accruing 2026-07-02 (MENA + Taiwan notes) and reached **10 unique PDFs by 7/9 — 8 broker notes
-  + 2 WILTW weeklies (trigger met at its ~8–10 lower bound; a thin corpus, so hold conclusions
-  loosely or accrue a few more days before deciding the pypdf bump)**. Measure
-  `_clean_pdf_text` fire-rate and cleaned-vs-raw damage on the real corpus, then decide
-  fragmentation-gating and the PyPDF2→pypdf bump. Measure-before-touch per HANDOFF §6; also
-  the pinned-PyPDF2 release valve.
+- ✅ **F2 — 3.3 PDF-extraction review — DONE 2026-07-09** on the 10-unique-PDF corpus. Verdict
+  inverted the HANDOFF §6 assumption: PyPDF2 3.0.1 extracts this corpus **cleanly** (zero
+  fragmentation runs; the ligature/single-char rescue rules fired 0 times), while the mid-word
+  rejoin rule fired **5,852 times, 96% gluing a real word onto of/to/in/is…** — 99% of indexed
+  PDF chunks carried damage like "the wifeof oneof our colleagues". `_clean_pdf_text` trimmed to
+  the conservative rules (hyphen/line-join + whitespace), full index rebuilt (3,569 chunks),
+  eval re-baselined **identical** (0.846/1.0/0.904), known glued tokens verified gone. Rescue
+  rules may only return gated behind a fragmentation heuristic. **pypdf bump: ungated but
+  deferred** (no motivating problem). Detail in WORKLOG 2026-07-09.
 - **F3 — Golden-set growth cadence.** A documented habit, not a tool: every time we touch the
   project, add a few questions for new archive days (incl. cross-day questions). The eval
   only stays meaningful if it compounds with the archive.
@@ -273,7 +275,7 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 | ~~Then~~ | ✅ **Stage 5 DONE 2026-07-09** — v2 story-timeline store, incremental delta updates, reply router; delta-replay validated ($0.098 vs v1's $0.274 same-transition, zero story loss). **Memory track complete** |
 | Next | Efficiency batch, staged order in §2.2: **1)** S1+E1 → **2)** E2 → **3)** O1 → **4)** O3+O2 (watchdog code now, task arms at deploy); interim O4 anytime (needs a destination); E3 only if Stage 1 leaves Gmail the bottleneck |
 | Then | **F1 + F1a → §7.2 server deploy** — the project's "done" |
-| Unblocked, anytime | **F2** (3.3 PDF review — 10 unique PDFs archived, trigger met at the margin) |
+| ~~Unblocked, anytime~~ | ✅ **F2 DONE 2026-07-09** (3.3 PDF review — clean rules trimmed, index rebuilt; see track table) |
 
 **Budget thread:** ~$11.7 remained after 7/2; the accrual week spends ~$5–7 → ~$5–6 left at
 the checkpoint; the checkpoint itself needs ~$0.20. Extending daily runs ≈ $5–7/week ⇒ the

@@ -43,6 +43,40 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## F2 / 3.3 PDF-extraction review: the "rescue" rules WERE the damage (2026-07-09)
+
+The last item from the original phased spec, run measure-before-touch per HANDOFF §6 on the real
+10-unique-PDF corpus (8 broker notes + 2 WILTWs, ~340k chars raw). Free/offline. `ruff` clean,
+`pytest` **180** green (+4).
+
+**Measurement inverted the §6 assumption.** Instrumented every `_clean_pdf_text` rule:
+- The pathology the aggressive rules target **does not exist**: zero single-char fragmentation
+  runs in the raw extractions; the ligature (`'fi '/'fl '`) and single-char-rejoin rules fired
+  **0 times** across all 10 PDFs. PyPDF2 3.0.1 extracts this corpus cleanly.
+- The mid-word rejoin rule (`(\w) (\w{1,3}) (\w)` gluing when the middle token is 1–2 chars)
+  fired **5,852 times — 96% of them gluing a real word onto a following of/to/in/is/a/on/by**:
+  "action of Russia" → "actionof Russia", "the wifeof oneof our colleagues", "Huangis
+  describingis". **99% of the live index's 581 PDF chunks carried this damage.** Retrieval
+  survived because dense embeddings are typo-tolerant (and WILTW also indexes via its clean Opus
+  summary), but keyword/exact-token matching on PDF chunks was degraded and the reply bot was
+  quoting mangled text to Opus.
+- The hyphen-linebreak rejoin (61 fires) and lowercase line-join (2,234) are legitimate.
+
+**Fix applied (operator-approved):** `_clean_pdf_text` trimmed to the conservative rules
+(hyphen rejoin, line join, whitespace collapse, space-before-punctuation tidy); the ligature,
+mid-word, and single-char rules deleted with a docstring rule: rescue logic may only return
+**gated behind a fragmentation heuristic**, never unconditionally. +4 tests pin the keep-rules
+and the two damage classes ("of" never glued; DeFi/WiFi untouched).
+
+**Rebuild + re-baseline:** full `--rebuild` → **3,569 chunks** (was 3,554; cleaner text chunks
+slightly differently); eval **metric-identical** (0.846/1.0/0.904, snapshot
+`2026-07-09_post33_rebuild.json`); known glued tokens verified at 0 occurrences with correct
+spaced forms present. **PyPDF2→pypdf bump: no longer gated on 3.3 but deferred** (extraction
+was clean — no motivating problem; requirements note updated). HANDOFF §5/§6/§14.A updated —
+the §6 "do NOT fix" entry is now a measured, closed item.
+
+---
+
 ## F1a deploy-blocking fixes: consent guard, task provisioning, PACER seen-state (2026-07-09)
 
 The three code-level deploy blockers from the accrual week's field findings, built ahead of the

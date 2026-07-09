@@ -1,7 +1,8 @@
 # Pinned to versions resolved on Python 3.12 (Phase 0.4).
 # Regenerate with `pip freeze` after intentional upgrades.
-# NOTE: keep PyPDF2 pinned for now — do not bump without measuring PDF
-# extraction quality against the archive first (see Phase 3.3).
+# NOTE: PyPDF2 pin measured 2026-07-09 (3.3 review): extraction is clean on the
+# real corpus, so the pin is no longer 3.3-gated — bump to pypdf opportunistically
+# (rebuild the index + re-run tools/eval_retrieval.py after any bump).
 anthropic==0.109.2
 google-api-python-client==2.197.0
 google-auth-httplib2==0.4.0

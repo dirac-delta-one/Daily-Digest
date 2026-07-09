@@ -325,6 +325,31 @@ def test_dedupe_empty():
     assert search.dedupe_near_duplicates([]) == []
 
 
+# --- _clean_pdf_text (3.3 review: conservative rules only) ---
+
+def test_clean_pdf_hyphen_rejoin():
+    assert "subscription" in search._clean_pdf_text("subscrip-\ntion price")
+
+
+def test_clean_pdf_line_join_and_whitespace():
+    out = search._clean_pdf_text("credit\nspreads   widened\n\n\n\nsharply")
+    assert "credit spreads widened" in out
+    assert "\n\n\n" not in out
+
+
+def test_clean_pdf_never_glues_short_words():
+    # The removed R7 rule turned "action of Russia" into "actionof Russia"
+    # (96% of its 5,852 fires on the real corpus were this damage class).
+    text = "the action of Russia is a riddle wrapped in a mystery"
+    assert search._clean_pdf_text(text) == text
+
+
+def test_clean_pdf_leaves_fi_fl_words_alone():
+    # The removed ligature rule glued any word ending fi/fl to its successor.
+    text = "DeFi lending and WiFi networks"
+    assert search._clean_pdf_text(text) == text
+
+
 # --- _rebuild_index_without_date (efficiency E2: reconstruct, don't re-embed) ---
 
 def _dated_index():
