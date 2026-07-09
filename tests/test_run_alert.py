@@ -48,3 +48,44 @@ def test_alert_html_escapes_log_content():
 def test_alert_html_escapes_label():
     html_out = run_alert.build_alert_html("<b>weird</b>", "tail")
     assert "<b>weird</b>" not in html_out
+
+
+# --- _find_log (O1 rotation-aware log lookup) ---
+
+def _touch(path, mtime):
+    import os
+    path.write_text("x", encoding="utf-8")
+    os.utime(path, (mtime, mtime))
+
+
+def test_find_log_picks_newest_dated(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_alert, "SCRIPT_DIR", tmp_path)
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    _touch(logs / "digest_2026-07-09.log", 1_000)
+    _touch(logs / "digest_2026-07-10.log", 2_000)
+    _touch(logs / "digest.log", 500)  # legacy name, oldest
+    assert run_alert._find_log("digest").name == "digest_2026-07-10.log"
+
+
+def test_find_log_legacy_only(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_alert, "SCRIPT_DIR", tmp_path)
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    _touch(logs / "midday.log", 1_000)
+    assert run_alert._find_log("midday").name == "midday.log"
+
+
+def test_find_log_labels_do_not_cross_match(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_alert, "SCRIPT_DIR", tmp_path)
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    _touch(logs / "reply_monitor_2026-07-10.log", 2_000)
+    _touch(logs / "digest_2026-07-10.log", 3_000)  # newer, different label
+    assert run_alert._find_log("reply_monitor").name == "reply_monitor_2026-07-10.log"
+
+
+def test_find_log_missing_dir_falls_back(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_alert, "SCRIPT_DIR", tmp_path)
+    # no logs/ at all -> fall back to the legacy path (tail prints placeholder)
+    assert run_alert._find_log("digest") == tmp_path / "logs" / "digest.log"

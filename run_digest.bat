@@ -3,7 +3,12 @@ cd /d "%~dp0"
 set PYTHONUTF8=1
 if not exist logs mkdir logs
 call "%~dp0env.bat"
-echo [%date% %time%] Starting morning digest >> logs\digest.log
-"%~dp0.venv\Scripts\python.exe" digest.py >> logs\digest.log 2>&1
-if %ERRORLEVEL% NEQ 0 "%~dp0.venv\Scripts\python.exe" "%~dp0run_alert.py" digest >> logs\digest.log 2>&1
-echo [%date% %time%] Finished >> logs\digest.log
+REM O1: date-stamped log (via PowerShell; %date% parsing is locale-fragile)
+for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"') do set LOGDATE=%%i
+set LOGFILE=logs\digest_%LOGDATE%.log
+echo [%date% %time%] Starting morning digest >> %LOGFILE%
+"%~dp0.venv\Scripts\python.exe" digest.py >> %LOGFILE% 2>&1
+if %ERRORLEVEL% NEQ 0 "%~dp0.venv\Scripts\python.exe" "%~dp0run_alert.py" digest >> %LOGFILE% 2>&1
+echo [%date% %time%] Finished >> %LOGFILE%
+REM O1: prune logs older than ~30 days (forfiles errors when nothing matches - ignored)
+forfiles /p logs /m *.log /d -30 /c "cmd /c del @path" 2>nul

@@ -43,6 +43,27 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Efficiency Stage 3 — O1 log rotation (2026-07-09)
+
+Offline/free. `ruff` clean, `pytest` **151** green (+4).
+
+- **Wrappers (`run_digest/midday/reply_monitor.bat`):** logs are now date-stamped
+  (`logs\digest_YYYY-MM-DD.log`; date via an inline PowerShell `Get-Date` — pure-batch `%date%`
+  parsing is locale-fragile), and each run ends with a `forfiles /d -30` prune of `logs\*.log`
+  older than ~30 days (`2>nul` — forfiles errors when nothing matches). The reply-monitor daemon's
+  log is named by its START date and rotates on restart (accepted: a long-lived daemon accrues one
+  file). Wrappers rewritten CRLF/ASCII.
+- **`run_alert._find_log`:** the failure alert now tails the NEWEST `logs/<label>*.log` by mtime —
+  covers the new dated names, the legacy un-dated files (which age out via the same prune), and a
+  run crossing midnight. Labels can't cross-match (digest/midday/reply_monitor share no prefix).
+- **Validated:** unit tests (+4: newest-dated wins, legacy-only, no cross-label match, missing-dir
+  fallback) + a scratch-dir dry run of the exact wrapper lines — `LOGDATE=2026-07-09` computed
+  correctly, dated log written, prune deleted a 40-day-old file and kept a 5-day-old one. The real
+  `logs/` was not touched; the legacy accrual-week logs stay readable ~30 more days (their mtimes
+  are current), and the timing baselines they contain are recorded here.
+
+---
+
 ## Efficiency Stage 2 — E2 re-index without re-embedding (2026-07-09)
 
 Offline/free. `ruff` clean, `pytest` **147** green (+4).

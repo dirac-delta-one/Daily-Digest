@@ -173,6 +173,9 @@ it. Each stage is independently committable; test between stages per HANDOFF §8
 3. **Stage 3 — O1 (log rotation).** Date-stamped logs + a keep-~30-days cleanup line in the
    three wrappers; `run_alert._tail` follows the new naming. *Verify:* wrapper dry run,
    rotation/cleanup logic unit-tested; free.
+   **✅ DONE 2026-07-09** — `logs\<label>_YYYY-MM-DD.log` + `forfiles /d -30` prune in all
+   three wrappers; `run_alert._find_log` picks the newest label log (legacy names covered).
+   Dry-run validated in a scratch dir; 151 tests.
 4. **Stage 4 — O3 + O2 together (the alerting pair — both extend `run_alert`).** O3: persist
    per-source item counts each run (small JSON); a normally-nonzero source at 0 for 3
    consecutive runs ⇒ alert. O2: `run_alert.py --check-completed <label>` (digest: is

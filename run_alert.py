@@ -51,6 +51,20 @@ def _tail(path, n=TAIL_LINES):
         return f"(could not read log: {path})"
 
 
+def _find_log(label):
+    """Newest log file for a label (O1 rotation-aware).
+
+    The wrappers write date-stamped logs (digest_YYYY-MM-DD.log) since the O1
+    rotation; picking the newest by mtime also covers the legacy un-dated name
+    and a run that crosses midnight (the file keeps its start-date name but
+    stays the most recently written).
+    """
+    logs_dir = SCRIPT_DIR / "logs"
+    candidates = sorted(logs_dir.glob(f"{label}*.log"),
+                        key=lambda p: p.stat().st_mtime)
+    return candidates[-1] if candidates else logs_dir / f"{label}.log"
+
+
 def build_alert_html(label, log_tail, when=None, host=None):
     """Failure-notice HTML in the digest's Georgia/680px style. Log tail is escaped."""
     when = when or datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -92,7 +106,7 @@ def _gmail_service_noninteractive():
 
 
 def send_alert(label, test=False):
-    log_file = SCRIPT_DIR / "logs" / f"{label}.log"
+    log_file = _find_log(label)
     body = build_alert_html(label, _tail(log_file))
 
     today = datetime.date.today().strftime("%A, %B %d")
