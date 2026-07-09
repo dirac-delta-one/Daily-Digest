@@ -21,19 +21,19 @@ the current machine (operator `acohen@acorninv.com`, Windows user `KimCohen`). G
 around every source, sensible secret hygiene. No rewrite is warranted — only incremental,
 low-risk improvements.
 
-**Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30) and now being
-*optimized*. `ruff` clean, `pytest` **60** green. The **cost refactor is complete** (2026-07-01 — the
-Group B A/B kept all Opus; then landed the 13D summary cache, memory→Sonnet, and 2-pass prompt caching;
-see §11 / §14 + `WORKLOG`). The **next major track is the memory / retrieval refactor**, scoped + reviewed
-in **`MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search → entity metadata → System A↔B
-convergence) — **Stages 0–3a built 2026-07-01/02** (eval harness + baseline; reranker + date-filter
-fix; BM25+RRF hybrid + the now-LIVE search-state cache; entity tags + entity/date-range filters —
-the rerank/hybrid production flips are deferred until the archive is deep enough for the eval to
-discriminate). An archive-accrual week is armed (scheduled Mon–Thu runs, checkpoint ~Fri 7/10) and
-**the full forward roadmap now lives in `NEXT_STEPS_SPEC.md`** (checkpoint procedure + decision
-gates; efficiency track; cost-track closure audit; server-deploy readiness). Other open items: the
-**§7.2 server deploy** (the definition of
-"done"), the **§13** coverage gaps, and the data-gated **3.3** PDF review — see **§11 / §12 / §13 / §14**.
+**Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), then run daily
+through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**; `ruff` clean,
+`pytest` **98** green. The **cost refactor is complete** (2026-07-01; see §11 / §14 + `WORKLOG`).
+The **memory / retrieval refactor** (`MEMORY_REFACTOR_SPEC.md`) has **Stages 0–3a built** and passed
+its **2026-07-09 checkpoint**: on the 6-day / 26-question eval the simple default retrieval **beat
+both upgrades** — the rerank and hybrid production flips were **REJECTED** (mechanisms stay
+param-gated; one rerank retest inside Stage 4), **Stage 3b was SKIPPED** (hit@3 = 1.0, no headroom),
+and the **memory→Sonnet watch CLOSED** (healthy: 18 → 41 active + 7 resolved stories over the week —
+Sonnet stays). Daily runs are **stopped** (task disabled; operator decision — remaining ~$6.30 credit
+reserved for refactor testing, top-up at deploy). **Next: Stage 4 → Stage 5 → the efficiency batch →
+server deploy**, all sequenced in **`NEXT_STEPS_SPEC.md`**; the accrual week also produced a list of
+**deploy-blocking fixes (§7.2 field findings)**. Other open items: the **§13** coverage gaps and the
+now-unblocked **3.3** PDF review (17 archived PDFs) — see **§11 / §12 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -47,20 +47,20 @@ gates; efficiency track; cost-track closure audit; server-deploy readiness). Oth
 > pass 2 reads it (~$0.10/run text-day, ~$0.54/run PDF-day). Validated output-equivalent + cache-engaging
 > via a permissioned before/after; supersedes the old §14.E "2.1 dropped" finding.
 >
-> ➡️ **NEXT MAJOR TRACK — the memory / retrieval refactor, scoped + reviewed in `MEMORY_REFACTOR_SPEC.md`
-> (Stages 0–3a built 2026-07-01/02).** Improves the RAG reply bot (reranker → hybrid search →
-> entity/date metadata) and converges the two "memory" systems (the cross-digest `memory.json`
-> storylines vs. the FAISS archive) so it can "piece together" across time. Mostly local/free to build
-> + test. The 2026-07-01 review restructured the spec (Stage 3 split into 3a metadata / 3b conditional
-> reindex) and surfaced two latent `search()` findings — **both now fixed**: the post-retrieval
-> date-filter scaling bug (Stage 1) and the per-call index reload (Stage 2's mtime-cached search
-> state, live). Entity tags + entity/date-range filters are live in `search()` (Stage 3a; `--retag`
-> backfill done, 66/629 chunks tagged) but nothing consumes them in production until Stage 4. The
-> Stage-1 reranker and Stage-2 BM25+RRF hybrid are built + param-gated with their **production flips
-> deferred** — the 1-day-archive eval can't discriminate (digest/PDF duplication ceiling; see the
-> spec's Stage 1–2 notes and WORKLOG). **Recommended next: let the daily archive accrue ~2 weeks,
-> then revisit the flips + build Stage 4 against a real multi-day archive.** **Other open tracks:**
-> §7.2 server deploy (= "done"), §13 coverage gaps.
+> ➡️ **NEXT MAJOR TRACK — the memory / retrieval refactor (`MEMORY_REFACTOR_SPEC.md`), post-checkpoint.**
+> Stages 0–3a are built (eval harness; reranker + date-filter fix; BM25+RRF hybrid + the LIVE
+> search-state cache; entity tags + entity/date-range filters — `--retag` backfill done, tags applied
+> automatically at index time since 7/02). **The 2026-07-09 checkpoint settled the open questions with
+> data** (6 days / 3,554 chunks / 26 golden questions): default retrieval hit@1 0.846 / hit@3 1.0 /
+> MRR 0.904 vs rerank 0.769/0.885/0.839 and hybrid 0.808/0.962/0.872 — **both flips REJECTED** (the
+> cross-encoder promotes digest/broker-email chunks over primary sources; BM25 token-flooding caused a
+> genuine top-10 miss), **3b SKIPPED**, **Sonnet memory watch CLOSED (stays)**. Mechanisms remain
+> param-gated in `search()`; rerank gets one retest inside Stage 4 (with same-day-digest exclusion),
+> else both park. **Remaining: Stage 4** (query understanding → the live entity/date filters,
+> MMR/dedup, digest-exclusion; ~$0.20 to validate) **→ Stage 5** (memory convergence — the archive
+> holds 6 daily `memory.json` snapshots to design against) — then the `NEXT_STEPS_SPEC.md` efficiency
+> batch and the §7.2 deploy (see the §7.2 **field findings** for the deploy-blocking fixes the accrual
+> week surfaced). **Other open tracks:** §13 coverage gaps; 3.3 PDF review (unblocked, 17 PDFs).
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 
@@ -384,6 +384,46 @@ and `config.py`), then provision the server:
 6. **Resources:** the embedding stack (`sentence-transformers` + `faiss-cpu` + torch, ~GB) plus a
    growing `archive/` need adequate disk/RAM; plan backups of `archive/`, `memory.json`, and the
    FAISS index.
+
+**Field findings — the 2026-07-06→09 accrual week on the dev laptop (must-fix for the unattended
+deploy; mirrored as F1a in `NEXT_STEPS_SPEC.md`).** Running scheduled for a week surfaced, live,
+exactly the failure modes this section predicted plus several new ones:
+
+1. **Unattended-consent hang (CODE FIX REQUIRED).** `get_gmail_service`'s RefreshError fallback
+   calls `flow.run_local_server()` — an interactive browser consent. On 7/7 (attended) that was the
+   save; on a headless server it **blocks forever**: the run never exits, so even the failure alert
+   never fires. Deploy fix: an unattended mode (env flag) that fails fast + alerts instead of
+   consenting — `run_alert._gmail_service_noninteractive` already models the refresh-only pattern.
+2. **OAuth Testing-mode 7-day token death — CONFIRMED LIVE on day 7 (7/7),** exactly as item 3
+   warned. `invalid_grant` → re-consent required. **Config fix:** publish the bot's OAuth app to
+   "production" + one fresh consent (operator pending; interim deadline 7/14, and an absolute
+   prerequisite for the server).
+3. **`setup_tasks.bat` cannot produce a survivable task (CODE FIX REQUIRED).** The three settings
+   that made the week work — `WakeToRun`, `StartWhenAvailable` (missed-start catch-up at logon),
+   `RunOnlyIfNetworkAvailable` — **cannot be set via `schtasks` at all** (they were applied by hand
+   via PowerShell `Set-ScheduledTask`). Also observed: interactive-only tasks pop a console window
+   that users can close mid-run (7/6: exit `0xC000013A`, run killed at 6s), and `/RL HIGHEST`
+   fails without elevation. Deploy fix: replace the `schtasks` lines with PowerShell
+   `Register-ScheduledTask` (settings object + run-whether-logged-on service account, no window).
+4. **Wrapper env loading — FIXED + committed 7/2:** `call env.bat` failed to resolve relative in
+   some launcher contexts (first wrapper-driven run crashed keyless); now `call "%~dp0env.bat"`.
+5. **Silent double-failure when network is down (7/7):** the wake/logon race started the run
+   before Wi-Fi was up; the run AND the failure alert both died on DNS — a fully silent miss.
+   Mitigated by `RunOnlyIfNetworkAvailable`; the residual gap (hung/never-started runs) is the
+   **O2 completion watchdog** in `NEXT_STEPS_SPEC.md` — now evidence-backed, treat as must-do
+   for deploy.
+6. **PACER seen-state persists on failed runs (CODE FIX, minor).** Discovery marks RSS entries
+   seen during the fetch; a later crash in the same run loses them from the next digest (7/2:
+   30 entries silently skipped on rerun). Fix: persist `pacer_seen.json` only after a successful
+   send, or accept the rare loss.
+7. **Recipient-side quarantine (RUNBOOK).** Abnormal AI flagged the 7/2 digest as **malicious**
+   and removed it (new Gmail sender + emoji subject + link-dense HTML); delivery is intermittent.
+   Deploy runbook: have every production recipient's mail security **allowlist
+   `acorn.research.bot@gmail.com`** — the failure alerts share the sender, so quarantine can
+   silence both signal paths at once.
+8. **WILTW Thursday timing (known behavior, no fix).** The report posts after 8 AM Thursdays;
+   the same-day run misses it gracefully and the next run within the 6-day window picks it up
+   (on a Mon–Fri server schedule: Friday).
 
 This is a deployment/ops task, not a code refactor — schedule it **after** Phases 0–3 land, and make
 each piece location- and account-independent as you go so the server install is pure configuration.

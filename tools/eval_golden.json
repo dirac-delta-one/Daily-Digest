@@ -150,6 +150,92 @@
         {"source_type": "wiltw", "text_contains_any": ["Rotterdam", "tungsten exports"]},
         {"source_type": "pdf", "source_name_contains": "wiltw", "text_contains_any": ["Rotterdam", "tungsten"]}
       ]
+    },
+    {
+      "id": "mstr-week-evolution",
+      "question": "How did the Strategy MSTR story evolve this week — filings, Bitcoin sales, credit rating?",
+      "expect": [
+        {"source_type": "filing", "text_contains_any": ["Strategy", "MSTR"]},
+        {"source_type": "rating", "text_contains_any": ["Strategy", "Bitcoin"]},
+        {"source_type": "substack", "text_contains_any": ["MSTR"]},
+        {"source_type": "digest", "text_contains_any": ["MSTR", "Strategy"]}
+      ]
+    },
+    {
+      "id": "mstr-rangefiltered",
+      "question": "Strategy 8-K filings",
+      "date_from": "2026-07-06",
+      "date_to": "2026-07-07",
+      "expect": [
+        {"source_type": "filing", "text_contains_any": ["Strategy", "MSTR"]}
+      ]
+    },
+    {
+      "id": "et-newissue",
+      "question": "What did Stifel flash on the Energy Transfer ET new issue?",
+      "expect": [
+        {"source_type": "email", "text_contains_any": ["New Issue Flash", "ET"]},
+        {"source_type": "digest", "text_contains_any": ["Energy Transfer", "ET "]}
+      ]
+    },
+    {
+      "id": "hormuz-postmortem",
+      "question": "What is the post-mortem take on the Strait of Hormuz situation?",
+      "expect": [
+        {"source_type": "email", "text_contains_any": ["Hormuz"]},
+        {"source_type": "pdf", "text_contains_any": ["Hormuz"]},
+        {"source_type": "digest", "text_contains_any": ["Hormuz"]}
+      ]
+    },
+    {
+      "id": "strategy-btc-sale",
+      "question": "Why did Strategy sell Bitcoin and what does it have to do with a credit rating?",
+      "expect": [
+        {"source_type": "rating", "text_contains_any": ["sells 3,588 Bitcoin", "chase S&P credit rating", "Bitcoin"]},
+        {"source_type": "digest", "text_contains_any": ["Bitcoin", "MSTR", "Strategy"]}
+      ]
+    },
+    {
+      "id": "china-demand",
+      "question": "What is the latest read on China demand weakness?",
+      "expect": [
+        {"source_type": "email", "text_contains_any": ["China Update", "Demand Dip"]},
+        {"source_type": "pdf", "source_name_contains": "china", "text_contains_any": ["China", "demand"]},
+        {"source_type": "digest", "text_contains_any": ["China"]}
+      ]
+    },
+    {
+      "id": "skillsoft-sales",
+      "question": "What is Skillsoft selling and why?",
+      "expect": [
+        {"source_type": "substack", "text_contains_any": ["Skillsoft"]},
+        {"source_type": "digest", "text_contains_any": ["Skillsoft"]}
+      ]
+    },
+    {
+      "id": "padagis-downgrade",
+      "question": "What was the Fitch action on Padagis?",
+      "expect": [
+        {"source_type": "rating", "text_contains_any": ["Padagis"]},
+        {"source_type": "digest", "text_contains_any": ["Padagis"]}
+      ]
+    },
+    {
+      "id": "osg-insiders",
+      "question": "insider Form 4 trading activity",
+      "entity_filter": "OSG",
+      "expect": [
+        {"source_type": "filing", "text_contains_any": ["OSG", "Overseas Shipholding"]}
+      ]
+    },
+    {
+      "id": "brazil-election",
+      "question": "What are the implications of the 2026 Brazil election for markets?",
+      "expect": [
+        {"source_type": "email", "text_contains_any": ["Brazil"]},
+        {"source_type": "pdf", "source_name_contains": "brazil", "text_contains_any": ["Brazil", "election"]},
+        {"source_type": "digest", "text_contains_any": ["Brazil"]}
+      ]
     }
   ]
 }

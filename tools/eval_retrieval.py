@@ -63,6 +63,8 @@ def run_eval(top_k, rerank=False, hybrid=False):
         results = search(item["question"], top_k=top_k,
                          date_filter=item.get("date_filter"),
                          entity_filter=item.get("entity_filter"),
+                         date_from=item.get("date_from"),
+                         date_to=item.get("date_to"),
                          rerank=rerank, hybrid=hybrid)
         rank = _first_match_rank(results, item["expect"])
         top = results[0][0] if results else None

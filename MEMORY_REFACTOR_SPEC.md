@@ -10,10 +10,10 @@
 | Stage | What | State |
 |---|---|---|
 | 0 | Eval harness (golden Q→source set) | ✅ done 2026-07-01 — `tools/eval_retrieval.py` + `eval_golden.json` (15 Qs); baseline hit@1=0.93, MRR=0.96 (near-saturated: 1-day archive) |
-| 1 | Cross-encoder reranker + date-filter fix | ✅ built 2026-07-01 — `search(rerank=True)` + subset date-filter search, unit-tested; **reply-bot opt-in deferred** (1-day eval can't discriminate: rerank hit@1 0.867 vs 0.933, an artifact of digest-chunk duplication — see Stage 1 notes) |
-| 2 | Hybrid search (BM25 + dense, RRF) + index caching | ✅ built 2026-07-02 — `search(hybrid=True)` + mtime-cached index/metadata/BM25 (cache is LIVE, behavior-neutral); **hybrid default-flip deferred** (same 1-day-eval ceiling as Stage 1 — see notes) |
+| 1 | Cross-encoder reranker + date-filter fix | ✅ built 2026-07-01; **flip REJECTED at the 2026-07-09 checkpoint** — on the 6-day/26-question eval, rerank lost decisively (hit@3 0.885 vs 1.0, MRR 0.839 vs 0.904; promotes digest/broker-email chunks over primary sources). Mechanism stays param-gated; one retest inside Stage 4 (with digest-exclusion), else park |
+| 2 | Hybrid search (BM25 + dense, RRF) + index caching | ✅ built 2026-07-02 (cache LIVE); **flip REJECTED at the 2026-07-09 checkpoint** — hybrid lost overall (MRR 0.872 vs 0.904) and introduced a genuine top-10 MISS (BM25 'oil' token flooding). Mechanism stays param-gated |
 | 3a | Entity/date metadata tags + date-range filter (no reindex needed) | ✅ built 2026-07-02 — tags live at index time + `--retag` backfill (66/629 chunks tagged); `search(entity_filter=, date_from=, date_to=)`; entity-filtered eval case hits rank 1 |
-| 3b | Stronger embeddings / structure-aware chunking (reindex) | ⬜ conditional on Stage 0/1 evidence |
+| 3b | Stronger embeddings / structure-aware chunking (reindex) | ❌ SKIPPED (2026-07-09 checkpoint) — default retrieval has hit@3 = 1.0 on the 6-day eval; no headroom a bigger embedder addresses |
 | 4 | Smarter retrieval in the reply bot (query understanding + MMR/dedup) | ⬜ not started |
 | 5 | Converge System A ↔ B (story-timeline memory wired into the bot) | ⬜ not started |
 | — | Optional: substrate swap (LanceDB / sqlite-vec) | ⬜ conditional |

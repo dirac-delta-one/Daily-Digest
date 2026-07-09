@@ -43,6 +43,99 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## CHECKPOINT (2026-07-09): week green; rerank + hybrid flips REJECTED; 3b skipped; Sonnet watch closed
+
+**Week scorecard:** 6/6 runs green (Wed+Thu fully hands-off via the hardened task); week spend
+≈ $6.45, **~$6.30 credit remains**. Archive: **6 days / 3,554 chunks**; PDF corpus **17** (3.3
+trigger MET). Memory: 18 → **41 active + 7 resolved** across six Sonnet updates. **Operator
+decisions:** stop daily runs after this week (task DISABLED — re-enable via
+`schtasks /Change /TN "DailyDigest\MorningDigest" /ENABLE`); remaining credit reserved for
+refactor testing; top-up deferred to deploy. OAuth "Publish app" still pending (do + re-consent
+before 7/14 so testing isn't interrupted).
+
+**Eval (golden set grown 16 → 26 questions — first cross-day, date-range, and new-week items;
+harness passes `date_from`/`date_to` through):**
+
+| Mode | hit@1 | hit@3 | MRR | Notes |
+|---|---|---|---|---|
+| **default (cosine+boost)** | **0.846** | **1.0** | **0.904** | wins every metric |
+| rerank | 0.769 | 0.885 | 0.839 | promotes digest/broker-email chunks over primary sources (6 regressions) |
+| hybrid | 0.808 | 0.962 | 0.872 | one genuine top-10 MISS (oil-quarter — BM25 'oil' flooding) |
+| hybrid+rerank | 0.731 | 0.885 | 0.820 | worst |
+
+**Gate rulings (pre-committed criteria, NEXT_STEPS_SPEC §1):** rerank flip **REJECTED**; hybrid
+flip **REJECTED**; Stage 3b **SKIPPED** (hit@3=1.0 = no embedder-addressable headroom);
+**memory→Sonnet watch CLOSED — Sonnet stays** (healthy evolution + resolutions all week). The
+Stage-0-first discipline paid for itself twice: both "obvious best-practice" upgrades lost to
+the simple baseline on this corpus, measured instead of assumed. Mechanisms stay param-gated;
+rerank gets exactly one retest inside Stage 4 (with same-day-digest exclusion), else both park.
+
+**Next: build Stage 4** (query understanding → live entity/date filters; MMR/dedup; same-day
+digest-chunk exclusion in the reply path) + one permissioned reply validation (~$0.20), then
+Stage 5. 3.3 is unblocked and queues behind Stage 4.
+
+---
+
+## Accrual week day 2: network race + the 7-day token death, both live-confirmed (2026-07-07)
+
+Two more §7.2 failure modes fired for real — both now handled. Tuesday's data was recovered.
+
+**Failure 1 — wake/logon network race.** The `StartWhenAvailable` catch-up fired at the 9:38
+logon *before Wi-Fi connected*: the first network call (Gmail token refresh) died on DNS
+(`getaddrinfo failed`), and the failure alert died the same way (it needs Gmail too) — a fully
+silent miss. **Fix:** `RunOnlyIfNetworkAvailable = true` on the task; the trigger chain is now
+wake (`WakeToRun`) → catch up missed start at logon (`StartWhenAvailable`) → hold until the
+network is up (`RunOnlyIfNetworkAvailable`). $0 spent on the crashed attempt.
+
+**Failure 2 — the Testing-mode 7-day refresh-token death (HANDOFF §7.2's top-risk item),
+live-confirmed on schedule:** the bot's OAuth project was provisioned 6/30 in "Testing"
+status; on day 7 the manual rerun hit `invalid_grant: Token has been expired or revoked` →
+the 2026-06-21 RefreshError hardening worked as designed and fell through to a browser
+consent, which the operator completed as the bot. **Plan (added to NEXT_STEPS_SPEC §1):**
+operator publishes the OAuth app to "production" this week; the fresh-token re-consent happens
+at the Friday checkpoint; **hard deadline Tue 7/14** (the new Testing token's expiry) or the
+7/14 run hangs unattended. Also confirmed: laptop lid-close = Modern Standby (S0) — operator
+guidance is sleep-don't-shutdown, with StartWhenAvailable as the self-heal.
+
+**Tuesday's run (manual, ~10:05) — green, $1.06:** 11 emails incl. a 4th broker PDF (Global
+Update); 5 Substacks; **WILTW cache HIT** (first live hit — skipped download + Opus exactly as
+designed); FRED 12; 5 rating actions; 2 alerts triggered; cache engaged (48,288 tok). Archive:
+**+529 chunks → 2,303 vectors / 4 days**; memory 28 → **32 active + 3 resolved**. Budget:
+~**$8.8** remains (→ ~$6.8 expected at the checkpoint after Wed+Thu).
+
+---
+
+## Accrual week day 1: missed-start recovered + two §7.2 lessons (2026-07-06)
+
+**Monday's 8 AM run missed — root cause chain:** the machine was **logged out** overnight
+(the task is "interactive only", so no session = no run). At the operator's ~9:39 logon, Task
+Scheduler started a catch-up run, but it died after ~6s with exit `0xC000013A` = **its console
+window was closed** (the interactive task pops a black cmd window; closing it kills the run).
+$0 spent, nothing archived. **Fixes:** (a) `StartWhenAvailable` enabled on the task — a missed
+8 AM start now self-heals at logon; (b) operator guidance: **lock (Win+L), don't sign out**,
+and leave the black `run_digest` window alone (it self-closes). The clean fix (run-whether-
+logged-on, no window) is the §7.2 server config — this week keeps proving why it's the goal.
+
+**Abnormal AI quarantine — delivery is now a known failure mode.** The operator's corporate
+mail security flagged the **Thursday 7/2 digest as malicious and removed it** (new-ish Gmail
+sender + emoji subject + link-dense HTML = phishing heuristics; the plain failure-alert email
+passed). Consequences: the operator likely never saw the 7/2 digest email (content safe in
+`digests/` + the index), and until the sender is allowlisted, digests AND failure alerts (same
+sender) can be silently quarantined — "no email" no longer strictly means "no run". **Operator
+action:** release + allowlist `acorn.research.bot@gmail.com` via the AAC Service Desk /
+Abnormal false-positive flow. Monday's digest was delivered normally, so the flagging is
+intermittent — allowlisting still required.
+
+**Monday's catch-up run (manual, ~11:45) — green, $1.84:** 10 emails incl. a 3rd broker PDF
+(NATO note); 4 Substacks; **WILTW 2026-07-02 fetched + summarized** (3.4 MB PDF, the week's
+one ~$0.9 WILTW spend — now cached through Wednesday); FRED 12; 7 rating actions; PACER
+discovery batch (small TXSB names, size-filtered). Cache engaged (41,235 tok written/read).
+Archive/index: **+745 chunks → 1,774 vectors / 3 days**; memory 25 → **28 active + 3 resolved**
+(Sonnet retention still healthy). Budget: ~**$9.9** remains; Tue–Thu ≈ $3 more → ~$7 at the
+checkpoint.
+
+---
+
 ## NEXT_STEPS_SPEC.md written — forward roadmap (2026-07-02)
 
 Docs only (operator-requested, plan-mode approved). New **`NEXT_STEPS_SPEC.md`** captures:

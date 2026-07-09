@@ -13,7 +13,7 @@
 
 | Track | State |
 |---|---|
-| §1 Checkpoint (post-accrual-week decision session) | ⬜ scheduled ~Fri 2026-07-10 (any time after Thu 7/9's run) |
+| §1 Checkpoint (post-accrual-week decision session) | ✅ RUN 2026-07-09 — week 6/6 green; rerank + hybrid flips REJECTED on the 26-question eval (default won every metric); 3b SKIPPED; Sonnet watch CLOSED (stays); runs stopped (task disabled, operator decision); 3.3 trigger MET (17 PDFs). Token swap still pending (before 7/14). Full detail in WORKLOG |
 | §2.1 Memory layer (Stages 4–5 + flips) | 🔄 in progress — Stages 0–3a done; see `MEMORY_REFACTOR_SPEC.md` |
 | §2.2 General efficiency (E/S/O items) | ⬜ specced here; O2 allowed during accrual week, rest after checkpoint |
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
@@ -62,6 +62,12 @@ work (§2.2 O2 — the watchdog is a new task + new alert mode, it touches no ru
      deleted): if the memory track continues, keep accruing (consider adding FRI) — which
      means a **credit top-up decision** (each week ≈ $5–7; console.anthropic.com is the
      authoritative balance).
+   - **OAuth token swap (added 2026-07-07 — HARD DEADLINE Tue 7/14):** the 7-day Testing-mode
+     token death fired live on 7/7 (§7.2's top-risk item, confirmed). Operator publishes the
+     bot's OAuth app to "production" (console.cloud.google.com as the bot → OAuth consent
+     screen → Publish app) any time before the checkpoint; AT the checkpoint (after Thursday's
+     run): delete `token.json`, one fresh consent as the bot → durable production token.
+     Without both halves, the 7/14 run hangs on a browser consent.
    - **3.3 trigger check:** count `archive/*/pdfs/` inbox PDFs; at ~8–10, §3.F2 is runnable.
 4. **Build Stage 4** (per `MEMORY_REFACTOR_SPEC.md`): query understanding → the already-live
    `entity_filter`/`date_from`/`date_to` search params, MMR/dedup in `_search_multiple`, and
@@ -165,11 +171,35 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
   for ~1–2 GB HF model cache (MiniLM + reranker; + bge if 3b ever happens) + archive growth;
   O4 backups. Deliverable: a checklist section appended to this spec when the work starts
   (not another standalone doc).
+- **F1a — Deploy-blocking fixes from the 2026-07 accrual week** (full detail in HANDOFF §7.2
+  "Field findings" — the week live-confirmed the §7.2 risk list and added new items). The
+  code-level ones, in priority order:
+  1. **Unattended-consent guard** (`digest.get_gmail_service`): the RefreshError fallback opens
+     an interactive browser consent that **hangs forever headless** (run never exits → no
+     failure alert). Add an unattended mode (env flag) that fails fast + fires `run_alert`
+     instead; reuse the refresh-only pattern from `run_alert._gmail_service_noninteractive`.
+  2. **Task registration rewrite** (`setup_tasks.bat` → PowerShell `Register-ScheduledTask`):
+     `schtasks` cannot set the three settings that made the week survivable (`WakeToRun`,
+     `StartWhenAvailable`, `RunOnlyIfNetworkAvailable` — applied by hand this week), pops a
+     killable console window in interactive mode (observed: run killed at 6s), and `/RL
+     HIGHEST` needs elevation. Server tasks must register run-whether-logged-on, no window,
+     with the settings object.
+  3. **O2 completion watchdog — promoted to must-do:** the 7/7 network race killed the run AND
+     the alert (both need network) — a fully silent miss. `RunOnlyIfNetworkAvailable` covers
+     the start; only the watchdog covers hangs/never-starts.
+  4. **PACER seen-state durability** (minor): persist `pacer_seen.json` after a successful
+     send, not during discovery — a mid-run crash currently drops the marked entries from the
+     next digest (30 lost on 7/2).
+  Config/runbook (operator-side): OAuth app → **production publishing status** + fresh consent
+  (7-day Testing token death confirmed live 7/7; interim deadline 7/14); **recipient-side
+  allowlisting of `acorn.research.bot@gmail.com`** at every production recipient (Abnormal AI
+  flagged the 7/2 digest as malicious — quarantine silences digests AND alerts). Known
+  behavior, no fix: WILTW posts after 8 AM Thursdays → picked up next scheduled run.
 - **F2 — 3.3 PDF-extraction review** — no longer hypothetical: the broker-PDF corpus started
-  accruing 2026-07-02 (MENA + Taiwan notes). At ~8–10 PDFs: measure `_clean_pdf_text`
-  fire-rate and cleaned-vs-raw damage on the real corpus, then decide fragmentation-gating
-  and the PyPDF2→pypdf bump. Measure-before-touch per HANDOFF §6; also the pinned-PyPDF2
-  release valve.
+  accruing 2026-07-02 (MENA + Taiwan notes) and hit **17 PDFs by 7/9 (trigger MET)**. Measure
+  `_clean_pdf_text` fire-rate and cleaned-vs-raw damage on the real corpus, then decide
+  fragmentation-gating and the PyPDF2→pypdf bump. Measure-before-touch per HANDOFF §6; also
+  the pinned-PyPDF2 release valve.
 - **F3 — Golden-set growth cadence.** A documented habit, not a tool: every time we touch the
   project, add a few questions for new archive days (incl. cross-day questions). The eval
   only stays meaningful if it compounds with the archive.
@@ -183,12 +213,13 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 
 | When | What |
 |---|---|
-| Accrual week (7/6–7/9) | **Code freeze on the daily path**; passive accrual; optional: O2 watchdog, F1 checklist drafting, golden questions |
-| Checkpoint (~7/10) | §1 procedure: health review → grow golden set → eval matrix → gates (flips / 3b / memory watch / extend+top-up / 3.3 trigger) → **build Stage 4** (+1 permissioned reply ~$0.20) |
-| Next | **Stage 5** — memory convergence (with a week of real `memory.json` history) |
+| ~~Accrual week (7/6–7/9)~~ | ✅ DONE — 6/6 runs green; §7.2 field findings collected (→ F1a) |
+| ~~Checkpoint (7/09)~~ | ✅ RUN — flips rejected, 3b skipped, Sonnet watch closed, runs stopped; see WORKLOG |
+| Next | **Stage 4** (query understanding + MMR/dedup + digest-exclusion; incl. the one rerank retest; +1 permissioned reply ~$0.20) — token swap (F1a config) must complete before the reply test if after 7/14 |
+| Then | **Stage 5** — memory convergence (6 daily `memory.json` snapshots archived to design against) |
 | Then | Efficiency batch: **E1+S1** together, **E2**, **O1**, **O3** (E3 only if still needed) |
-| Then | **F1 → §7.2 server deploy** — the project's "done" |
-| Data-gated, anytime | **F2** (3.3 PDF review) once ~8–10 inbox PDFs exist |
+| Then | **F1 + F1a → §7.2 server deploy** — the project's "done" |
+| Unblocked, anytime | **F2** (3.3 PDF review — 17 PDFs archived, trigger met) |
 
 **Budget thread:** ~$11.7 remained after 7/2; the accrual week spends ~$5–7 → ~$5–6 left at
 the checkpoint; the checkpoint itself needs ~$0.20. Extending daily runs ≈ $5–7/week ⇒ the
