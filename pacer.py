@@ -76,7 +76,19 @@ MATERIAL_KEYWORDS = [
 # PERSISTENCE
 # ======================================================================
 
+# F1a-4 (seen-state durability): discovery/tracking used to write pacer_seen.json
+# DURING the fetch, so a crash later in the run (or a failed send) silently
+# dropped every just-marked entry from the next digest (30 lost on 2026-07-02).
+# The scan now STASHES the updated state in memory; digest.main commits it only
+# after the digest actually sends. A crash after send but before commit means
+# the next run re-reports the same entries — duplication over silent loss is
+# the right bias for a bankruptcy monitor.
+_pending_seen = None
+
+
 def _load_seen():
+    if _pending_seen is not None:
+        return _pending_seen
     if SEEN_FILE.exists():
         try:
             return json.loads(SEEN_FILE.read_text(encoding="utf-8"))
@@ -85,8 +97,21 @@ def _load_seen():
     return {"discovery": {}, "tracking": {}}
 
 
-def _save_seen(seen):
-    SEEN_FILE.write_text(json.dumps(seen, indent=2, ensure_ascii=False), encoding="utf-8")
+def _stash_seen(seen):
+    """Hold the updated seen-state in memory until commit_seen() persists it."""
+    global _pending_seen
+    _pending_seen = seen
+
+
+def commit_seen():
+    """Persist the seen-state stashed by this run's scan (call after a
+    successful digest send). No-op when nothing is pending."""
+    global _pending_seen
+    if _pending_seen is not None:
+        SEEN_FILE.write_text(
+            json.dumps(_pending_seen, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        _pending_seen = None
 
 
 # ======================================================================
@@ -387,7 +412,7 @@ def discover_new_filings():
         time.sleep(0.3)  # polite rate limiting
 
     seen["discovery"] = disc_seen
-    _save_seen(seen)
+    _stash_seen(seen)
 
     print(f"  Found {len(new_filings)} raw Chapter 11 filing(s).")
 
@@ -469,7 +494,7 @@ def track_existing_cases():
         time.sleep(0.3)
 
     seen["tracking"] = track_seen
-    _save_seen(seen)
+    _stash_seen(seen)
 
     print(f"  Found {len(new_entries)} new material docket entries.")
     return new_entries
@@ -642,3 +667,6 @@ if __name__ == "__main__":
                 print(f"  {e['company']}: {e['title'][:60]}")
         else:
             print("  No new material docket entries.")
+
+    # Standalone runs have no later "send" step — persist immediately.
+    commit_seen()

@@ -73,3 +73,43 @@ def test_is_chapter_11_filing_false_not_ch11():
 
 def test_is_chapter_11_filing_false_no_new_case_signal():
     assert pacer._is_chapter_11_filing("Notice", "Chapter: 11 motion to compel discovery") is False
+
+
+# --- F1a-4: seen-state stash/commit (persist only after a successful send) ---
+
+import json  # noqa: E402
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture
+def seen_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(pacer, "SEEN_FILE", tmp_path / "pacer_seen.json")
+    monkeypatch.setattr(pacer, "_pending_seen", None)
+    return tmp_path / "pacer_seen.json"
+
+
+def test_stash_not_persisted_until_commit(seen_file):
+    pacer._stash_seen({"discovery": {"deb": ["entry1"]}, "tracking": {}})
+    assert not seen_file.exists()  # a crash here loses nothing from the next digest
+    # in-process readers (the tracking phase after discovery) see the pending state
+    assert pacer._load_seen()["discovery"] == {"deb": ["entry1"]}
+
+    pacer.commit_seen()
+    on_disk = json.loads(seen_file.read_text(encoding="utf-8"))
+    assert on_disk["discovery"] == {"deb": ["entry1"]}
+    assert pacer._pending_seen is None  # cleared after commit
+
+
+def test_commit_noop_when_nothing_pending(seen_file):
+    pacer.commit_seen()
+    assert not seen_file.exists()
+
+
+def test_pending_overrides_disk(seen_file):
+    seen_file.write_text(json.dumps({"discovery": {"deb": ["old"]}, "tracking": {}}),
+                         encoding="utf-8")
+    pacer._stash_seen({"discovery": {"deb": ["old", "new"]}, "tracking": {}})
+    assert pacer._load_seen()["discovery"]["deb"] == ["old", "new"]
+    pacer.commit_seen()
+    assert json.loads(seen_file.read_text(encoding="utf-8"))["discovery"]["deb"] == ["old", "new"]

@@ -187,10 +187,11 @@ it. Each stage is independently committable; test between stages per HANDOFF §8
    **✅ DONE 2026-07-09** — O3 signals merge into the digest's red alert box (data-driven
    normally-nonzero test; arms after ~6 recorded runs); O2 OK-path + a live `--test` drill
    both validated against the real marker/mailbox. 169 tests.
-5. **Unstaged, anytime — interim O4.** A scheduled copy of `archive/` + `memory.json` + the
-   FAISS index; blocked only on the operator picking a destination (second drive / network
-   share / synced folder). The exposure (single-copy paid data + the eval corpus on one
-   laptop) exists today, so earlier is better.
+5. ~~**Unstaged, anytime — interim O4.**~~ **CANCELLED (operator, 2026-07-09):** the dedicated
+   server is **available and workable now**; the operator wants the project fairly complete
+   before migrating, and O4 will be set up directly on the box at deploy rather than as a
+   laptop stopgap. Accepted risk until then: `archive/` + `memory.json` + the FAISS index
+   remain single-copy on the dev laptop.
 6. **Explicitly NOT scheduled — E3 (Gmail batch fetch).** Gate: only if the Stage-1 live run
    shows the Gmail phase is still the visible bottleneck after E1. Expected outcome: skip.
 
@@ -213,8 +214,9 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 ## 3. Fresh suggestions (beyond the three requested tracks)
 
 - **F1 — Server-deploy readiness pack** (the queued big track after memory, per operator
-  decision — §7.2 is the project's definition of "done"). Pre-work doable before hardware
-  exists: **verify the Google OAuth app's publishing status is "production"** (Testing-mode
+  decision — §7.2 is the project's definition of "done"). **The server EXISTS and is workable
+  (operator, 2026-07-09)** — deploy waits only on the project being "fairly complete," not on
+  hardware. Pre-work items: **verify the Google OAuth app's publishing status is "production"** (Testing-mode
   refresh tokens die after 7 days = weekly breakage unattended — the single highest-risk
   deploy item); machine-level env-var plan (not user-level `env.bat`); validate headless
   Playwright (13D) under a non-interactive Task Scheduler session; update `setup_tasks.bat`
@@ -225,24 +227,21 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 - **F1a — Deploy-blocking fixes from the 2026-07 accrual week** (full detail in HANDOFF §7.2
   "Field findings" — the week live-confirmed the §7.2 risk list and added new items). The
   code-level ones, in priority order:
-  1. **Unattended-consent guard** (`digest.get_gmail_service`): the RefreshError fallback opens
-     an interactive browser consent that **hangs forever headless** (run never exits → no
-     failure alert). Add an unattended mode (env flag) that fails fast + fires `run_alert`
-     instead; reuse the refresh-only pattern from `run_alert._gmail_service_noninteractive`.
-  2. **Task registration rewrite** (`setup_tasks.bat` → PowerShell `Register-ScheduledTask`):
-     `schtasks` cannot set the three settings that made the week survivable (`WakeToRun`,
-     `StartWhenAvailable`, `RunOnlyIfNetworkAvailable` — applied by hand this week), pops a
-     killable console window in interactive mode (observed: run killed at 6s), and `/RL
-     HIGHEST` needs elevation. Server tasks must register run-whether-logged-on, no window,
-     with the settings object.
-  3. **O2 completion watchdog — promoted to must-do:** the 7/7 network race killed the run AND
-     the alert (both need network) — a fully silent miss. `RunOnlyIfNetworkAvailable` covers
-     the start; only the watchdog covers hangs/never-starts. **CODE DONE 2026-07-09**
-     (`run_alert.py --check-completed digest`, live-validated); remaining here: register its
-     ~9 AM weekday task with the item-2 `Register-ScheduledTask` rewrite.
-  4. **PACER seen-state durability** (minor): persist `pacer_seen.json` after a successful
-     send, not during discovery — a mid-run crash currently drops the marked entries from the
-     next digest (30 lost on 7/2).
+  1. **Unattended-consent guard** — ✅ **CODE DONE 2026-07-09:** `DIGEST_UNATTENDED=1` ⇒ a
+     dead token fails fast (SystemExit 3; wrapper fires `run_alert`) instead of hanging on
+     `flow.run_local_server()`. Flag unset = unchanged. Set machine-wide by `setup_tasks.ps1`.
+  2. **Task registration rewrite** — ✅ **DONE 2026-07-09:** `setup_tasks.bat` deleted;
+     **`setup_tasks.ps1`** registers all four tasks (incl. the O2 Watchdog at 09:00) with
+     `WakeToRun`/`StartWhenAvailable`/`RunOnlyIfNetworkAvailable`, S4U run-whether-logged-on
+     (no console window), RunLevel Limited, 3h time limit on run-once jobs (none on the
+     daemon), + sets `DIGEST_UNATTENDED`. `-DryRun` validated on the laptop; **execute on the
+     server at deploy** (S4U fallback documented for AzureAD accounts).
+  3. **O2 completion watchdog:** ✅ code done 2026-07-09 (`run_alert.py --check-completed`,
+     live-validated); its 09:00 task is provisioned by the item-2 script at deploy.
+  4. **PACER seen-state durability** — ✅ **DONE 2026-07-09:** discovery/tracking stash the
+     seen-state in memory; `digest.main` commits it via `pacer.commit_seen()` only after a
+     successful send (standalone `python pacer.py` commits at exit). Crash ⇒ entries re-appear
+     next run (duplication over silent loss).
   Config/runbook (operator-side): OAuth app → **production publishing status** + fresh consent
   (7-day Testing token death confirmed live 7/7; interim deadline 7/14); **recipient-side
   allowlisting of `acorn.research.bot@gmail.com`** at every production recipient (Abnormal AI

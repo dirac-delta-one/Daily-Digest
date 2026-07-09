@@ -43,6 +43,44 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## F1a deploy-blocking fixes: consent guard, task provisioning, PACER seen-state (2026-07-09)
+
+The three code-level deploy blockers from the accrual week's field findings, built ahead of the
+Stage-1 live run so tomorrow's single run validates the run-path pieces. `ruff` clean, `pytest`
+**176** green (+6); `setup_tasks.ps1 -DryRun` validated locally.
+
+- **F1a-1 — unattended-consent guard (`digest.get_gmail_service`):** with `DIGEST_UNATTENDED=1`
+  (machine env on the server; `setup_tasks.ps1` sets it), a dead/expired token now **fails fast
+  (SystemExit 3)** instead of falling into `flow.run_local_server()` — which on a headless box
+  blocks forever, so the run never exits and even the wrapper's nonzero-exit alert can't fire
+  (observed live 7/07). The fast exit lets the wrapper fire `run_alert`; re-consent stays a
+  deliberate manual step. Flag unset (dev laptop, tomorrow's run) = byte-identical behavior;
+  covers midday/reply too (they import the same function). Test-pinned (fail-fast, no consent
+  call, no token write; healthy refresh unaffected; flag parsing).
+- **F1a-2 — task provisioning rewrite: `setup_tasks.bat` DELETED → `setup_tasks.ps1`.**
+  Registers all four tasks (MorningDigest 08:00, **Watchdog 09:00 — O2's task, now provisioned
+  here as planned**, MiddayAlert 13:00, ReplyMonitor at startup; Mon–Fri) with everything
+  `schtasks` couldn't do: `WakeToRun`/`StartWhenAvailable`/`RunOnlyIfNetworkAvailable`, S4U
+  run-whether-logged-on (no stored password, no killable console window), RunLevel Limited (no
+  /RL HIGHEST elevation trap), a 3h execution limit on run-once jobs (a hung run gets killed;
+  the watchdog reports it) and NO limit on the daemon. Also sets `DIGEST_UNATTENDED=1`
+  machine-wide. New `run_watchdog.bat` wrapper (O1-style dated log). `-DryRun` previews without
+  registering — validated on the dev laptop (all 4 tasks, correct triggers/paths). Script
+  documents the stored-password fallback if S4U balks on an AzureAD-joined account. README
+  scheduling section updated.
+- **F1a-4 — PACER seen-state durability (`pacer.py` + `digest.main`):** discovery/tracking now
+  **stash** the updated seen-state in memory; `digest.main` calls `pacer.commit_seen()` only
+  after the digest actually sends (standalone `python pacer.py` commits at exit as before). A
+  crash anywhere earlier leaves entries unseen for the next run — duplication over silent loss
+  (30 entries were lost this way on 7/02). Test-pinned (no disk write before commit; in-process
+  readers see pending state; commit round-trip; no-op commit).
+
+**F1a remaining:** running `setup_tasks.ps1` on the server itself (deploy day), plus the two
+operator/config halves — OAuth production publish + re-consent (before 7/14) and recipient-side
+allowlisting of the bot sender.
+
+---
+
 ## Efficiency Stage 4 — O3 content monitor + O2 watchdog code (2026-07-09)
 
 The alerting pair; **the efficiency batch's build work is complete** (E3 stays gated on the

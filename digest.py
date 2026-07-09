@@ -38,7 +38,7 @@ from memory import get_memory_context, update_memory
 from alerts import evaluate_alerts, build_alerts_html
 from earnings import fetch_earnings_calendar, build_earnings_html, format_earnings_for_prompt
 from trace_data import fetch_trace_data, format_trace_for_prompt, build_trace_html
-from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html
+from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html, commit_seen
 from ratings import fetch_rating_actions, format_ratings_for_prompt
 from fund_tracking import fetch_fund_holdings, format_funds_for_prompt, build_funds_html
 from thirteen_d import fetch_wiltw
@@ -84,8 +84,21 @@ TOKEN_FILE = SCRIPT_DIR / "token.json"  # auto-generated after first login
 DIGESTS_DIR = SCRIPT_DIR / "digests"  # saved daily digests for weekly summary
 
 
+def _unattended():
+    """True when running headless (DIGEST_UNATTENDED=1 in the server's env)."""
+    return os.environ.get("DIGEST_UNATTENDED", "").strip().lower() in ("1", "true", "yes")
+
+
 def get_gmail_service():
-    """Authenticate and return a Gmail API service object."""
+    """Authenticate and return a Gmail API service object.
+
+    Unattended mode (F1a-1): with DIGEST_UNATTENDED set, a dead/expired token
+    FAILS FAST (SystemExit 3) instead of falling through to the interactive
+    browser consent — on a headless server `flow.run_local_server()` blocks
+    forever, so the run never exits and even the wrapper's nonzero-exit alert
+    can't fire (observed live 2026-07-07). The fast failure lets the wrapper
+    fire `run_alert` and leaves re-consent as a deliberate manual step.
+    """
     creds = None
 
     if TOKEN_FILE.exists():
@@ -102,6 +115,11 @@ def get_gmail_service():
                 creds = None
 
         if not creds or not creds.valid:
+            if _unattended():
+                print("ERROR: Gmail token invalid/expired and DIGEST_UNATTENDED is set — "
+                      "refusing to open an interactive browser consent (it would hang a "
+                      "headless run forever). Re-consent manually on this machine, then re-run.")
+                raise SystemExit(3)
             if not CREDENTIALS_FILE.exists():
                 print(f"ERROR: {CREDENTIALS_FILE} not found.")
                 print("Download it from Google Cloud Console → APIs & Services → Credentials.")
@@ -1188,6 +1206,13 @@ def main():
     # --- Send digest ---
     print("Sending digest email...")
     send_digest_email(service, final_html)
+
+    # --- PACER seen-state (F1a-4): persist only now that the digest actually
+    # sent — a crash anywhere earlier leaves the entries unseen for the next run.
+    try:
+        commit_seen()
+    except Exception as e:
+        print(f"PACER seen-state commit failed: {e} — continuing.")
 
     # --- Save timestamp for midday.py ---
     try:

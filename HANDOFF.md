@@ -227,7 +227,7 @@ monitor unattended 24/7. The work happens in three stages:
 | `midday.py` | Intraday materiality alert (Sonnet). Imports from `digest.py`. |
 | `memory.py`, `alerts.py`, `archive.py` | Cross-digest memory, plain-English alerts, raw-content archiver. |
 | Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `trace_data.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
-| `*.bat`, `setup_tasks.bat` | Windows Task Scheduler wiring. **Hardcoded to jared's paths — see §7.** |
+| `run_*.bat`, `setup_tasks.ps1` | Task Scheduler wiring: 4 wrappers (`%~dp0`-relative, dated logs + 30-day prune) + the PowerShell provisioning script (run-whether-logged-on, wake/catch-up/network settings, the 09:00 watchdog, `DIGEST_UNATTENDED`). Execute `setup_tasks.ps1` on the server at deploy. |
 | `grab_session.py` | Stale manual helper (writes Playwright session for Substack, which no longer uses it). |
 
 **Gitignored, account-bound secrets** (must exist on the machine; copy or regenerate):
@@ -367,6 +367,11 @@ works via a metadata-only call before anything else.
 
 ### 7.2 Dedicated Windows server (the end goal)
 
+**The server is AVAILABLE and workable (operator, 2026-07-09)** — deploy waits only on the
+project being "fairly complete" (remaining: the Stage-1 live run, F1a fixes, OAuth publish),
+not on hardware. O4 backups will be set up directly on the box (no laptop interim — operator
+decision; single-copy risk accepted until deploy).
+
 After the refactor (Phases 0–3) is validated on the dev machine, deploy to a **standalone,
 always-on Windows machine that runs the three jobs unattended 24/7** — replacing jared's PC. Make
 the codebase location-independent first (Phase 0–1 already remove the jared hardcodes via `%~dp0`
@@ -406,22 +411,22 @@ and `config.py`), then provision the server:
 deploy; mirrored as F1a in `NEXT_STEPS_SPEC.md`).** Running scheduled for a week surfaced, live,
 exactly the failure modes this section predicted plus several new ones:
 
-1. **Unattended-consent hang (CODE FIX REQUIRED).** `get_gmail_service`'s RefreshError fallback
-   calls `flow.run_local_server()` — an interactive browser consent. On 7/7 (attended) that was the
-   save; on a headless server it **blocks forever**: the run never exits, so even the failure alert
-   never fires. Deploy fix: an unattended mode (env flag) that fails fast + alerts instead of
-   consenting — `run_alert._gmail_service_noninteractive` already models the refresh-only pattern.
+1. **Unattended-consent hang — ✅ CODE FIXED 2026-07-09.** `get_gmail_service`'s RefreshError
+   fallback calls `flow.run_local_server()` — an interactive browser consent that on a headless
+   server **blocks forever** (run never exits → no failure alert; seen 7/7). Now: with
+   `DIGEST_UNATTENDED=1` (set machine-wide by `setup_tasks.ps1`) a dead token fails fast
+   (SystemExit 3) and the wrapper fires `run_alert`; flag unset = unchanged attended behavior.
 2. **OAuth Testing-mode 7-day token death — CONFIRMED LIVE on day 7 (7/7),** exactly as item 3
    warned. `invalid_grant` → re-consent required. **Config fix:** publish the bot's OAuth app to
    "production" + one fresh consent (operator pending; interim deadline 7/14, and an absolute
    prerequisite for the server).
-3. **`setup_tasks.bat` cannot produce a survivable task (CODE FIX REQUIRED).** The three settings
-   that made the week work — `WakeToRun`, `StartWhenAvailable` (missed-start catch-up at logon),
-   `RunOnlyIfNetworkAvailable` — **cannot be set via `schtasks` at all** (they were applied by hand
-   via PowerShell `Set-ScheduledTask`). Also observed: interactive-only tasks pop a console window
-   that users can close mid-run (7/6: exit `0xC000013A`, run killed at 6s), and `/RL HIGHEST`
-   fails without elevation. Deploy fix: replace the `schtasks` lines with PowerShell
-   `Register-ScheduledTask` (settings object + run-whether-logged-on service account, no window).
+3. **`setup_tasks.bat` cannot produce a survivable task — ✅ CODE FIXED 2026-07-09.** The three
+   settings that made the week work — `WakeToRun`, `StartWhenAvailable`,
+   `RunOnlyIfNetworkAvailable` — **cannot be set via `schtasks` at all**; interactive tasks pop a
+   killable console window (7/6: run killed at 6s), and `/RL HIGHEST` fails without elevation.
+   Now: `setup_tasks.bat` is deleted; **`setup_tasks.ps1`** registers all four tasks (incl. the
+   09:00 watchdog) via `Register-ScheduledTask` with the settings object, S4U
+   run-whether-logged-on, no window. **Execute it on the server at deploy** (dry-run validated).
 4. **Wrapper env loading — FIXED + committed 7/2:** `call env.bat` failed to resolve relative in
    some launcher contexts (first wrapper-driven run crashed keyless); now `call "%~dp0env.bat"`.
 5. **Silent double-failure when network is down (7/7):** the wake/logon race started the run
@@ -429,10 +434,11 @@ exactly the failure modes this section predicted plus several new ones:
    Mitigated by `RunOnlyIfNetworkAvailable`; the residual gap (hung/never-started runs) is the
    **O2 completion watchdog** in `NEXT_STEPS_SPEC.md` — now evidence-backed, treat as must-do
    for deploy.
-6. **PACER seen-state persists on failed runs (CODE FIX, minor).** Discovery marks RSS entries
-   seen during the fetch; a later crash in the same run loses them from the next digest (7/2:
-   30 entries silently skipped on rerun). Fix: persist `pacer_seen.json` only after a successful
-   send, or accept the rare loss.
+6. **PACER seen-state persists on failed runs — ✅ CODE FIXED 2026-07-09.** Discovery marked RSS
+   entries seen during the fetch; a later crash in the same run lost them from the next digest
+   (7/2: 30 entries silently skipped). Now the scan stashes the state in memory and `digest.main`
+   commits it (`pacer.commit_seen()`) only after a successful send — a crash re-surfaces the
+   entries next run (duplication over silent loss).
 7. **Recipient-side quarantine (RUNBOOK).** Abnormal AI flagged the 7/2 digest as **malicious**
    and removed it (new Gmail sender + emoji subject + link-dense HTML); delivery is intermittent.
    Deploy runbook: have every production recipient's mail security **allowlist

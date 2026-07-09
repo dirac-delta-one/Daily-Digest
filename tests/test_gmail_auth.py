@@ -27,6 +27,7 @@ def _creds(valid, *, refresh_raises=False):
 @pytest.fixture
 def gmail_env(monkeypatch):
     """Patch digest's Google deps so get_gmail_service runs with no I/O or browser."""
+    monkeypatch.delenv("DIGEST_UNATTENDED", raising=False)  # attended by default
     tok = MagicMock()
     tok.exists.return_value = True
     monkeypatch.setattr(digest, "TOKEN_FILE", tok)
@@ -67,3 +68,39 @@ def test_good_refresh_skips_consent(gmail_env):
     good.refresh.assert_called_once()
     flow.run_local_server.assert_not_called()   # refresh worked; no browser consent
     tok.write_text.assert_called_once()
+
+
+# --- F1a-1: unattended mode must fail fast, never open a browser consent ---
+
+def test_unattended_dead_token_fails_fast(gmail_env):
+    mp, tok, flow = gmail_env
+    mp.setenv("DIGEST_UNATTENDED", "1")
+    dead = _creds(valid=False, refresh_raises=True)
+    mp.setattr(digest, "Credentials", MagicMock(from_authorized_user_file=lambda *a, **k: dead))
+
+    with pytest.raises(SystemExit) as exc:
+        digest.get_gmail_service()
+
+    assert exc.value.code == 3                  # distinct exit -> wrapper fires run_alert
+    flow.run_local_server.assert_not_called()   # the whole point: no headless hang
+    tok.write_text.assert_not_called()
+
+
+def test_unattended_good_refresh_unaffected(gmail_env):
+    # Unattended mode only guards the CONSENT path — a healthy refresh works.
+    mp, tok, flow = gmail_env
+    mp.setenv("DIGEST_UNATTENDED", "1")
+    good = _creds(valid=False)
+    mp.setattr(digest, "Credentials", MagicMock(from_authorized_user_file=lambda *a, **k: good))
+
+    assert digest.get_gmail_service() == "SERVICE"
+    flow.run_local_server.assert_not_called()
+
+
+def test_unattended_flag_parsing(monkeypatch):
+    for val, expected in (("1", True), ("true", True), ("YES", True),
+                          ("0", False), ("", False)):
+        monkeypatch.setenv("DIGEST_UNATTENDED", val)
+        assert digest._unattended() is expected, val
+    monkeypatch.delenv("DIGEST_UNATTENDED")
+    assert digest._unattended() is False

@@ -59,14 +59,19 @@ The first run:
 
 ### Windows (Task Scheduler)
 
-The repo ships `run_digest.bat`, `run_midday.bat`, `run_reply_monitor.bat` (each `cd`s to its
-own folder via `%~dp0`, sets `PYTHONUTF8=1`, calls `env.bat`, and runs the project `.venv`
-Python) plus `setup_tasks.bat` to register all three tasks — no hardcoded paths.
+The repo ships `run_digest.bat`, `run_midday.bat`, `run_reply_monitor.bat`, and
+`run_watchdog.bat` (each `cd`s to its own folder via `%~dp0`, sets `PYTHONUTF8=1`, calls
+`env.bat`, runs the project `.venv` Python, and writes a date-stamped log under `logs\` with a
+30-day prune) plus `setup_tasks.ps1` to register all four tasks — no hardcoded paths.
 
 1. Create `env.bat` in the project root (see "Set environment variables" above).
-2. Run `setup_tasks.bat` — registers MorningDigest (8 AM), MiddayAlert (1 PM), and ReplyMonitor
-   (at startup). It uses `%~dp0`, so the tasks point at wherever the repo lives.
-3. Verify: `schtasks /Query /TN "DailyDigest\*"`.
+2. In an **elevated** PowerShell, from the repo folder:
+   `powershell -ExecutionPolicy Bypass -File .\setup_tasks.ps1` (add `-DryRun` to preview).
+   Registers MorningDigest (8 AM), Watchdog (9 AM — alerts if the digest never completed),
+   MiddayAlert (1 PM), and ReplyMonitor (at startup), all run-whether-logged-on with
+   wake/catch-up/network-required settings, and sets `DIGEST_UNATTENDED=1` machine-wide so a
+   dead Gmail token fails fast instead of hanging on a browser consent.
+3. Verify: `Get-ScheduledTask -TaskPath "\DailyDigest\"`.
 
 To register a task manually instead, set the action to the relevant `run_*.bat` with "Start in"
 = the project folder.
