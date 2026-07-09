@@ -50,6 +50,7 @@ from fed_balance_sheet import (
 )
 from fdic_monitor import fetch_failed_banks, format_fdic_for_prompt
 from archive import archive_daily_content
+from content_monitor import record_and_check
 from search import index_daily_content
 
 # --- Configuration ---
@@ -1136,6 +1137,25 @@ def main():
             })
     except Exception as e:
         print(f"Fed stress check failed: {e} — continuing without.")
+
+    # --- Content monitor (O3): record per-source counts; flag a normally-
+    # nonzero source stuck at zero (the silent-degradation mode the per-source
+    # try/except deliberately swallows). Signals merge into the same alert box.
+    try:
+        counts = {
+            "emails": len(emails),
+            "substack": len(substack_articles),
+            "wiltw": 1 if wiltw else 0,
+            **{key: len(fetched[key]) for key in fetched},
+        }
+        for signal in record_and_check(counts):
+            triggered_alerts.append({
+                "name": "Source degradation",
+                "detail": signal,
+                "source": "content monitor",
+            })
+    except Exception as e:
+        print(f"Content monitor failed: {e} — continuing.")
 
     # --- Build pre-formatted HTML sections ---
     alerts_html = build_alerts_html(triggered_alerts)

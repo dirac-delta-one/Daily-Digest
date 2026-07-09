@@ -89,3 +89,91 @@ def test_find_log_missing_dir_falls_back(tmp_path, monkeypatch):
     monkeypatch.setattr(run_alert, "SCRIPT_DIR", tmp_path)
     # no logs/ at all -> fall back to the legacy path (tail prints placeholder)
     assert run_alert._find_log("digest") == tmp_path / "logs" / "digest.log"
+
+
+# --- check_completed (O2 hung-run watchdog) ---
+
+import datetime  # noqa: E402
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture
+def watchdog_env(tmp_path, monkeypatch):
+    """Isolated SCRIPT_DIR + captured _send_email (no Gmail)."""
+    monkeypatch.setattr(run_alert, "SCRIPT_DIR", tmp_path)
+    sent = []
+    monkeypatch.setattr(run_alert, "_send_email",
+                        lambda subject, body: sent.append((subject, body)))
+    return tmp_path, sent
+
+
+def _write_marker(tmp_path):
+    day_dir = tmp_path / "archive" / datetime.date.today().isoformat()
+    day_dir.mkdir(parents=True)
+    (day_dir / "digest_sent_at.txt").write_text("2026-07-10T08:14:02", encoding="utf-8")
+
+
+def test_watchdog_completed_no_alert(watchdog_env):
+    tmp_path, sent = watchdog_env
+    _write_marker(tmp_path)
+    assert run_alert.check_completed("digest") == 0
+    assert sent == []
+
+
+def test_watchdog_missing_marker_alerts(watchdog_env):
+    tmp_path, sent = watchdog_env
+    assert run_alert.check_completed("digest") == 0  # alert sent successfully
+    assert len(sent) == 1
+    subject, body = sent[0]
+    assert "MISSING" in subject
+    assert "digest run MISSING" in body
+    assert "hung" in body
+
+
+def test_watchdog_test_flag_forces_drill_despite_marker(watchdog_env):
+    tmp_path, sent = watchdog_env
+    _write_marker(tmp_path)
+    assert run_alert.check_completed("digest", test=True) == 0
+    assert len(sent) == 1
+    subject = sent[0][0]
+    # The drill marker must PRECEDE the alarming words — clients truncate
+    # subjects from the end, and a cut-off TEST tag reads as a real emergency.
+    assert subject.index("(TEST drill)") < subject.index("MISSING")
+
+
+def test_watchdog_real_alert_has_no_drill_marker(watchdog_env):
+    tmp_path, sent = watchdog_env
+    assert run_alert.check_completed("digest") == 0  # no marker -> real alert
+    assert "(TEST drill)" not in sent[0][0]
+
+
+def test_watchdog_send_failure_returns_1(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_alert, "SCRIPT_DIR", tmp_path)
+
+    def _boom(subject, body):
+        raise RuntimeError("token dead")
+    monkeypatch.setattr(run_alert, "_send_email", _boom)
+    assert run_alert.check_completed("digest") == 1
+
+
+def test_watchdog_rejects_other_labels(watchdog_env):
+    tmp_path, sent = watchdog_env
+    assert run_alert.check_completed("midday") == 2
+    assert sent == []
+
+
+# --- build_alert_html custom headline/detail (watchdog variant) ---
+
+def test_alert_html_custom_headline_detail():
+    out = run_alert.build_alert_html("digest", "tail", headline="digest run MISSING",
+                                     detail="No completed digest today.")
+    assert "digest run MISSING" in out
+    assert "No completed digest today." in out
+    assert "exited nonzero" not in out
+
+
+def test_alert_html_defaults_unchanged():
+    out = run_alert.build_alert_html("digest", "tail")
+    assert "digest run FAILED" in out
+    assert "exited nonzero" in out

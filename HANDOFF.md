@@ -388,12 +388,14 @@ and `config.py`), then provision the server:
    *copied* `token.json` already rejected with `invalid_grant`; `get_gmail_service` now re-consents
    on refresh failure instead of crashing, but a headless server can't do an interactive consent —
    so a non-expiring production token is the real requirement.)
-4. **Reliability & observability:** rotate `logs/`; failure alerting — **run-error half DONE
-   2026-07-02** (`run_alert.py`, wired into all 3 wrappers: nonzero exit → red alert email with the
-   log tail to `DIGEST_TO`/production; self-contained, refresh-only Gmail auth; test-validated).
-   Remaining: the "key section empty N days running" content check, and hung-run detection (a run
-   that never exits fires no alert). Verify sessions auto-renew (Substack magic-link via Gmail;
-   13D will eventually need a manual re-login — document that).
+4. **Reliability & observability:** ✅ **all code halves DONE.** Log rotation (O1, 2026-07-09:
+   date-stamped `logs\<label>_YYYY-MM-DD.log` + 30-day prune in the wrappers); failure alerting
+   (run-error half 2026-07-02: `run_alert.py`, nonzero exit → red alert email with the log tail);
+   the "source empty N runs" content check (O3, 2026-07-09: `content_monitor.py` → digest alert
+   box); and hung-run detection (O2, 2026-07-09: `run_alert.py --check-completed digest` — **its
+   ~9 AM weekday task still registers at deploy**, the F1a-#2 way). Still operational at deploy:
+   verify sessions auto-renew (Substack magic-link via Gmail; 13D will eventually need a manual
+   re-login — document that).
 5. **Time zone & schedule:** set the server TZ correctly (digest ~8 AM ET, midday ~1 PM ET, weekly
    summary keys off Friday in `digest.py`).
 6. **Resources:** the embedding stack (`sentence-transformers` + `faiss-cpu` + torch, ~GB) plus a

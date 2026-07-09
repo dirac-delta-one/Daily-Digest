@@ -65,20 +65,27 @@ def _find_log(label):
     return candidates[-1] if candidates else logs_dir / f"{label}.log"
 
 
-def build_alert_html(label, log_tail, when=None, host=None):
-    """Failure-notice HTML in the digest's Georgia/680px style. Log tail is escaped."""
+def build_alert_html(label, log_tail, when=None, host=None,
+                     headline=None, detail=None):
+    """Failure-notice HTML in the digest's Georgia/680px style. Log tail is escaped.
+
+    headline/detail default to the run-FAILED wording; the O2 watchdog passes
+    its own ("run MISSING" / hung-or-never-started).
+    """
     when = when or datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     host = host or socket.gethostname()
+    headline = headline or f"{label} run FAILED"
+    detail = detail or ("The scheduled run exited nonzero &mdash; "
+                        "no digest was produced. Last log lines below.")
     return (
         '<div style="font-family: Georgia, \'Times New Roman\', serif; max-width: 680px; '
         'margin: 0 auto; color: #1a1a1a; line-height: 1.6;">\n'
         '<div style="background: #fdf2f2; border: 2px solid #c0392b; border-radius: 6px; '
         'padding: 16px 20px; margin-bottom: 16px;">\n'
         f'<h2 style="font-size: 18px; color: #c0392b; margin: 0 0 6px;">'
-        f'\U0001f6a8 {html.escape(label)} run FAILED</h2>\n'
+        f'\U0001f6a8 {html.escape(headline)}</h2>\n'
         f'<p style="font-size: 13px; margin: 0;">Host: {html.escape(host)} &middot; '
-        f'{html.escape(when)}. The scheduled run exited nonzero &mdash; '
-        'no digest was produced. Last log lines below.</p>\n'
+        f'{html.escape(when)}. {detail}</p>\n'
         '</div>\n'
         f'<pre style="font-size: 11px; background: #f7f5f0; padding: 12px; '
         f'overflow-x: auto; white-space: pre-wrap;">{html.escape(log_tail)}</pre>\n'
@@ -105,23 +112,76 @@ def _gmail_service_noninteractive():
     return build("gmail", "v1", credentials=creds)
 
 
+def _send_email(subject, body):
+    """Send one HTML email to the alert recipients (refresh-only Gmail auth)."""
+    message = MIMEText(body, "html")
+    message["to"] = ", ".join(RECIPIENTS)
+    message["subject"] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    service = _gmail_service_noninteractive()
+    service.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+
 def send_alert(label, test=False):
     log_file = _find_log(label)
     body = build_alert_html(label, _tail(log_file))
 
     today = datetime.date.today().strftime("%A, %B %d")
-    subject = f"\U0001f6a8 Daily Digest run FAILED — {label} — {today}"
-    if test:
-        subject += " (TEST — not a real failure)"
+    # Drill marker goes FIRST: clients truncate subjects from the END, and a
+    # drill whose TEST tag is cut off reads as a real emergency (seen 7/09).
+    marker = "(TEST drill) " if test else ""
+    subject = f"\U0001f6a8 {marker}Daily Digest run FAILED — {label} — {today}"
 
-    message = MIMEText(body, "html")
-    message["to"] = ", ".join(RECIPIENTS)
-    message["subject"] = subject
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-    service = _gmail_service_noninteractive()
-    service.users().messages().send(userId="me", body={"raw": raw}).execute()
+    _send_email(subject, body)
     print(f"Failure alert sent to {', '.join(RECIPIENTS)} ({label}{' TEST' if test else ''}).")
+
+
+def check_completed(label, test=False):
+    """O2 hung-run watchdog: alert if today's run never completed.
+
+    A run that HANGS (e.g. blocked on an interactive OAuth consent) or never
+    starts exits nothing, so the wrappers' nonzero-exit alert can't fire —
+    the 7/7 network race proved both signals can die together. This mode is
+    meant for a ~9 AM weekday scheduled task (registered at deploy via
+    Register-ScheduledTask, F1a #2): it checks the completion marker the
+    digest writes after a successful send and alerts if it's absent.
+
+    Only `digest` has a completion artifact (archive/<today>/digest_sent_at.txt);
+    midday is silent-by-design most days and can't be watchdogged this way.
+    `--test` sends the alert regardless, marked as a drill.
+
+    Returns 0 if completed (or the drill/alert was sent), 1 if an alert was
+    needed but could not be sent, 2 on a label without a completion marker.
+    """
+    if label != "digest":
+        print(f"--check-completed supports only 'digest' (no completion marker for {label}).")
+        return 2
+
+    today = datetime.date.today().isoformat()
+    marker = SCRIPT_DIR / "archive" / today / "digest_sent_at.txt"
+    if marker.exists() and not test:
+        print(f"OK: digest completed today ({marker.read_text(encoding='utf-8').strip()}).")
+        return 0
+
+    now = datetime.datetime.now().strftime("%H:%M")
+    detail = (f"No completed digest for {today} as of {now} &mdash; the morning run "
+              "likely hung (e.g. an interactive consent) or never started, so the "
+              "nonzero-exit alert could not fire. Last log lines below.")
+    body = build_alert_html("digest", _tail(_find_log("digest")),
+                            headline="digest run MISSING", detail=detail)
+    # Drill marker goes FIRST — same truncation reasoning as send_alert.
+    marker = "(TEST drill) " if test else ""
+    subject = (f"\U0001f6a8 {marker}Daily Digest MISSING — no completed run — "
+               f"{datetime.date.today().strftime('%A, %B %d')}")
+
+    try:
+        _send_email(subject, body)
+        print(f"Watchdog alert sent to {', '.join(RECIPIENTS)}"
+              f"{' (TEST)' if test else ''}.")
+        return 0
+    except Exception as e:
+        print(f"Could not send watchdog alert: {e}")
+        return 1
 
 
 def main():
@@ -129,6 +189,10 @@ def main():
     if label not in ("digest", "midday", "reply_monitor"):
         print(f"Unknown label '{label}' — expected digest | midday | reply_monitor")
         return 2
+
+    if "--check-completed" in sys.argv:
+        return check_completed(label, test="--test" in sys.argv)
+
     try:
         send_alert(label, test="--test" in sys.argv)
         return 0

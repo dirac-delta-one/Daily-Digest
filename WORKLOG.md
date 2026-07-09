@@ -43,6 +43,40 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Efficiency Stage 4 — O3 content monitor + O2 watchdog code (2026-07-09)
+
+The alerting pair; **the efficiency batch's build work is complete** (E3 stays gated on the
+Stage-1 live run's phase timings). `ruff` clean, `pytest` **169** green (+18); free live checks
+green (no Claude).
+
+- **O3 — content monitor (new `content_monitor.py`, wired into `digest.main`):** each run records
+  per-source item counts (emails, substack, wiltw + the 14 registry sources) to a rolling
+  30-run `source_counts.json` (gitignored); a source at **0 for 3 consecutive runs** that was
+  nonzero in ≥50% of the prior runs fires a "Source degradation" signal, merged into the SAME red
+  digest alert box as the Fed-stress check (no second email — deliberate improvement over the
+  spec's "alert via run_alert"). The normally-nonzero test is data-driven, so always-zero TRACE,
+  quarterly 13F, and COT's Thu skip can't false-positive; the signal repeats until the source
+  recovers. History accrues once daily runs resume (needs ≥6 runs to arm).
+- **O2 — hung-run watchdog (`run_alert.py --check-completed digest`):** checks today's
+  `archive/<date>/digest_sent_at.txt`; absent ⇒ a "digest run MISSING" alert with the newest log
+  tail (covers the run-hangs/never-starts hole that nonzero-exit alerting can't — the 7/7 silent
+  double-failure). `--test` sends a drill regardless. digest-only by design (midday is
+  silent-by-design most days, no completion artifact). **The ~9 AM weekday task is NOT registered
+  now** — it registers at deploy via F1a-#2's `Register-ScheduledTask`, arming exactly when
+  unattended runs exist again. Supporting refactors: `build_alert_html` gained headline/detail
+  params (defaults byte-compatible, test-pinned); sending extracted to `_send_email`.
+- **Live-validated (free):** OK-path read the real 7/09 completion marker
+  ("OK: digest completed today (…09:44:02)"); one `--check-completed --test` drill delivered to
+  acohen only (DIGEST_TO honored). Closes HANDOFF §7.2 item 4's two remaining halves at the code
+  level.
+- **Follow-up (operator-reported, same day):** the drill's TEST marker sat at the END of the
+  subject, exactly where clients truncate — the operator read the drill as a real "Daily Digest
+  MISSING" alert at first glance. Both drill paths (`send_alert --test` + the watchdog) now put
+  **"(TEST drill)" FIRST** in the subject; real alerts unchanged. Test-pinned (marker must precede
+  the alarming words; real alerts must not carry it).
+
+---
+
 ## Efficiency Stage 3 — O1 log rotation (2026-07-09)
 
 Offline/free. `ruff` clean, `pytest` **151** green (+4).

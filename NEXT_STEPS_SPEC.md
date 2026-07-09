@@ -184,6 +184,9 @@ it. Each stage is independently committable; test between stages per HANDOFF §8
    `Register-ScheduledTask` way, at deploy — so the watchdog code ships now but arms at
    deploy, when unattended runs exist again. *Verify:* unit tests + one real `--test`-style
    alert send (free Gmail); no Claude.
+   **✅ DONE 2026-07-09** — O3 signals merge into the digest's red alert box (data-driven
+   normally-nonzero test; arms after ~6 recorded runs); O2 OK-path + a live `--test` drill
+   both validated against the real marker/mailbox. 169 tests.
 5. **Unstaged, anytime — interim O4.** A scheduled copy of `archive/` + `memory.json` + the
    FAISS index; blocked only on the operator picking a destination (second drive / network
    share / synced folder). The exposure (single-copy paid data + the eval corpus on one
@@ -234,7 +237,9 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
      with the settings object.
   3. **O2 completion watchdog — promoted to must-do:** the 7/7 network race killed the run AND
      the alert (both need network) — a fully silent miss. `RunOnlyIfNetworkAvailable` covers
-     the start; only the watchdog covers hangs/never-starts.
+     the start; only the watchdog covers hangs/never-starts. **CODE DONE 2026-07-09**
+     (`run_alert.py --check-completed digest`, live-validated); remaining here: register its
+     ~9 AM weekday task with the item-2 `Register-ScheduledTask` rewrite.
   4. **PACER seen-state durability** (minor): persist `pacer_seen.json` after a successful
      send, not during discovery — a mid-run crash currently drops the marked entries from the
      next digest (30 lost on 7/2).

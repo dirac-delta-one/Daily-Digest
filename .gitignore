@@ -15,6 +15,7 @@ pacer_seen.json
 wiltw_cache.json
 memory.json
 memory_v1_backup.json
+source_counts.json
 
 # Archive / generated data
 archive/
