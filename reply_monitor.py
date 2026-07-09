@@ -24,7 +24,7 @@ import anthropic
 # Reuse Gmail auth from digest.py
 from digest import get_gmail_service, DIGEST_RECIPIENTS
 
-from search import search
+from search import search, extract_entities, dedupe_near_duplicates
 from config import OPUS_MODEL, SONNET_MODEL
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
@@ -266,31 +266,125 @@ def _extract_search_queries(reply_text):
     return [reply_text[:500]]
 
 
-def _search_multiple(queries, digest_date=None):
-    """Search for multiple queries and merge results, deduped by chunk_id."""
+_MONTH_NAMES = ("january", "february", "march", "april", "may", "june", "july",
+                "august", "september", "october", "november", "december")
+
+
+def _month_day_to_date(month_name, day):
+    """'July 7' -> the most recent past occurrence (same year-boundary logic
+    as _extract_digest_date). None if the day is invalid (e.g. June 31)."""
+    month = _MONTH_NAMES.index(month_name.lower()) + 1
+    today = datetime.date.today()
+    try:
+        candidate = datetime.date(today.year, month, int(day))
+    except ValueError:
+        return None
+    if candidate > today:
+        candidate = datetime.date(today.year - 1, month, int(day))
+    return candidate
+
+
+def _extract_query_filters(question, digest_date=None):
+    """Stage-4 query understanding — regex-only, free, deterministic.
+
+    Returns (entities, date_from, date_to) to drive the Stage-3a search
+    filters. Entities come from search.extract_entities — the SAME lexicon
+    that tags the index (watchlist tickers, $TICK mentions, tracked funds) —
+    so a detected entity can actually match chunk tags. The date window comes
+    from, in priority order: explicit ISO dates, "Month DD" mentions, or a
+    this-week/last-week phrase anchored to the digest being replied to.
+    Anything unrecognized yields (…, None, None) and retrieval stays broad.
+    """
+    entities = extract_entities(question)
+
+    # Explicit ISO dates: one -> that day; several -> min..max window
+    iso = re.findall(r'\b(20\d{2}-\d{2}-\d{2})\b', question)
+    if iso:
+        return entities, min(iso), max(iso)
+
+    # "July 7" style mentions ("may" etc. only match when followed by a day number)
+    month_days = re.findall(rf'\b({"|".join(_MONTH_NAMES)})\s+(\d{{1,2}})\b',
+                            question, re.IGNORECASE)
+    days = [d for d in (_month_day_to_date(m, dd) for m, dd in month_days) if d]
+    if days:
+        return entities, min(days).isoformat(), max(days).isoformat()
+
+    # Week phrases, anchored to the digest day (or today)
+    anchor = None
+    if digest_date:
+        try:
+            anchor = datetime.date.fromisoformat(digest_date)
+        except ValueError:
+            pass
+    anchor = anchor or datetime.date.today()
+    q = question.lower()
+    if re.search(r'\blast week\b', q):
+        monday = anchor - datetime.timedelta(days=anchor.weekday() + 7)
+        sunday = monday + datetime.timedelta(days=6)
+        return entities, monday.isoformat(), sunday.isoformat()
+    if re.search(r'\b(this week|across the week)\b', q):
+        monday = anchor - datetime.timedelta(days=anchor.weekday())
+        return entities, monday.isoformat(), anchor.isoformat()
+    if re.search(r'\bpast week\b', q):
+        return entities, (anchor - datetime.timedelta(days=6)).isoformat(), anchor.isoformat()
+
+    return entities, None, None
+
+
+def _search_multiple(queries, digest_date=None, question=None):
+    """Search for multiple queries and merge results, deduped by chunk_id.
+
+    Stage 4 behavior on top of the original day-then-broad phases:
+    - Same-day digest chunks are excluded from every phase — the bot already
+      loads that digest verbatim as context, so retrieving its chunks wastes
+      slots (the checkpoint's rerank finding, applied to the default path too).
+    - A question naming a tagged entity and/or a date window gets extra
+      filtered phases driving the Stage-3a search params.
+    - Near-duplicate chunks (same PDF forwarded twice) are dropped before the
+      final cap.
+    """
+    entities, date_from, date_to = [], None, None
+    if question:
+        entities, date_from, date_to = _extract_query_filters(question, digest_date)
+        if entities or date_from:
+            print(f"  Query filters: entities={entities or 'none'}"
+                  f" window={date_from or '-'}..{date_to or '-'}")
+
     all_results = []
     seen_ids = set()
 
-    for query in queries:
-        # Two-phase search: digest day first, then broaden
-        if digest_date:
-            day_results = search(query, top_k=SEARCH_TOP_K // 2, date_filter=digest_date)
-            for meta, score in day_results:
-                cid = meta.get("chunk_id")
-                if cid not in seen_ids:
-                    seen_ids.add(cid)
-                    all_results.append((meta, score))
-
-        broader = search(query, top_k=SEARCH_TOP_K)
-        for meta, score in broader:
+    def _collect(results):
+        for meta, score in results:
             cid = meta.get("chunk_id")
             if cid not in seen_ids:
                 seen_ids.add(cid)
                 all_results.append((meta, score))
 
-    # Sort by score and cap
+    for query in queries:
+        # Phase 1: digest day first (original behavior, minus that day's digest chunks)
+        if digest_date:
+            _collect(search(query, top_k=SEARCH_TOP_K // 2, date_filter=digest_date,
+                            exclude_digest_date=digest_date))
+
+        # Phase 2 (Stage 4): entity-filtered, inside the date window when present
+        for ent in entities[:3]:
+            _collect(search(query, top_k=SEARCH_TOP_K // 2, entity_filter=ent,
+                            date_from=date_from, date_to=date_to,
+                            exclude_digest_date=digest_date))
+
+        # Phase 3 (Stage 4): date-window only, when no entity was detected
+        if not entities and (date_from or date_to):
+            _collect(search(query, top_k=SEARCH_TOP_K // 2,
+                            date_from=date_from, date_to=date_to,
+                            exclude_digest_date=digest_date))
+
+        # Phase 4: broad backstop (filters have limited coverage by design)
+        _collect(search(query, top_k=SEARCH_TOP_K,
+                        exclude_digest_date=digest_date))
+
+    # Sort by score, drop near-duplicate texts, cap
     all_results.sort(key=lambda x: x[1], reverse=True)
-    return all_results[:SEARCH_TOP_K]
+    return dedupe_near_duplicates(all_results)[:SEARCH_TOP_K]
 
 
 def answer_question(question, digest_date=None):
@@ -319,8 +413,9 @@ def answer_question(question, digest_date=None):
             "Try rephrasing as a specific question about your research archive.</p></div>"
         )
 
-    # Search for all queries, merge and dedupe results
-    results = _search_multiple(queries, digest_date=digest_date)
+    # Search for all queries, merge and dedupe results (question drives the
+    # Stage-4 entity/date-window filters)
+    results = _search_multiple(queries, digest_date=digest_date, question=question)
 
     if not results:
         return (

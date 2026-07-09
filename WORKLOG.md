@@ -43,10 +43,62 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Memory / retrieval refactor — Stage 4: reply-bot retrieval built; rerank retest FAILED → parked (2026-07-09)
+
+Built offline/free (no Claude calls). `ruff` clean, `pytest` **115** green (+17).
+
+**What landed:**
+- **Same-day digest exclusion** — new `search(exclude_digest_date=)` (pre-retrieval via
+  `_filter_ids`; `""` = all digests, the eval-retest condition). `_search_multiple` passes the
+  reply's digest day in **every** phase: that digest is already loaded verbatim into the bot's
+  context, so retrieving its chunks was pure slot-waste (the Stage-1/2 finding, now acted on).
+- **Query understanding** (`reply_monitor._extract_query_filters`) — regex-only, free,
+  deterministic: entities via the index's own tag lexicon (new public `search.extract_entities`),
+  date windows from ISO dates / "Month DD" / this-week/last-week phrases anchored to the digest
+  day. Drives new entity-filtered + date-windowed phases in `_search_multiple` — **the Stage-3a
+  filters are now consumed in production** (they'd had no production caller since 7/02).
+- **Near-dup dedup** (`search.dedupe_near_duplicates`) — token-set Jaccard ≥ 0.85 drop, walking
+  best-first. Real-archive case it fixes: the same broker PDF forwarded on consecutive days
+  (7/7 + 7/8 "Global Update") indexed twice and could fill multiple context slots with identical
+  text. The bar is far above the ~0.2 overlap adjacent chunks share via CHUNK_OVERLAP.
+
+**Eval (26-question set, snapshots `2026-07-09_stage4_*.json`):**
+- default: **identical to the checkpoint baseline** (0.846/1.0/0.904) — behavior-neutral for all
+  existing callers; nothing outside the reply path changes.
+- default + exclude-digest: **0.885 / 0.962 / 0.924** — the exclusion *helps* the default path
+  (digest chunks were crowding primary sources here too).
+- **rerank retest (+ exclude-digest): 0.808 / 0.923 / 0.876 — FAILED the pre-committed gate**
+  (≥ default on hit@3 AND MRR) even in its best-case condition (ALL digests excluded, vs the
+  same-day-only exclusion production gets). Exclusion did help rerank (MRR 0.839 → 0.876 — the
+  checkpoint diagnosis was half right), but it still promotes broker-email/substack chunks over
+  primary sources. **Ruling: rerank and hybrid park permanently**; both mechanisms stay
+  param-gated in `search()`, nothing deleted.
+- Kept per spec: production excludes only the **same-day** digest (older digests remain
+  retrievable as cross-day summaries); `SEARCH_TOP_K` stays 20 (the 20→10 cut was conditioned on
+  rerank's precision, which never materialized).
+
+**Permissioned validation — DONE same day, $0.12 (under the ~$0.20 estimate). STAGE 4 COMPLETE.**
+Ran `answer_question()` directly (the Group-B method) on "How did the MSTR story evolve this
+week — filings, Bitcoin sales, credit rating?" with digest_date=2026-07-09 — chosen over
+injecting a live inbox reply to avoid racing jared's production reply monitor on the shared bot
+inbox (the Gmail glue it skips — `check_for_replies`/`send_reply` threading — is unchanged since
+its 2026-06-30 live validation, and no Gmail token was needed, so the 7/14 deadline didn't
+apply). All three mechanisms fired: `Query filters: entities=['MSTR']
+window=2026-07-06..2026-07-09` (entity + this-week window from the regex), 4-phase retrieval
+with same-day digest exclusion + dedup → 20 chunks / 30.5k chars, Opus answer a high-quality
+cross-day synthesis (6/29 framework 8-K → 7/6 first-ever BTC-sale 8-K → substack/NAV analysis,
+all source-tagged). Bonus design validation: Sonnet's rewritten queries mis-guessed the year
+("2025") — harmless, because filters come from the deterministic regex on the ORIGINAL question,
+not Sonnet's rewrites. Budget after run: ~$6.18. Sonnet extract $0.002 + Opus answer $0.122.
+
+---
+
 ## CHECKPOINT (2026-07-09): week green; rerank + hybrid flips REJECTED; 3b skipped; Sonnet watch closed
 
 **Week scorecard:** 6/6 runs green (Wed+Thu fully hands-off via the hardened task); week spend
-≈ $6.45, **~$6.30 credit remains**. Archive: **6 days / 3,554 chunks**; PDF corpus **17** (3.3
+≈ $6.45, **~$6.30 credit remains**. Archive: **6 days / 3,554 chunks**; PDF corpus **11 files =
+10 unique (8 broker notes + 2 WILTW weeklies; operator caught my earlier "17" — a bad `ls|grep`
+count that included directory headers)** — 3.3 trigger met at the margin (3.3
 trigger MET). Memory: 18 → **41 active + 7 resolved** across six Sonnet updates. **Operator
 decisions:** stop daily runs after this week (task DISABLED — re-enable via
 `schtasks /Change /TN "DailyDigest\MorningDigest" /ENABLE`); remaining credit reserved for

@@ -10,11 +10,11 @@
 | Stage | What | State |
 |---|---|---|
 | 0 | Eval harness (golden Q→source set) | ✅ done 2026-07-01 — `tools/eval_retrieval.py` + `eval_golden.json` (15 Qs); baseline hit@1=0.93, MRR=0.96 (near-saturated: 1-day archive) |
-| 1 | Cross-encoder reranker + date-filter fix | ✅ built 2026-07-01; **flip REJECTED at the 2026-07-09 checkpoint** — on the 6-day/26-question eval, rerank lost decisively (hit@3 0.885 vs 1.0, MRR 0.839 vs 0.904; promotes digest/broker-email chunks over primary sources). Mechanism stays param-gated; one retest inside Stage 4 (with digest-exclusion), else park |
-| 2 | Hybrid search (BM25 + dense, RRF) + index caching | ✅ built 2026-07-02 (cache LIVE); **flip REJECTED at the 2026-07-09 checkpoint** — hybrid lost overall (MRR 0.872 vs 0.904) and introduced a genuine top-10 MISS (BM25 'oil' token flooding). Mechanism stays param-gated |
+| 1 | Cross-encoder reranker + date-filter fix | ✅ built 2026-07-01; flip REJECTED at the 2026-07-09 checkpoint; **Stage-4 retest ALSO FAILED (2026-07-09): PARKED PERMANENTLY** — even with every digest chunk excluded (its best case) rerank lost both gate metrics (hit@3 0.923 vs 0.962, MRR 0.876 vs 0.924; it promotes broker-email/substack chunks over primary sources). Mechanism stays param-gated in code |
+| 2 | Hybrid search (BM25 + dense, RRF) + index caching | ✅ built 2026-07-02 (cache LIVE); **flip REJECTED at the 2026-07-09 checkpoint** — hybrid lost overall (MRR 0.872 vs 0.904) and introduced a genuine top-10 MISS (BM25 'oil' token flooding). **PARKED with rerank (2026-07-09)**; mechanism stays param-gated |
 | 3a | Entity/date metadata tags + date-range filter (no reindex needed) | ✅ built 2026-07-02 — tags live at index time + `--retag` backfill (66/629 chunks tagged); `search(entity_filter=, date_from=, date_to=)`; entity-filtered eval case hits rank 1 |
 | 3b | Stronger embeddings / structure-aware chunking (reindex) | ❌ SKIPPED (2026-07-09 checkpoint) — default retrieval has hit@3 = 1.0 on the 6-day eval; no headroom a bigger embedder addresses |
-| 4 | Smarter retrieval in the reply bot (query understanding + MMR/dedup) | ⬜ not started |
+| 4 | Smarter retrieval in the reply bot (query understanding + MMR/dedup) | ✅ done 2026-07-09 — query understanding → live entity/date-window filters; same-day digest exclusion; near-dup dedup; rerank retest run + failed (parked). **Live-validated same day ($0.12):** MSTR cross-week question fired entity+window filters and produced a high-quality cross-day answer |
 | 5 | Converge System A ↔ B (story-timeline memory wired into the bot) | ⬜ not started |
 | — | Optional: substrate swap (LanceDB / sqlite-vec) | ⬜ conditional |
 
@@ -204,6 +204,20 @@ would, so measure first:
 - **MMR / dedup** in [`_search_multiple`](reply_monitor.py) / context build so near-duplicate chunks
   (same story across days) don't crowd the 80k-char window.
 - **Test:** offline retrieval + one ~$0.20 permissioned reply run to confirm end-to-end. **Risk:** low.
+- **Built 2026-07-09 — findings:** regex-only query understanding
+  (`reply_monitor._extract_query_filters`: entities via the index's own lexicon —
+  `search.extract_entities` — plus ISO / "Month DD" / this-week/last-week date windows anchored to
+  the digest day) drives new entity-filtered and date-windowed phases in `_search_multiple`; the
+  Stage-3a filters are now consumed in production. **Same-day digest exclusion** landed as
+  `search(exclude_digest_date=)` (pre-retrieval, via `_filter_ids`; "" = all digests for the eval)
+  and is passed in every reply-path phase. **Near-dup dedup** (`search.dedupe_near_duplicates`,
+  token-Jaccard ≥ 0.85) stops the twice-forwarded-PDF case (7/7 + 7/8 "Global Update") crowding the
+  context. Eval: default path byte-identical to the checkpoint (0.846/1.0/0.904); default +
+  exclude-digest **improves** to 0.885/0.962/0.924; the **rerank retest failed its gate** even in
+  this best case (0.808/0.923/0.876) → rerank + hybrid parked permanently. Same-day-only exclusion
+  in production (older digests stay retrievable as cross-day summaries); `SEARCH_TOP_K` stays 20
+  (the 20→10 cut was conditioned on rerank). `pytest` 115 (+17), `ruff` clean. **Remaining:** the
+  one permissioned reply validation.
 
 ### Stage 5 — Converge System A ↔ B (the real "piece together" bet; larger lift)
 - Restructure cross-digest memory into a **queryable story-timeline store** — per-story dated update

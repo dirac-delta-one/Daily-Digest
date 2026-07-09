@@ -13,8 +13,8 @@
 
 | Track | State |
 |---|---|
-| §1 Checkpoint (post-accrual-week decision session) | ✅ RUN 2026-07-09 — week 6/6 green; rerank + hybrid flips REJECTED on the 26-question eval (default won every metric); 3b SKIPPED; Sonnet watch CLOSED (stays); runs stopped (task disabled, operator decision); 3.3 trigger MET (17 PDFs). Token swap still pending (before 7/14). Full detail in WORKLOG |
-| §2.1 Memory layer (Stages 4–5 + flips) | 🔄 in progress — Stages 0–3a done; see `MEMORY_REFACTOR_SPEC.md` |
+| §1 Checkpoint (post-accrual-week decision session) | ✅ RUN 2026-07-09 — week 6/6 green; rerank + hybrid flips REJECTED on the 26-question eval (default won every metric); 3b SKIPPED; Sonnet watch CLOSED (stays); runs stopped (task disabled, operator decision); 3.3 trigger met at the margin (10 unique PDFs: 8 broker + 2 WILTW). Token swap still pending (before 7/14). Full detail in WORKLOG |
+| §2.1 Memory layer (Stages 4–5 + flips) | 🔄 in progress — Stages 0–4 DONE (Stage 4 done + live-validated 2026-07-09, $0.12: query understanding + digest exclusion + dedup; **rerank retest FAILED → rerank + hybrid parked permanently**); only Stage 5 remains; see `MEMORY_REFACTOR_SPEC.md` |
 | §2.2 General efficiency (E/S/O items) | ⬜ specced here; O2 allowed during accrual week, rest after checkpoint |
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
 | §3.F1 Server-deploy readiness (§7.2) | ⬜ queued after memory track; checklist pre-work can start anytime |
@@ -153,7 +153,7 @@ Residual ideas, honestly EV'd, for the record:
 | 13D text-extraction instead of PDF→Opus | Post-cache ceiling is ~$0.65/week; quality risk — **parked** |
 | Weekly summary → Sonnet | ~$0.15–0.25/week; only ever bundle the A/B with some other permissioned run — **low priority** |
 | Stage 5 incremental memory update | Real savings (kills the ~daily wholesale-rewrite tokens) — **delivered by the memory track**, not a cost project |
-| Fewer reply chunks after rerank (20 → ~10) | ~$0.05–0.08/reply — **delivered by Stage 4**, not a cost project |
+| Fewer reply chunks after rerank (20 → ~10) | ~~delivered by Stage 4~~ **DEAD 2026-07-09** — conditioned on rerank's precision; rerank failed its Stage-4 retest and parked, so `SEARCH_TOP_K` stays 20 |
 
 Monitoring continues for free via the `cost.py` per-run summaries in every log.
 
@@ -196,7 +196,9 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
   flagged the 7/2 digest as malicious — quarantine silences digests AND alerts). Known
   behavior, no fix: WILTW posts after 8 AM Thursdays → picked up next scheduled run.
 - **F2 — 3.3 PDF-extraction review** — no longer hypothetical: the broker-PDF corpus started
-  accruing 2026-07-02 (MENA + Taiwan notes) and hit **17 PDFs by 7/9 (trigger MET)**. Measure
+  accruing 2026-07-02 (MENA + Taiwan notes) and reached **10 unique PDFs by 7/9 — 8 broker notes
+  + 2 WILTW weeklies (trigger met at its ~8–10 lower bound; a thin corpus, so hold conclusions
+  loosely or accrue a few more days before deciding the pypdf bump)**. Measure
   `_clean_pdf_text` fire-rate and cleaned-vs-raw damage on the real corpus, then decide
   fragmentation-gating and the PyPDF2→pypdf bump. Measure-before-touch per HANDOFF §6; also
   the pinned-PyPDF2 release valve.
@@ -215,11 +217,11 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 |---|---|
 | ~~Accrual week (7/6–7/9)~~ | ✅ DONE — 6/6 runs green; §7.2 field findings collected (→ F1a) |
 | ~~Checkpoint (7/09)~~ | ✅ RUN — flips rejected, 3b skipped, Sonnet watch closed, runs stopped; see WORKLOG |
-| Next | **Stage 4** (query understanding + MMR/dedup + digest-exclusion; incl. the one rerank retest; +1 permissioned reply ~$0.20) — token swap (F1a config) must complete before the reply test if after 7/14 |
+| ~~Next~~ | ✅ **Stage 4 DONE 2026-07-09** (query understanding + dedup + digest-exclusion; rerank retest run + FAILED → rerank/hybrid parked permanently; live-validated same day, $0.12) |
 | Then | **Stage 5** — memory convergence (6 daily `memory.json` snapshots archived to design against) |
 | Then | Efficiency batch: **E1+S1** together, **E2**, **O1**, **O3** (E3 only if still needed) |
 | Then | **F1 + F1a → §7.2 server deploy** — the project's "done" |
-| Unblocked, anytime | **F2** (3.3 PDF review — 17 PDFs archived, trigger met) |
+| Unblocked, anytime | **F2** (3.3 PDF review — 10 unique PDFs archived, trigger met at the margin) |
 
 **Budget thread:** ~$11.7 remained after 7/2; the accrual week spends ~$5–7 → ~$5–6 left at
 the checkpoint; the checkpoint itself needs ~$0.20. Extending daily runs ≈ $5–7/week ⇒ the

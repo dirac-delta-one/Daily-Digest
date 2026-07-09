@@ -46,3 +46,61 @@ def test_extract_digest_date_from_subject():
 def test_extract_digest_date_no_match_returns_none():
     # No trailing "Month DD" and service is None, so the thread fallback can't run.
     assert reply_monitor._extract_digest_date("Re: random subject", None, None) is None
+
+
+# --- _extract_query_filters (Stage 4: regex query understanding) ---
+
+def test_query_filters_iso_date_range():
+    _, df, dt = reply_monitor._extract_query_filters(
+        "What happened between 2026-07-06 and 2026-07-08?")
+    assert (df, dt) == ("2026-07-06", "2026-07-08")
+
+
+def test_query_filters_single_iso_date():
+    _, df, dt = reply_monitor._extract_query_filters("What did the 2026-06-30 digest cover?")
+    assert (df, dt) == ("2026-06-30", "2026-06-30")
+
+
+def test_query_filters_entity_dollar_tick():
+    ents, df, dt = reply_monitor._extract_query_filters("What is the latest on $ABR?")
+    assert "ABR" in ents
+    assert (df, dt) == (None, None)
+
+
+def test_query_filters_watchlist_and_fund():
+    ents, _, _ = reply_monitor._extract_query_filters(
+        "What did FSK file about a purchase agreement with Oaktree?")
+    assert "FSK" in ents
+    assert "Oaktree Capital Management" in ents
+
+
+def test_query_filters_month_day():
+    _, df, dt = reply_monitor._extract_query_filters("What was in the July 7 digest?")
+    assert df == dt == _expected_for_month_day(7, 7)
+
+
+def test_query_filters_this_week_anchored_to_digest():
+    # 2026-07-09 is a Thursday (weekday 3) -> Monday 2026-07-06 .. anchor
+    ents, df, dt = reply_monitor._extract_query_filters(
+        "How did the MSTR story evolve this week?", digest_date="2026-07-09")
+    assert "MSTR" in ents
+    assert (df, dt) == ("2026-07-06", "2026-07-09")
+
+
+def test_query_filters_last_week_anchored_to_digest():
+    _, df, dt = reply_monitor._extract_query_filters(
+        "What happened last week?", digest_date="2026-07-09")
+    assert (df, dt) == ("2026-06-29", "2026-07-05")
+
+
+def test_query_filters_nothing_recognized():
+    ents, df, dt = reply_monitor._extract_query_filters(
+        "What is the state of private credit?")
+    assert ents == []
+    assert (df, dt) == (None, None)
+
+
+def test_query_filters_bare_may_not_a_date():
+    # "may" as a verb must not trigger the month regex (needs a trailing day number)
+    _, df, dt = reply_monitor._extract_query_filters("How may spreads react to this?")
+    assert (df, dt) == (None, None)

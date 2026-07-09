@@ -264,3 +264,62 @@ def test_filter_ids_combined_and_missing_entities_key():
     # entity + range combine with AND; chunks without an entities key never match
     assert search._filter_ids(_META, entity_filter="MSTR", date_from="2026-06-30") == []
     assert search._filter_ids(_META, entity_filter="MSTR", date_to="2026-06-29") == [0]
+
+
+# --- _filter_ids exclude_digest_date (Stage 4: same-day digest exclusion) ---
+
+_META_DIGEST = [
+    {"date": "2026-07-09", "source_type": "digest"},
+    {"date": "2026-07-09", "source_type": "email"},
+    {"date": "2026-07-08", "source_type": "digest"},
+    {"date": "2026-07-08", "source_type": "pdf"},
+]
+
+
+def test_exclude_digest_same_day_only():
+    # Only the 7/09 digest chunk drops; the 7/08 digest and non-digest chunks stay
+    assert search._filter_ids(_META_DIGEST, exclude_digest_date="2026-07-09") == [1, 2, 3]
+
+
+def test_exclude_digest_all_via_empty_prefix():
+    # "" prefix-matches every date -> every digest chunk drops (eval-retest condition)
+    assert search._filter_ids(_META_DIGEST, exclude_digest_date="") == [1, 3]
+
+
+def test_exclude_digest_combines_with_include_filters():
+    ids = search._filter_ids(_META_DIGEST, date_filter="2026-07-09",
+                             exclude_digest_date="2026-07-09")
+    assert ids == [1]
+
+
+def test_exclude_digest_none_means_no_filter():
+    assert search._filter_ids(_META_DIGEST) is None
+
+
+# --- dedupe_near_duplicates (Stage 4: near-dup text filter) ---
+
+_DUP_A = {"text": "Global Update: China demand dips, EU stimulus talk, oil range-bound this week."}
+_DUP_B = {"text": "Global Update: China demand dips, EU stimulus talk, oil range-bound this week"}
+_DISTINCT = {"text": "Wynn Resorts outlook cut to negative by Moody's on Boston leverage concerns."}
+
+
+def test_dedupe_drops_near_identical_keeps_best_first():
+    out = search.dedupe_near_duplicates([(_DUP_A, 0.9), (_DUP_B, 0.8), (_DISTINCT, 0.7)])
+    assert out == [(_DUP_A, 0.9), (_DISTINCT, 0.7)]
+
+
+def test_dedupe_keeps_distinct_chunks():
+    results = [(_DUP_A, 0.9), (_DISTINCT, 0.8)]
+    assert search.dedupe_near_duplicates(results) == results
+
+
+def test_dedupe_partial_overlap_survives():
+    # Adjacent chunks sharing a minority of tokens (CHUNK_OVERLAP) must both survive
+    a = {"text": "alpha beta gamma delta epsilon zeta eta theta iota kappa"}
+    b = {"text": "iota kappa lambda mu nu xi omicron pi rho sigma"}
+    results = [(a, 0.9), (b, 0.8)]
+    assert search.dedupe_near_duplicates(results) == results
+
+
+def test_dedupe_empty():
+    assert search.dedupe_near_duplicates([]) == []

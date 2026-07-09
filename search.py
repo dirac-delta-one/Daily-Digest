@@ -247,11 +247,66 @@ def _entity_key(s):
     return (s or "").lstrip("$").strip().lower()
 
 
+def extract_entities(text):
+    """Public alias for the Stage-3a entity tagger.
+
+    Used by the reply bot's Stage-4 query understanding so questions and index
+    tags share ONE lexicon — an entity detected in a question is guaranteed to
+    be a tag the index could carry (watchlist ticker, $TICK mention, tracked
+    fund), never a name that can't match anything.
+    """
+    return _extract_entities(text)
+
+
+def dedupe_near_duplicates(results, threshold=0.85):
+    """Drop near-duplicate chunks from a scored result list (Stage 4).
+
+    Walks results best-first and drops any chunk whose token-set Jaccard
+    similarity with an already-kept chunk is >= threshold. The real-archive
+    case: the same broker PDF forwarded on consecutive days (e.g. the 7/7 and
+    7/8 "Global Update") indexes twice, and its twin chunks otherwise fill
+    multiple context slots with identical text. The 0.85 bar sits far above
+    the ~0.2 token overlap that adjacent chunks share via CHUNK_OVERLAP, so
+    ordinary neighbors survive.
+
+    Args:
+        results: [(metadata_dict, score), ...] sorted best-first.
+    Returns:
+        The same shape, best-first, with near-duplicates removed.
+    """
+    kept = []
+    kept_tokens = []
+    for meta, score in results:
+        tokens = set(_tokenize(meta.get("text", "")))
+        is_dup = False
+        for seen in kept_tokens:
+            if tokens and seen:
+                if len(tokens & seen) / len(tokens | seen) >= threshold:
+                    is_dup = True
+                    break
+        if not is_dup:
+            kept.append((meta, score))
+            kept_tokens.append(tokens)
+    return kept
+
+
 def _filter_ids(metadata, date_filter=None, date_from=None, date_to=None,
-                entity_filter=None):
+                entity_filter=None, exclude_digest_date=None):
     """Chunk ids passing all supplied filters (Stage 1 date prefix + Stage 3a
-    range/entity). Returns None when no filter is active (= search everything)."""
-    if not (date_filter or date_from or date_to or entity_filter):
+    range/entity + Stage 4 digest exclusion). Returns None when no filter is
+    active (= search everything).
+
+    exclude_digest_date drops digest-type chunks whose date starts with the
+    given prefix. The reply bot passes the day it is replying about — that
+    digest is already loaded verbatim into its context, so retrieving its
+    chunks only wastes result slots (the Stage-1/2 eval finding). "" excludes
+    EVERY digest chunk (the eval harness's rerank-retest condition). Being an
+    exclusion, it yields a nearly-full id list and sends search down the
+    brute-force subset path — exact and cheap at the current scale (~3.5k
+    vectors); revisit if the archive approaches the 100k-chunk FAISS ceiling.
+    """
+    if not (date_filter or date_from or date_to or entity_filter
+            or exclude_digest_date is not None):
         return None
 
     ent = _entity_key(entity_filter) if entity_filter else None
@@ -265,6 +320,10 @@ def _filter_ids(metadata, date_filter=None, date_from=None, date_to=None,
         if date_to and d > date_to:
             continue
         if ent and ent not in (_entity_key(t) for t in m.get("entities") or []):
+            continue
+        if (exclude_digest_date is not None
+                and m.get("source_type") == "digest"
+                and d.startswith(exclude_digest_date)):
             continue
         allowed.append(i)
     return allowed
@@ -792,7 +851,8 @@ def _rerank_candidates(query, candidates, top_k):
 
 
 def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
-           entity_filter=None, date_from=None, date_to=None):
+           entity_filter=None, date_from=None, date_to=None,
+           exclude_digest_date=None):
     """
     Search the archive: dense retrieval (optionally fused with BM25), then
     keyword boost or cross-encoder rerank.
@@ -815,6 +875,10 @@ def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
             case- and $-insensitive). Coverage = watchlist + $TICK + tracked funds.
         date_from / date_to: Optional inclusive ISO date range (Stage 3a), e.g.
             date_from="2026-06-01", date_to="2026-06-30". Combines with the others.
+        exclude_digest_date: Optional date prefix (Stage 4) — EXCLUDE digest-type
+            chunks from that date ("" = all digests). The reply bot passes the
+            digest day it is replying about, since that digest is already in its
+            context. Combines with the include-filters above.
 
     Returns:
         List of (metadata_dict, score) tuples, best-first.
@@ -836,7 +900,8 @@ def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
     # of discarding non-matching chunks from a global top-k afterwards.
     allowed_ids = _filter_ids(metadata, date_filter=date_filter,
                               date_from=date_from, date_to=date_to,
-                              entity_filter=entity_filter)
+                              entity_filter=entity_filter,
+                              exclude_digest_date=exclude_digest_date)
     if allowed_ids is not None and not allowed_ids:
         return []
 

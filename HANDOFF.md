@@ -9,9 +9,10 @@
 ## 1. Objective & current state
 
 **What it is:** A solo-operator Python automation that runs daily on a schedule. It gathers ~17
-financial/market data sources (Gmail inbox + PDF attachments, paid Substack subs, SEC EDGAR, FRED,
-Yahoo Finance, Octus, PACER, FINRA TRACE, 13F filings, rating actions, Treasury auctions, CFTC COT,
-Fed balance sheet, FDIC, WSJ/FT RSS, 13D WILTW), summarizes them with Claude in a **two-pass**
+financial/market data sources (Gmail inbox + PDF attachments, paid Substack subs, SEC EDGAR, FRED
+macro, Fed balance sheet, Yahoo Finance, earnings calendar, PACER, FINRA TRACE, 13F filings, rating
+actions, central-bank research, Treasury auctions, CFTC COT, FDIC, WSJ/FT RSS, 13D WILTW —
+Octus removed 2026-06-29), summarizes them with Claude in a **two-pass**
 flow (draft → review/enhance), emails an HTML "Daily Research Digest," archives all raw content to
 disk, and indexes it into a local FAISS vector store that powers an **email-reply Q&A bot**.
 
@@ -30,10 +31,15 @@ both upgrades** — the rerank and hybrid production flips were **REJECTED** (me
 param-gated; one rerank retest inside Stage 4), **Stage 3b was SKIPPED** (hit@3 = 1.0, no headroom),
 and the **memory→Sonnet watch CLOSED** (healthy: 18 → 41 active + 7 resolved stories over the week —
 Sonnet stays). Daily runs are **stopped** (task disabled; operator decision — remaining ~$6.30 credit
-reserved for refactor testing, top-up at deploy). **Next: Stage 4 → Stage 5 → the efficiency batch →
+reserved for refactor testing, top-up at deploy; ~$6.18 after the Stage-4 validation). **Stage 4 is
+DONE + live-validated (2026-07-09, $0.12):** query understanding drives the live entity/date
+filters, same-day digest chunks are excluded from reply retrieval, near-dup chunks deduped; the
+**rerank retest FAILED its gate → rerank + hybrid parked permanently** (param-gated code stays).
+**Next: Stage 5 → the efficiency batch →
 server deploy**, all sequenced in **`NEXT_STEPS_SPEC.md`**; the accrual week also produced a list of
 **deploy-blocking fixes (§7.2 field findings)**. Other open items: the **§13** coverage gaps and the
-now-unblocked **3.3** PDF review (17 archived PDFs) — see **§11 / §12 / §13 / §14**.
+now-unblocked **3.3** PDF review (10 unique archived PDFs: 8 broker notes + 2 WILTWs — the trigger's
+lower bound) — see **§11 / §12 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -60,7 +66,8 @@ now-unblocked **3.3** PDF review (17 archived PDFs) — see **§11 / §12 / §13
 > MMR/dedup, digest-exclusion; ~$0.20 to validate) **→ Stage 5** (memory convergence — the archive
 > holds 6 daily `memory.json` snapshots to design against) — then the `NEXT_STEPS_SPEC.md` efficiency
 > batch and the §7.2 deploy (see the §7.2 **field findings** for the deploy-blocking fixes the accrual
-> week surfaced). **Other open tracks:** §13 coverage gaps; 3.3 PDF review (unblocked, 17 PDFs).
+> week surfaced). **Other open tracks:** §13 coverage gaps; 3.3 PDF review (marginally unblocked —
+> 10 unique PDFs: 8 broker notes + 2 WILTWs).
 
 **Phase 0–3 refactor commits (pre-live-run history):**
 
@@ -164,8 +171,9 @@ monitor unattended 24/7. The work happens in three stages:
   never to the config recipients (jared's addresses) during testing.
 - **External tooling falls into three cost tiers — know which before testing:**
   - **Pay-per-query (the only real per-call cost): the Anthropic/Claude API.** Token-billed across
-    the 2-pass Opus digest, Haiku (news ranking), Sonnet (Octus ranking, PACER size-filter, midday),
-    and Opus (13D summary, memory, alerts, reply bot). This is the *only* thing that costs money per
+    the 2-pass Opus digest, Haiku (news ranking), Sonnet (PACER size-filter, midday, reply
+    query-extract, memory), and Opus (13D summary, alerts, reply answers, Friday weekly summary).
+    This is the *only* thing that costs money per
     run — **ask explicit permission before any test that calls Claude**, run once on a small input,
     and never loop the full digest.
   - **Flat paid subscriptions (already paid; zero marginal cost per run): Substack, 13D
@@ -234,8 +242,9 @@ used** by current code (Substack is cookie/magic-link based) — README is stale
   Opus-generated HTML. Stable in practice (heavily-pinned prompt) but brittle if the template drifts.
 - **HTML correctness:** scraped text/URLs are interpolated raw into the emailed HTML; special chars
   (`<`, `&`, `"`) can break rendering (low security risk — self-sent, client-sanitized).
-- **Account binding:** the whole pipeline authenticates against *jared's* Gmail/Substack/Octus via
-  the secret files above. Running on a new machine reuses those identities unless re-provisioned.
+- **Account binding:** the whole pipeline authenticates via the account-bound secret files above
+  (Gmail = the bot `acorn.research.bot@gmail.com` since 2026-06-30; Substack cookie + 13D session
+  = jared's accounts). Running on a new machine reuses those identities unless re-provisioned.
 - **PDF extraction quality (reply-bot only):** PyPDF2 can fragment text; `_clean_pdf_text` patches
   this aggressively. Do not change without measuring against real archived PDFs.
 
@@ -329,7 +338,7 @@ The project is wired to jared's machine. Required to run here:
    **Unaffected by the flip** (own keys/sessions or free public APIs — keep working regardless of which
    account sends): SEC EDGAR, 13F fund tracking, WSJ/FT, rating actions, central-bank research, PACER,
    market data, earnings, FRED macro + Fed balance sheet, Treasury auctions, CFTC COT, FINRA TRACE,
-   FDIC, 13D WILTW (own session), Octus (own session).
+   FDIC, 13D WILTW (own session).
 
    **Flip sequence (when ready):** (a) forward research email + move Substack subscriptions to the bot
    → (b) OAuth re-provision as the bot (remove `token.json`, run consent as
@@ -363,10 +372,10 @@ and `config.py`), then provision the server:
 2. **Run whether or not anyone is logged in:** create the scheduled tasks with
    `schtasks /RU <serviceacct> /RP <pw>` (or "Run whether user is logged on or not" + "Run with
    highest privileges"). `setup_tasks.bat` currently assumes an interactive session — update it.
-   Confirm Playwright/Chromium (Octus, 13D) runs headless under a non-interactive session.
+   Confirm Playwright/Chromium (13D) runs headless under a non-interactive session.
 3. **Secrets/identity on the server:** install the §7.1 secret files and `env.bat` there. **Decide
-   whose Gmail/Substack/Octus the server uses** — keep jared's identities (copy `token.json`,
-   `credentials.json`, sessions) or re-provision to a service/`acohen` account. Set env vars at the
+   whose Gmail/Substack the server uses** — the bot's Gmail is already provisioned (copy
+   `token.json` / `credentials.json`); Substack/13D sessions are jared's. Set env vars at the
    **machine/system** level (not user) so non-interactive tasks see them. **Critical for Gmail:**
    the Google OAuth app must be in **"production" publishing status** — Testing-mode refresh tokens
    expire after 7 days and would break the digest weekly under unattended operation. (We saw a
@@ -438,7 +447,7 @@ each piece location- and account-independent as you go so the server install is 
   `earnings.py`, `trace_data.py`, `fund_tracking.py`.
 - **Requires permission (costs money/credits):**
   - Any path that calls Claude — full `digest.py`, `memory.py`, `alerts.py`, `midday.py`,
-    `reply_monitor.py`, Octus/news ranking, **and `python pacer.py`** (its `__main__` can trigger
+    `reply_monitor.py`, news ranking, **and `python pacer.py`** (its `__main__` can trigger
     Sonnet via the size filter when new filings exist).
   - Substack (`substack.py`) scraping — **flat subscription, no per-query cost; free to test**
     (see the cost tiers in §2). Substack scraping itself makes no Claude call.
@@ -592,7 +601,7 @@ body extractor (substack's divergent ones left alone); pinned by `tests/test_htm
   blind edits; `_is_recent` true-on-unparseable; reply-monitor daemon; FAISS index type.
 - **Constraint:** Opus is `claude-opus-4-8` (upgraded from 4.6); model IDs centralized in
   `config.py`; test to `acohen@acorninv.com`; ask permission
-  before any **Claude** call (the only pay-per-query cost — Octus/Substack/13D are flat subscriptions,
+  before any **Claude** call (the only pay-per-query cost — Substack/13D are flat subscriptions,
   free to test; see the §2 cost tiers); don't loop LLM calls.
 - **End state ("done"):** running unattended 24/7 on a dedicated always-on Windows server, not
   jared's PC (§7.2) — deploy after Phases 0–3.
@@ -604,7 +613,7 @@ body extractor (substack's divergent ones left alone); pinned by `tests/test_htm
 A running tracker of changes that are verified by inspection + import/compile but whose **runtime**
 paths still need a credentialed/permissioned run to confirm. Add a subsection per phase; clear items
 once a live run exercises them. The natural catch-all is the single permissioned end-to-end
-`digest.py` run (drives `digest`, `substack`, `octus`, `pacer`, `thirteen_d` in one shot), plus
+`digest.py` run (drives `digest`, `substack`, `pacer`, `thirteen_d` in one shot), plus
 separate `midday.py` and `reply_monitor.py` runs.
 
 **✅ EXECUTED 2026-06-30 (see WORKLOG).** Steps 0–3 + 5 below are DONE and green — the credentialed
@@ -702,7 +711,7 @@ wrapper for real and confirm:
 - `setup_tasks.bat` → registers the three tasks with `%~dp0` paths (run on the target machine —
   not executed anywhere yet; it creates real scheduled tasks).
 - Confirm non-interactive scheduled runs see `PYTHONUTF8`/env vars and that Playwright/Chromium
-  runs headless under Task Scheduler (Octus / 13D).
+  runs headless under Task Scheduler (13D).
 
 ### Phase 2 & 3 (committed `d9dfd50`, `004722b`)
 

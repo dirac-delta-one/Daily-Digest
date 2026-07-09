@@ -55,7 +55,7 @@ def _first_match_rank(results, expects):
     return None
 
 
-def run_eval(top_k, rerank=False, hybrid=False):
+def run_eval(top_k, rerank=False, hybrid=False, exclude_digest=False):
     golden = json.loads(GOLDEN_FILE.read_text(encoding="utf-8"))["questions"]
 
     rows = []
@@ -65,7 +65,10 @@ def run_eval(top_k, rerank=False, hybrid=False):
                          entity_filter=item.get("entity_filter"),
                          date_from=item.get("date_from"),
                          date_to=item.get("date_to"),
-                         rerank=rerank, hybrid=hybrid)
+                         rerank=rerank, hybrid=hybrid,
+                         # "" = exclude every digest chunk (Stage-4 retest:
+                         # rerank's failure mode was promoting digest chunks)
+                         exclude_digest_date="" if exclude_digest else None)
         rank = _first_match_rank(results, item["expect"])
         top = results[0][0] if results else None
         rows.append({
@@ -121,14 +124,18 @@ def main():
                     help="use the Stage-1 cross-encoder rerank path")
     ap.add_argument("--hybrid", action="store_true",
                     help="use the Stage-2 BM25+RRF hybrid path")
+    ap.add_argument("--exclude-digest", action="store_true",
+                    help="exclude ALL digest chunks (the Stage-4 rerank-retest condition)")
     ap.add_argument("--save", metavar="LABEL",
                     help="also write metrics+rows to tools/eval_results/<date>_<LABEL>.json")
     args = ap.parse_args()
 
-    rows = run_eval(args.top_k, rerank=args.rerank, hybrid=args.hybrid)
+    rows = run_eval(args.top_k, rerank=args.rerank, hybrid=args.hybrid,
+                    exclude_digest=args.exclude_digest)
     metrics = summarize(rows, args.top_k)
     metrics["rerank"] = args.rerank
     metrics["hybrid"] = args.hybrid
+    metrics["exclude_digest"] = args.exclude_digest
 
     if args.save:
         RESULTS_DIR.mkdir(exist_ok=True)
