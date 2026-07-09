@@ -168,6 +168,8 @@ it. Each stage is independently committable; test between stages per HANDOFF §8
    re-index branch rebuilds prior chunks' vectors from the existing FAISS index instead of
    re-encoding every chunk. *Verify:* offline unit test — reconstructed index byte-equal for
    retained chunks on a tiny fixture + the real archive; free.
+   **✅ DONE 2026-07-09** — real-archive check: retained-side **208.8s → 0.01s** (byte-exact),
+   full-day re-index ~245s → 36s; mismatch fallback to the old re-encode path kept. 147 tests.
 3. **Stage 3 — O1 (log rotation).** Date-stamped logs + a keep-~30-days cleanup line in the
    three wrappers; `run_alert._tail` follows the new naming. *Verify:* wrapper dry run,
    rotation/cleanup logic unit-tested; free.

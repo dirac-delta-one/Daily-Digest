@@ -43,6 +43,28 @@ TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaini
 
 ---
 
+## Efficiency Stage 2 — E2 re-index without re-embedding (2026-07-09)
+
+Offline/free. `ruff` clean, `pytest` **147** green (+4).
+
+- **The change (`search.py`):** new `_rebuild_index_without_date` — dropping a re-indexed date now
+  copies the retained vectors out of the flat index via `reconstruct_n` (byte-exact) instead of
+  re-encoding every retained chunk's text. `index_daily_content` uses it whenever the position
+  invariant holds (`ntotal == len(metadata)`); a diverged index falls back to the old re-encode
+  path with a loud warning. Also more *faithful* than before: retained chunks keep their original
+  vectors even across an embedding-library upgrade.
+- **Measured on the real archive (temp copy, live index untouched):** dropping 7/09's 558 chunks
+  from the 3,554-vector index = **0.01s reconstruct vs 208.8s re-encode** of the 2,996 retained
+  chunks. Full production re-index of the day: ~245s before → **36s now** (all remaining time is
+  embedding the new day's chunks, inherent either way). Retained block verified byte-exact in the
+  final on-disk index; counts intact (3,554/3,554); spot search correct (Wynn rating top-1). The
+  old path's cost grew linearly with the archive; the new one is effectively free on the retained
+  side.
+- Unit tests (+4) pin: only the target date drops, absent-date = identity, only-date = empty
+  index, byte-exact retention, and search-order preservation on the rebuilt index.
+
+---
+
 ## Efficiency Stage 1 — S1 source registry + E1 parallel fetch built (2026-07-09)
 
 Built offline/free. `ruff` clean, `pytest` **143** green (+7). Awaiting the one permissioned live

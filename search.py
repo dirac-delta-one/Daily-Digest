@@ -682,6 +682,32 @@ def _chunks_for_date(date_str):
     return chunks
 
 
+def _rebuild_index_without_date(index, metadata, date_str):
+    """Drop one date from the index WITHOUT re-embedding (efficiency E2).
+
+    FAISS IndexFlat doesn't support removal, so a re-indexed date used to
+    trigger re-encoding every retained chunk — minutes of embedding work that
+    grows with the archive. The stored vectors are reconstructable byte-exact
+    from the flat index (`reconstruct_n`), so we copy the kept rows instead.
+    This is also more faithful than re-encoding: the retained chunks keep
+    their ORIGINAL vectors even across an embedding-library upgrade.
+
+    Assumes the position invariant (metadata[i] <-> vector i) holds — the
+    caller checks ntotal == len(metadata) and falls back to re-encoding if
+    the parallel arrays have diverged.
+
+    Returns (new_index, new_metadata).
+    """
+    import faiss
+
+    keep_ids = [i for i, m in enumerate(metadata) if m.get("date") != date_str]
+    new_index = faiss.IndexFlatIP(EMBEDDING_DIM)
+    if keep_ids:
+        all_vectors = index.reconstruct_n(0, index.ntotal)
+        new_index.add(np.array(all_vectors[keep_ids], dtype=np.float32))
+    return new_index, [metadata[i] for i in keep_ids]
+
+
 def index_daily_content(date_str):
     """Index all content from a given date. Returns number of chunks added."""
     import faiss
@@ -700,20 +726,23 @@ def index_daily_content(date_str):
     existing_dates = _get_indexed_dates(metadata)
     if date_str in existing_dates:
         print(f"  {date_str} already indexed — removing old entries and re-indexing...")
-        # Must rebuild the full index since FAISS IndexFlatIP doesn't support removal
-        # Filter out old metadata for this date, then rebuild
-        old_metadata = [m for m in metadata if m.get("date") != date_str]
-        if old_metadata:
-            # Rebuild index from remaining metadata embeddings
-            old_texts = [m["text"] for m in old_metadata]
-            old_embeddings = model.encode(old_texts, show_progress_bar=False, normalize_embeddings=True)
-            old_embeddings = np.array(old_embeddings, dtype=np.float32)
-            index = faiss.IndexFlatIP(EMBEDDING_DIM)
-            index.add(old_embeddings)
-            metadata = old_metadata
+        if index.ntotal == len(metadata):
+            # E2: copy the kept vectors out of the flat index — exact, no
+            # re-embedding of prior days.
+            index, metadata = _rebuild_index_without_date(index, metadata, date_str)
         else:
+            # Parallel arrays diverged (corrupt state) — fall back to
+            # re-encoding the retained chunks from their stored text.
+            print(f"  WARNING: index/metadata mismatch ({index.ntotal} vectors vs "
+                  f"{len(metadata)} chunks) — re-encoding retained chunks.")
+            old_metadata = [m for m in metadata if m.get("date") != date_str]
             index = faiss.IndexFlatIP(EMBEDDING_DIM)
-            metadata = []
+            if old_metadata:
+                old_texts = [m["text"] for m in old_metadata]
+                old_embeddings = model.encode(old_texts, show_progress_bar=False,
+                                              normalize_embeddings=True)
+                index.add(np.array(old_embeddings, dtype=np.float32))
+            metadata = old_metadata
 
     # Embed all chunk texts
     texts = [c[0] for c in chunks]

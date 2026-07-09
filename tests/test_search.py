@@ -323,3 +323,55 @@ def test_dedupe_partial_overlap_survives():
 
 def test_dedupe_empty():
     assert search.dedupe_near_duplicates([]) == []
+
+
+# --- _rebuild_index_without_date (efficiency E2: reconstruct, don't re-embed) ---
+
+def _dated_index():
+    """4 known vectors with dates [A, A, B, C] — EMBEDDING_DIM-sized."""
+    import faiss
+    rng = np.random.default_rng(42)
+    vecs = rng.random((4, search.EMBEDDING_DIM), dtype=np.float32)
+    index = faiss.IndexFlatIP(search.EMBEDDING_DIM)
+    index.add(vecs)
+    meta = [{"date": d, "text": f"chunk {i}"}
+            for i, d in enumerate(["2026-07-08", "2026-07-08", "2026-07-09", "2026-07-10"])]
+    return index, meta, vecs
+
+
+def test_rebuild_without_date_drops_only_that_date():
+    index, meta, vecs = _dated_index()
+    new_index, new_meta = search._rebuild_index_without_date(index, meta, "2026-07-08")
+    assert new_index.ntotal == 2
+    assert [m["date"] for m in new_meta] == ["2026-07-09", "2026-07-10"]
+    # retained vectors are byte-exact copies of the originals (no re-embedding)
+    kept = new_index.reconstruct_n(0, 2)
+    assert np.array_equal(kept, vecs[2:])
+
+
+def test_rebuild_without_absent_date_is_identity():
+    index, meta, vecs = _dated_index()
+    new_index, new_meta = search._rebuild_index_without_date(index, meta, "2000-01-01")
+    assert new_index.ntotal == 4
+    assert new_meta == meta
+    assert np.array_equal(new_index.reconstruct_n(0, 4), vecs)
+
+
+def test_rebuild_without_only_date_empties_index():
+    import faiss
+    rng = np.random.default_rng(7)
+    index = faiss.IndexFlatIP(search.EMBEDDING_DIM)
+    index.add(rng.random((2, search.EMBEDDING_DIM), dtype=np.float32))
+    meta = [{"date": "2026-07-09", "text": "x"}, {"date": "2026-07-09", "text": "y"}]
+    new_index, new_meta = search._rebuild_index_without_date(index, meta, "2026-07-09")
+    assert new_index.ntotal == 0
+    assert new_meta == []
+
+
+def test_rebuild_preserves_search_order():
+    # Searching the rebuilt index must rank the retained vectors identically
+    index, meta, vecs = _dated_index()
+    query = vecs[3:4]  # exact match for the last vector
+    new_index, _ = search._rebuild_index_without_date(index, meta, "2026-07-08")
+    scores, ids = new_index.search(query, 2)
+    assert ids[0][0] == 1  # vec[3] is now position 1 of the 2 kept
