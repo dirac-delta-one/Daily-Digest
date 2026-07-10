@@ -29,6 +29,25 @@ recur silently once deployed.
 
 ---
 
+## Cleanup Stage 1.3 — wrapper clean-exit (forfiles quirk) — PHASE 1 CODE DONE (2026-07-10)
+
+Behavior-neutral for outputs (only the wrapper's own exit code changes). `ruff` clean,
+`pytest` **184** green.
+
+- **All four wrappers (`run_digest/midday/reply_monitor/watchdog.bat`) now end with
+  `exit /b 0`** (+ explanatory REM). The O1 `forfiles /d -30` prune exits 1 when
+  nothing is >30 days old, so a CLEAN run left the wrapper — and Task Scheduler's
+  LastTaskResult — at 0x1 (the 2026-07-10 live-run quirk). Safe: the failure alert
+  fires inline off python's own `%ERRORLEVEL%` earlier in the wrapper, so the final
+  exit code carries no alerting duty.
+- **Scratch-dir validated** (the O1 method): old tail with only a fresh log → exit 1
+  (quirk reproduced); new tail same case → exit 0; new tail with a fabricated
+  40-day-old log → old log pruned, fresh log kept, exit 0.
+- Phase 1's code items are complete (1.1 + 1.2 + 1.3); the 1.2d HANDOFF §4 touch-up
+  waits for the operator's phase-done confirmation per workflow.
+
+---
+
 ## Cleanup Stage 1.2 — shared constants + tooling pin (2026-07-10)
 
 Behavior-neutral (all emailed subjects byte-identical, pinned by test). `ruff` clean,

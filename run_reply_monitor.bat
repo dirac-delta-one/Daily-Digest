@@ -13,3 +13,5 @@ REM The reply monitor is a daemon - ANY exit is abnormal, so alert on every exit
 echo [%date% %time%] Reply monitor stopped >> %LOGFILE%
 REM O1: prune logs older than ~30 days (forfiles errors when nothing matches - ignored)
 forfiles /p logs /m *.log /d -30 /c "cmd /c del @path" 2>nul
+REM Exit 0 on clean runs: forfiles above exits 1 when nothing is >30d old (alerting is keyed off python's exit inline)
+exit /b 0

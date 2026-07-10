@@ -11,3 +11,5 @@ REM O2: alert if today's digest never completed (hung / never started)
 "%~dp0.venv\Scripts\python.exe" "%~dp0run_alert.py" digest --check-completed >> %LOGFILE% 2>&1
 REM O1: prune logs older than ~30 days (forfiles errors when nothing matches - ignored)
 forfiles /p logs /m *.log /d -30 /c "cmd /c del @path" 2>nul
+REM Exit 0 on clean runs: forfiles above exits 1 when nothing is >30d old (alerting is keyed off python's exit inline)
+exit /b 0

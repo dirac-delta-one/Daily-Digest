@@ -12,3 +12,5 @@ if %ERRORLEVEL% NEQ 0 "%~dp0.venv\Scripts\python.exe" "%~dp0run_alert.py" digest
 echo [%date% %time%] Finished >> %LOGFILE%
 REM O1: prune logs older than ~30 days (forfiles errors when nothing matches - ignored)
 forfiles /p logs /m *.log /d -30 /c "cmd /c del @path" 2>nul
+REM Exit 0 on clean runs: forfiles above exits 1 when nothing is >30d old (alerting is keyed off python's exit inline)
+exit /b 0
