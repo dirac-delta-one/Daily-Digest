@@ -26,7 +26,7 @@ from digest import get_gmail_service, DIGEST_RECIPIENTS
 
 from search import search, extract_entities, dedupe_near_duplicates
 from memory import match_stories
-from config import OPUS_MODEL, SONNET_MODEL
+from config import OPUS_MODEL, SONNET_MODEL, DIGEST_SUBJECT_PREFIX
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body, strip_html
@@ -39,8 +39,6 @@ SEARCH_TOP_K = 20              # retrieve top 20 chunks for context
 REPLY_MODEL = OPUS_MODEL
 MAX_CONTEXT_CHARS = 80000      # cap context to control Opus costs
 MAX_REPLIES_PER_HOUR = 10      # rate limit
-
-DIGEST_SUBJECT_PREFIX = "\U0001f4ec Daily Inbox Digest"
 
 # Queries processed this hour (for rate limiting)
 _replies_this_hour = []

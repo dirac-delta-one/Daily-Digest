@@ -2,3 +2,5 @@
 # Install with:  pip install -r requirements-dev.txt
 # Run tests with: python -m pytest -q
 pytest==9.1.1
+# Lint gate for every stage/commit (run: python -m ruff check .)
+ruff==0.15.17

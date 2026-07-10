@@ -29,6 +29,36 @@ recur silently once deployed.
 
 ---
 
+## Cleanup Stage 1.2 — shared constants + tooling pin (2026-07-10)
+
+Behavior-neutral (all emailed subjects byte-identical, pinned by test). `ruff` clean,
+`pytest` **184** green (+4, new `tests/test_shared_constants.py`).
+
+- **1.2a — one digest-subject constant (`config.DIGEST_SUBJECT_PREFIX`).** The string
+  the reply bot's Gmail query matches ("📬 Daily Inbox Digest") was built
+  independently in `digest.send_digest_email` and hardcoded in `reply_monitor` —
+  drift would silently kill reply matching. Now: `config.py` owns it;
+  `reply_monitor` imports it; `digest` builds subjects via a new `_digest_subject()`
+  helper (added for testability — also pre-plumbs Stage 2.4c's weekly-subject
+  change). The Friday call site now passes the full "📊 Daily Inbox Digest" prefix
+  (the function no longer appends the name), keeping the weekly subject
+  byte-identical. Tests pin identity (same object, not just equal) + both legacy
+  subject formats.
+- **1.2b — earnings watchlist → single source of truth.** `EARNINGS_WATCHLIST` was a
+  byte-identical copy of `sec_filings.WATCHLIST` (a ticker added to one list
+  half-applied); now imported from `sec_filings`. The now-redundant
+  `extra_tickers=SEC_WATCHLIST` lambda in digest's source registry became a plain
+  `fetch_earnings_calendar` reference (the base list IS that watchlist now; the
+  `extra_tickers` param itself stays). Test pins list identity.
+- **1.2c — ruff pinned** (`ruff==0.15.17` in `requirements-dev.txt`) — the lint gate
+  every stage relies on was unpinned/unlisted.
+- **Verified:** ruff + 184 tests green; free `python earnings.py` smoke → checked all
+  16 watchlist tickers (0 upcoming in the next 7 days — mid-July, between seasons).
+- *(1.2d — the stale HANDOFF §4 `grab_session.py` row — deliberately deferred to the
+  Phase-1-complete HANDOFF update, per workflow.)*
+
+---
+
 ## Cleanup/refactor track opened: review + spec + Stage 1.1 dead code (2026-07-10)
 
 A full-codebase cleanup/refactor review (every module/test/tool/wrapper read; baseline

@@ -22,6 +22,13 @@ USER_AGENT = "DailyDigest/1.0 (acorn.research.bot@gmail.com)"
 # treasury_auctions.py.
 FEED_USER_AGENT = "DailyDigest/1.0"
 
+# --- Email subject ---
+# The daily digest subject prefix. reply_monitor's Gmail query finds replies by
+# matching this EXACT string ("Re: 📬 Daily Inbox Digest"), so the sender
+# (digest.send_digest_email) and the matcher share this one constant — a subject
+# edit in only one place can no longer silently break reply matching.
+DIGEST_SUBJECT_PREFIX = "\U0001f4ec Daily Inbox Digest"
+
 # --- Pricing ($ per million tokens) ---
 OPUS_PRICE_IN = 5.0
 OPUS_PRICE_OUT = 25.0

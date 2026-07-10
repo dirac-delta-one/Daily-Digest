@@ -25,12 +25,12 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from config import OPUS_MODEL, HAIKU_MODEL, esc, safe_href
+from config import OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, esc, safe_href
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body
 from substack import fetch_substack_articles
-from sec_filings import fetch_recent_filings, WATCHLIST as SEC_WATCHLIST
+from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
 from market_data import fetch_market_data, build_market_table_html, format_market_data_for_prompt
 from macro_data import fetch_macro_data, build_macro_table_html, format_macro_for_prompt
@@ -907,14 +907,26 @@ def generate_weekly_summary(digests):
     return weekly
 
 
-def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject_prefix="📬"):
+def _digest_subject(prefix=None):
+    """Digest email subject: '<prefix> — <Weekday, Month D>'.
+
+    The default prefix is config.DIGEST_SUBJECT_PREFIX ("📬 Daily Inbox Digest")
+    — the exact string reply_monitor's Gmail query matches replies against, so
+    the sender and the matcher can't drift apart.
+    """
+    day = datetime.date.today().day
+    today = datetime.date.today().strftime(f"%A, %B {day}")
+    return f"{prefix or DIGEST_SUBJECT_PREFIX} — {today}"
+
+
+def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject_prefix=None):
     """Send the digest as an email via Gmail, with retry for transient SSL errors."""
     day = datetime.date.today().day
     today = datetime.date.today().strftime(f"%A, %B {day}")
 
     message = MIMEText(html_body, "html")
     message["to"] = ", ".join(recipients)
-    message["subject"] = f"{subject_prefix} Daily Inbox Digest — {today}"
+    message["subject"] = _digest_subject(subject_prefix)
 
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
@@ -957,7 +969,7 @@ SOURCE_FETCHERS = [
     ("macro_data", "Fetching FRED macro data...", "Macro data fetch",
      fetch_macro_data),
     ("earnings", "Checking earnings calendar...", "Earnings calendar",
-     lambda: fetch_earnings_calendar(extra_tickers=SEC_WATCHLIST)),
+     fetch_earnings_calendar),
     ("trace_data", "Fetching TRACE bond data...", "TRACE fetch",
      fetch_trace_data),
     ("pacer_entries", "Checking PACER dockets...", "PACER fetch",
@@ -1268,7 +1280,7 @@ def main():
                 if weekly_html:
                     send_digest_email(
                         service, weekly_html,
-                        subject_prefix="📊",
+                        subject_prefix="📊 Daily Inbox Digest",
                     )
                     print("Weekly summary sent.")
             else:
