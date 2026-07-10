@@ -9,7 +9,6 @@ substack_cookie.txt
 thirteen_d_session.json
 
 # Cache / state
-fred_cache.json
 trace_cache.json
 pacer_seen.json
 wiltw_cache.json

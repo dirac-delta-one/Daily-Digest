@@ -29,6 +29,44 @@ recur silently once deployed.
 
 ---
 
+## Cleanup/refactor track opened: review + spec + Stage 1.1 dead code (2026-07-10)
+
+A full-codebase cleanup/refactor review (every module/test/tool/wrapper read; baseline
+re-verified `ruff` clean + `pytest` 180 green) produced **`CLEANUP_REFACTOR_SPEC.md`**
+(operator-approved item list, same day): Phase 1 = behavior-neutral cleanup (3 stages),
+Phase 2 = correctness/tests/weekly-polish/13D-guard/pypdf (6 stages, tests-first,
+pypdf last behind the eval gate). Zero Claude spend anywhere in the plan. Out of scope
+by operator decision: `trace_data.py` frozen entirely (its fate is the §13 decision);
+all HANDOFF §6 / §14.F / NEXT_STEPS §2.2 exclusions respected (review found no new
+evidence against any of them).
+
+**Stage 1.1 — dead code — DONE.** `ruff` clean, `pytest` **180** green (deletions
+only, no new tests). Uncommitted pending operator go-ahead.
+
+- **1.1a `macro_data.py` write-only FRED cache removed** — `fred_cache.json` was
+  loaded/updated/saved every run but never read by anything (grep-verified; same
+  pathology as the market_data cache removed 2026-06-30). Deleted `CACHE_FILE` +
+  `_load_cache`/`_save_cache` + the cache lines in `fetch_macro_data`, the now-unused
+  `json`/`Path` imports, the `.gitignore` entry, and the on-disk file. Deliberately
+  NOT converted into a read-fallback (degrade-to-omission + O3 already cover FRED
+  outages; stale-data fallback would be new, mislabel-prone behavior).
+- **1.1b `macro_data.py` dead "dollar" unit branches removed** (`_fmt_val`,
+  `_fmt_change_cell`) — no FRED series carries unit "dollar"; dollar-priced assets
+  live in `market_data.py` by design.
+- **1.1c `reply_monitor._extract_question` dead trailing-newline loop removed** —
+  `question` is `.strip()`ed the line above, so `while question.endswith("\n")`
+  could never fire.
+- **1.1d `digest._rank_news_articles` default aligned 8 → 15** — the sole caller
+  (`build_news_html`) always passes 15; the old default was dead and misleading.
+- **Verified:** grep shows the only remaining `_load_cache`/`_save_cache` are
+  fund_tracking's real read-cache and frozen trace_data; `ruff` clean; `pytest` 180
+  green; live free smoke `python macro_data.py` → 12 FRED series, sane values, and
+  no `fred_cache.json` regenerated. (Smoke note: reproduced the known 2026-07-02
+  launcher quirk — relative `call env.bat` doesn't resolve in the agent shell;
+  absolute path works, wrappers already use `%~dp0` so nothing to fix.)
+
+---
+
 ## Abnormal allowlist request submitted (2026-07-10)
 
 Operator contacted IT / the AAC Service Desk to **allowlist `acorn.research.bot@gmail.com` in

@@ -85,10 +85,6 @@ def _extract_question(body):
 
     question = "\n".join(question_lines).strip()
 
-    # Remove trailing empty lines
-    while question.endswith("\n"):
-        question = question[:-1].strip()
-
     return question
 
 

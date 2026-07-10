@@ -666,7 +666,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     return final, prompt  # Return prompt too for alert evaluation
 
 
-def _rank_news_articles(articles, max_articles=8):
+def _rank_news_articles(articles, max_articles=15):
     """Use Claude to force-rank articles by relevance for a credit/distressed investor."""
     if len(articles) <= max_articles:
         return articles
