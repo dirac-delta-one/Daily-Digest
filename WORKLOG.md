@@ -20,9 +20,24 @@ runs remain stopped (task disabled).
 2026-07-10** (see entry below — the 7/14 deadline is cleared; the durable production token is
 what the server gets at deploy); (2) §7.2 server deploy (F1 checklist; run `setup_tasks.ps1`
 as admin on the box); (3) §13 coordination items with jared (Substack ownership, forwarding
-completeness, TRACE/Octus replacements). Watch-item: the 7/09 WILTW hadn't posted by Friday
-9:15 AM (graceful skip); its 6-day window ends Wed 7/15 — a permissioned standalone
-`python thirteen_d.py` (~$0.65–0.9) early next week catches it, or accept the miss.
+completeness, TRACE/Octus replacements). ~~Watch-item: the 7/09 WILTW~~ **CLOSED — miss
+accepted (operator, 2026-07-10):** the 7/09 WILTW hadn't posted by Friday's run; with daily
+runs stopped there are no automatic retries, so the week is skipped rather than manually
+probed. One-off only — on the server's Mon–Fri schedule the pipeline retries every day of the
+≤6-day window (Fri + Mon–Wed) and O3 alerts if wiltw stays at 0 for 3 runs, so this can't
+recur silently once deployed.
+
+---
+
+## Abnormal allowlist request submitted (2026-07-10)
+
+Operator contacted IT / the AAC Service Desk to **allowlist `acorn.research.bot@gmail.com` in
+Abnormal** (the §7.2 field-finding-7 runbook item: Abnormal quarantined the 7/02 digest as
+phishing, and since digests + failure alerts share the sender, quarantine silences both signal
+paths at once). **Confirmation from IT pending** — watch that digests keep arriving. Still open
+for deploy: the same allowlisting for every OTHER production recipient (incl.
+`jtramontano@acorninv.com`) before recipients are switched to production. HANDOFF §7.2 item 7 +
+NEXT_STEPS F1a updated.
 
 ---
 

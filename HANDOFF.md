@@ -22,9 +22,11 @@ the current machine (operator `acohen@acorninv.com`, Windows user `KimCohen`). G
 around every source, sensible secret hygiene. No rewrite is warranted — only incremental,
 low-risk improvements.
 
-**Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), then run daily
-through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**; `ruff` clean,
-`pytest` **136** green. The **cost refactor is complete** (2026-07-01; see §11 / §14 + `WORKLOG`).
+**Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), run daily
+through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**, and the whole
+2026-07-09 batch **live-validated by the 2026-07-10 run (GREEN, $1.58, checklist 9/9)**; `ruff`
+clean, `pytest` **180** green. The **cost refactor is complete** (2026-07-01; see §11 / §14 +
+`WORKLOG`).
 **The memory / retrieval refactor is COMPLETE (Stages 0–5, closed 2026-07-09).** Its 7/09
 checkpoint had the 6-day / 26-question eval **rejecting both "best-practice" upgrades** — the
 rerank and hybrid production flips (rerank also failed its one Stage-4 retest → **both parked
@@ -60,9 +62,10 @@ land on the box — no laptop interim, single-copy risk accepted). Daily runs re
 migration + delta, and the first-ever Friday weekly summary — **operator: eyeball the 📊
 weekly email's template adherence**). **E3 gate settled: SKIP — the efficiency track is
 CLOSED** (Gmail was seconds of a ~7-min run; wall-clock lives in the Claude calls). Full
-results in `WORKLOG` (2026-07-10). Watch-item: the 7/09 WILTW wasn't posted yet at run time
-(graceful skip, $0); its 6-day window ends Wed 7/15 — catch it with a permissioned standalone
-`python thirteen_d.py` early next week, or accept the miss.
+results in `WORKLOG` (2026-07-10). The 7/09 WILTW wasn't posted yet at run time (graceful
+skip, $0); **miss accepted (operator, 2026-07-10)** — a one-off from the paused scheduler; on
+the server's Mon–Fri cadence the ≤6-day window gets automatic daily retries and O3 flags a
+wiltw zero-streak, so it can't recur silently.
 **✅ OAuth production publish + fresh consent — DONE 2026-07-10** (the 7/14 deadline is
 cleared: app published as the bot, old Testing token backed up, durable production
 `token.json` minted + verified — `getProfile` = the bot; `run_alert`'s refresh-only path OK.
@@ -420,12 +423,12 @@ and `config.py`), then provision the server:
 3. **Secrets/identity on the server:** install the §7.1 secret files and `env.bat` there. **Decide
    whose Gmail/Substack the server uses** — the bot's Gmail is already provisioned (copy
    `token.json` / `credentials.json`); Substack/13D sessions are jared's. Set env vars at the
-   **machine/system** level (not user) so non-interactive tasks see them. **Critical for Gmail:**
-   the Google OAuth app must be in **"production" publishing status** — Testing-mode refresh tokens
-   expire after 7 days and would break the digest weekly under unattended operation. (We saw a
-   *copied* `token.json` already rejected with `invalid_grant`; `get_gmail_service` now re-consents
-   on refresh failure instead of crashing, but a headless server can't do an interactive consent —
-   so a non-expiring production token is the real requirement.)
+   **machine/system** level (not user) so non-interactive tasks see them. **Critical for Gmail —
+   ✅ SATISFIED 2026-07-10:** the app is now in **"production" publishing status** and the current
+   `token.json` on the dev machine is the durable post-publish token (verified as the bot) —
+   **copy that exact file to the server.** (Background: Testing-mode refresh tokens expire after
+   7 days and would break the digest weekly under unattended operation; a headless server can't
+   do an interactive consent, so the non-expiring production token is the real requirement.)
 4. **Reliability & observability:** ✅ **all code halves DONE.** Log rotation (O1, 2026-07-09:
    date-stamped `logs\<label>_YYYY-MM-DD.log` + 30-day prune in the wrappers); failure alerting
    (run-error half 2026-07-02: `run_alert.py`, nonzero exit → red alert email with the log tail);
@@ -450,9 +453,10 @@ exactly the failure modes this section predicted plus several new ones:
    `DIGEST_UNATTENDED=1` (set machine-wide by `setup_tasks.ps1`) a dead token fails fast
    (SystemExit 3) and the wrapper fires `run_alert`; flag unset = unchanged attended behavior.
 2. **OAuth Testing-mode 7-day token death — CONFIRMED LIVE on day 7 (7/7),** exactly as item 3
-   warned. `invalid_grant` → re-consent required. **Config fix:** publish the bot's OAuth app to
-   "production" + one fresh consent (operator pending; interim deadline 7/14, and an absolute
-   prerequisite for the server).
+   warned. `invalid_grant` → re-consent required. **Config fix — ✅ DONE 2026-07-10:** the bot's
+   OAuth app is published to "production" and a fresh consent minted the durable `token.json`
+   (verified: getProfile = the bot; `run_alert`'s refresh-only path OK). Copy THIS token to the
+   server at deploy. Detail in WORKLOG 2026-07-10.
 3. **`setup_tasks.bat` cannot produce a survivable task — ✅ CODE FIXED 2026-07-09.** The three
    settings that made the week work — `WakeToRun`, `StartWhenAvailable`,
    `RunOnlyIfNetworkAvailable` — **cannot be set via `schtasks` at all**; interactive tasks pop a
@@ -476,7 +480,10 @@ exactly the failure modes this section predicted plus several new ones:
    and removed it (new Gmail sender + emoji subject + link-dense HTML); delivery is intermittent.
    Deploy runbook: have every production recipient's mail security **allowlist
    `acorn.research.bot@gmail.com`** — the failure alerts share the sender, so quarantine can
-   silence both signal paths at once.
+   silence both signal paths at once. **Status 2026-07-10: acohen submitted the IT/service-desk
+   allowlist request for the bot sender** (confirmation from IT pending; watch that digests keep
+   arriving). Still open for deploy: the same allowlisting for **every other production
+   recipient** (incl. `jtramontano@acorninv.com`) before recipients are switched to production.
 8. **WILTW Thursday timing (known behavior, no fix).** The report posts after 8 AM Thursdays;
    the same-day run misses it gracefully and the next run within the 6-day window picks it up
    (on a Mon–Fri server schedule: Friday).
@@ -702,8 +709,8 @@ paths were first-time-live):
    chunks); digest email renders + archive/2026-07-10 + index append + cost summary sane.
 
 **On success:** record results in WORKLOG, mark the batch validated here, make the E3 call — then
-the remaining pre-deploy items are the operator's OAuth swap (**before Tue 7/14**) and the §13
-coordination items; after that, §7.2 deploy per the F1 checklist.
+the remaining pre-deploy items are the operator's OAuth swap (~~before Tue 7/14~~ ✅ DONE
+2026-07-10) and the §13 coordination items; after that, §7.2 deploy per the F1 checklist.
 
 **✅ EXECUTED 2026-06-30 (see WORKLOG).** Steps 0–3 + 5 below are DONE and green — the credentialed
 `digest.py` / `reply_monitor.py --once` / `midday.py --force` runs all passed → acohen, and the FRED
@@ -940,10 +947,30 @@ The inbox layer = whatever jared forwards to `acorn.research.bot@gmail.com`. The
   TRACE is secondary-market; SEC S-1/424B lack the HY pricing color. Would need a different paid feed or a
   custom scraper. *(Octus Intelligence — the distressed/restructuring news — is ~partly covered by
   PACER + ratings + the credit Substacks.)*
-- [ ] **FINRA TRACE bond data — effectively broken** (pre-existing, NOT caused by the Octus removal).
-  `trace_data.py` returns 0 with "non-JSON response (may need API registration)"; the public
-  Morningstar/FINRA endpoint isn't usable as written, so watchlist secondary bond-trade data is absent.
-  Needs FINRA TRACE API registration or a different data source.
+  **Assessed 2026-07-10:** the decision is a SOURCE decision before any code — jared picks a paid feed
+  (LevFin Insights / LCD-PitchBook / etc.) or commissions a scraper; the code side afterward is one new
+  fetcher module in the standard `fetch_X` / `format_X_for_prompt` pattern. Partial mitigation already
+  flows for free: forwarded broker **"New Issue Flash" emails** (e.g. Stifel's AMEGRE + Energy Transfer
+  flashes in the archive) reach the digest via the inbox — ad hoc coverage, not a systematic tracker,
+  and another reason the §13 forwarding-completeness item matters.
+- [ ] **FINRA TRACE bond data — a stub that has NEVER worked anywhere** (pre-existing, NOT caused by the
+  Octus removal). `trace_data.py` is fully written and wired (registry, prompt, HTML section, O3 counts)
+  but has returned 0 records on every run ever: it targets a Morningstar/FINRA bond-center JSP that
+  serves HTML, not JSON. Evidence it never functioned: `trace_cache.json` (written only on a successful
+  fetch) has never existed; no archive day has TRACE data; `archive.py` never even grew a parameter for it.
+  **Licensing reality (verified 2026-07-10):** the old "needs API registration" fix is optimistic —
+  FINRA Developer Center **Individual accounts are $0 but get only limited/aggregate datasets**
+  (Treasury aggregates, FINRA-Bloomberg index stats), NOT per-bond trade prints. **Per-issue trade-level
+  data (price/yield/volume) is a PAID product** (TRACE real-time feeds / End-of-Day Transaction File /
+  vendors like Finnhub). The free human path is the finra.org Fixed Income Data UI
+  (https://www.finra.org/finra-data/fixed-income — search by CUSIP/symbol, real-time trade history,
+  free login for a Bond Watchlist), but it is **non-commercial human browsing only: FINRA's Terms of
+  Use explicitly prohibit scraping/robots/database-building** — unlike EDGAR/PACER (government
+  open-data with fair-access policies), FINRA data is a licensed commercial product, so do NOT point
+  the fetcher at the web UI. **Options for jared:** (a) pay for TRACE data — hard to justify for the
+  2-issuer watchlist (PGY, CRWV); (b) manual: jared uses the free watchlist UI, with broker-quoted
+  levels arriving via forwarded emails; (c) drop the module (one registry row + `trace_data.py`; the
+  O3 content monitor already treats its permanent zero as normal). Lean (b)/(c) unless the watchlist grows.
 
 ### Latent maintenance (works now, will need a human later)
 - [ ] **13D session** + **Substack cookie** will expire and need a manual re-login (13D's is interactive).

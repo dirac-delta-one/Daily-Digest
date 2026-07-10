@@ -14,11 +14,11 @@
 
 | Track | State |
 |---|---|
-| §1 Checkpoint (post-accrual-week decision session) | ✅ RUN 2026-07-09 — week 6/6 green; rerank + hybrid flips REJECTED on the 26-question eval (default won every metric); 3b SKIPPED; Sonnet watch CLOSED (stays); runs stopped (task disabled, operator decision); 3.3 trigger met at the margin (10 unique PDFs: 8 broker + 2 WILTW). Token swap still pending (before 7/14). Full detail in WORKLOG |
+| §1 Checkpoint (post-accrual-week decision session) | ✅ RUN 2026-07-09 — week 6/6 green; rerank + hybrid flips REJECTED on the 26-question eval (default won every metric); 3b SKIPPED; Sonnet watch CLOSED (stays); runs stopped (task disabled, operator decision); 3.3 trigger met at the margin (10 unique PDFs: 8 broker + 2 WILTW). Token swap ✅ DONE 2026-07-10 (published + durable token). Full detail in WORKLOG |
 | §2.1 Memory layer (Stages 4–5 + flips) | ✅ **DONE 2026-07-09** — all stages complete (Stage 4 live-validated $0.12; Stage 5 delta-replay-validated $0.098: 64% cheaper than v1's same-day $0.274, zero story loss; **rerank + hybrid parked permanently** after the failed retest). Residuals/watch-items → **HANDOFF §14.F** (spec retired/deleted 2026-07-09) |
 | §2.2 General efficiency (E/S/O items) | ✅ **CLOSED 2026-07-10** — 7/10 live run validated the batch (S1+E1 fetch phase 44s/14 sources, coherent per-source blocks, all sections populated; O1 dated log + prune live; O3 counts file started), and **the E3 gate ruled SKIP** (Gmail = seconds of a ~7-min run; wall-clock lives in the Claude calls). E2 (208.8s→0.01s retained-side) was validated offline 7/09. Interim O4 CANCELLED (server available — backups land on the box) |
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
-| §3.F1 Server-deploy readiness (§7.2) | 🔄 **all F1a CODE fixes DONE 2026-07-09**; ✅ **OAuth publish + durable production token DONE 2026-07-10** (7/14 deadline cleared); the server EXISTS. Remaining: recipient allowlisting of the bot sender, then the on-box install (secrets incl. the new token.json, `setup_tasks.ps1` as admin, headless Playwright check, O4 backups) |
+| §3.F1 Server-deploy readiness (§7.2) | 🔄 **all F1a CODE fixes DONE 2026-07-09**; ✅ **OAuth publish + durable production token DONE 2026-07-10** (7/14 deadline cleared); ✅ **acohen's Abnormal allowlist request submitted to IT 2026-07-10** (confirmation pending); the server EXISTS. Remaining: allowlisting for the OTHER production recipients (jared) at recipient-switch time, then the on-box install (secrets incl. the new token.json, `setup_tasks.ps1` as admin, headless Playwright check, O4 backups) |
 | §3.F2 PDF-extraction review (3.3) | ✅ **DONE 2026-07-09** — the aggressive rules were the damage (96% of 5,852 fires glued real words; 99% of PDF chunks corrupted), not the rescue (0 fragmentation in the corpus); `_clean_pdf_text` trimmed, index rebuilt clean, eval identical; pypdf bump ungated but deferred |
 
 ---
@@ -63,12 +63,11 @@ work (§2.2 O2 — the watchdog is a new task + new alert mode, it touches no ru
      deleted): if the memory track continues, keep accruing (consider adding FRI) — which
      means a **credit top-up decision** (each week ≈ $5–7; console.anthropic.com is the
      authoritative balance).
-   - **OAuth token swap (added 2026-07-07 — HARD DEADLINE Tue 7/14):** the 7-day Testing-mode
-     token death fired live on 7/7 (§7.2's top-risk item, confirmed). Operator publishes the
-     bot's OAuth app to "production" (console.cloud.google.com as the bot → OAuth consent
-     screen → Publish app) any time before the checkpoint; AT the checkpoint (after Thursday's
-     run): delete `token.json`, one fresh consent as the bot → durable production token.
-     Without both halves, the 7/14 run hangs on a browser consent.
+   - **OAuth token swap (added 2026-07-07 — HARD DEADLINE Tue 7/14) — ✅ DONE 2026-07-10:**
+     the 7-day Testing-mode token death fired live on 7/7 (§7.2's top-risk item, confirmed).
+     Both halves completed 2026-07-10: app published to "production" (as the bot), old token
+     backed up, fresh consent → durable production `token.json`, verified (getProfile = the
+     bot; run_alert's refresh-only path OK). See WORKLOG 2026-07-10.
    - **3.3 trigger check:** count `archive/*/pdfs/` inbox PDFs; at ~8–10, §3.F2 is runnable.
 4. **Build Stage 4** (per `MEMORY_REFACTOR_SPEC.md`): query understanding → the already-live
    `entity_filter`/`date_from`/`date_to` search params, MMR/dedup in `_search_multiple`, and
@@ -243,10 +242,12 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
      successful send (standalone `python pacer.py` commits at exit). Crash ⇒ entries re-appear
      next run (duplication over silent loss).
   Config/runbook (operator-side): OAuth app → **production publishing status** + fresh consent
-  (7-day Testing token death confirmed live 7/7; interim deadline 7/14); **recipient-side
-  allowlisting of `acorn.research.bot@gmail.com`** at every production recipient (Abnormal AI
-  flagged the 7/2 digest as malicious — quarantine silences digests AND alerts). Known
-  behavior, no fix: WILTW posts after 8 AM Thursdays → picked up next scheduled run.
+  — ✅ **DONE 2026-07-10** (published + durable token minted/verified; 7/14 deadline cleared);
+  **recipient-side allowlisting of `acorn.research.bot@gmail.com`** at every production
+  recipient (Abnormal AI flagged the 7/2 digest as malicious — quarantine silences digests AND
+  alerts) — 🔄 **acohen's IT request submitted 2026-07-10** (confirmation pending); jared's
+  addresses still need it at recipient-switch time. Known behavior, no fix: WILTW posts after
+  8 AM Thursdays → picked up next scheduled run.
 - ✅ **F2 — 3.3 PDF-extraction review — DONE 2026-07-09** on the 10-unique-PDF corpus. Verdict
   inverted the HANDOFF §6 assumption: PyPDF2 3.0.1 extracts this corpus **cleanly** (zero
   fragmentation runs; the ligature/single-char rescue rules fired 0 times), while the mid-word
@@ -274,7 +275,7 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 | ~~Next~~ | ✅ **Stage 4 DONE 2026-07-09** (query understanding + dedup + digest-exclusion; rerank retest run + FAILED → rerank/hybrid parked permanently; live-validated same day, $0.12) |
 | ~~Then~~ | ✅ **Stage 5 DONE 2026-07-09** — v2 story-timeline store, incremental delta updates, reply router; delta-replay validated ($0.098 vs v1's $0.274 same-transition, zero story loss). **Memory track complete** |
 | ~~Then~~ | ✅ Efficiency batch **BUILT 2026-07-09** (stages 1–4 per §2.2); interim O4 cancelled (server available); E3 gated on the 7/10 run |
-| ~~Then~~ | ✅ **The 2026-07-10 Friday live run — GREEN, $1.58, checklist 9/9** (whole 7/09 batch validated; first live v2 memory delta; first-ever weekly summary sent — operator eyeball pending; **E3 ruled SKIP → efficiency track closed**; WILTW 7/09 not yet posted — catch by Wed 7/15 or accept). ~$4.50 credit remains. Detail in WORKLOG |
+| ~~Then~~ | ✅ **The 2026-07-10 Friday live run — GREEN, $1.58, checklist 9/9** (whole 7/09 batch validated; first live v2 memory delta; first-ever weekly summary sent — operator eyeball pending; **E3 ruled SKIP → efficiency track closed**; WILTW 7/09 not posted at run time — **miss accepted**, self-healing on the server schedule). ~$4.50 credit remains. Detail in WORKLOG |
 | ~~Then~~ | ✅ **OAuth production publish + fresh consent — DONE 2026-07-10** (7/14 deadline cleared; durable production token.json minted + verified as the bot; it's the token the server gets) |
 | **Next** | **§7.2 server deploy** (F1 on-box checklist; F1a code all done) — the project's "done" |
 | ~~Unblocked, anytime~~ | ✅ **F2 DONE 2026-07-09** (3.3 PDF review — clean rules trimmed, index rebuilt; see track table) |
