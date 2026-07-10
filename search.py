@@ -106,9 +106,9 @@ def _clean_pdf_text(text):
 def _extract_pdf_text(pdf_path):
     """Extract text from a PDF file with cleanup for better RAG indexing."""
     try:
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
     except ImportError:
-        print(f"    PyPDF2 not installed — cannot index {pdf_path}")
+        print(f"    pypdf not installed — cannot index {pdf_path}")
         return ""
 
     try:

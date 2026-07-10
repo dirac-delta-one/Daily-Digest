@@ -29,6 +29,34 @@ recur silently once deployed.
 
 ---
 
+## Cleanup Stage 2.6 — PyPDF2 → pypdf + rebuild + eval re-baseline — TRACK COMPLETE (2026-07-10)
+
+The last spec stage; **the cleanup/refactor track (CLEANUP_REFACTOR_SPEC.md) is
+code-complete.** All free/offline. `ruff` clean, `pytest` **227** green.
+
+- **Dep swap:** `PyPDF2==3.0.1` (unmaintained) → **`pypdf==6.14.2`** (its official
+  continuation) in `requirements.txt` + the `search.py` import; PyPDF2
+  uninstalled from the venv.
+- **Extraction diff (the measure-first step), real 11-PDF corpus:** 0/11
+  byte-identical, but every difference is small (~0.1–0.5% of chars) and
+  quality-POSITIVE — pypdf fixes PyPDF2's spurious space-before-punctuation
+  ("UPDATE : STRAIT TALKING ?" → "UPDATE: STRAIT TALKING?"), rejoins words
+  PyPDF2 split ("battl e" → "battle", "Le Pen ’s" → "Le Pen’s"), and breaks the
+  WILTW header block onto proper lines. No damage class found.
+- **Index rebuilt:** full `--rebuild` → **3,947 chunks / 7 days** (was 3,948;
+  net −1 from the changed extraction text). Pre-rebuild `index.faiss` +
+  `chunk_metadata.json` backed up (session scratchpad `index_backup_prepypdf/`;
+  rollback = restore those two files + revert the pin/import).
+- **EVAL GATE: PASSED, METRIC-IDENTICAL** — hit@1 **0.846** / hit@3 **1.0** /
+  MRR **0.904** on the 26-question set (snapshot
+  `tools/eval_results/2026-07-10_post_pypdf.json`); per the pre-committed gate,
+  no operator sign-off needed. Spot search sane (Wynn Moody's rating top-1,
+  0.931).
+- Historical references to "PyPDF2 3.0.1" in `_clean_pdf_text`'s docstring stay
+  as-is (they record what the 3.3 measurement was made against).
+
+---
+
 ## Cleanup Stage 2.5 — 13D unattended-login guard (R8) (2026-07-10)
 
 `ruff` clean, `pytest` **227** green (+3). Attended behavior byte-identical
