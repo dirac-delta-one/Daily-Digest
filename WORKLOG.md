@@ -5,41 +5,88 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-01)
+## Current state (2026-07-10)
 
-**The system is LIVE-validated end-to-end on the bot identity.** All prior refactor work
-(Phase 0–3, de-hardcoding, A1, Gmail RefreshError hardening) is committed + offline-verified. Since
-then: the **email identity migrated to `acorn.research.bot@gmail.com`** (OAuth provisioned + verified),
-**Octus was removed**, the **$20 Anthropic key + a free FRED key** were installed, and the **first
-credentialed run of the whole stack succeeded**, all → acohen: `digest.py` **$1.52**,
-`reply_monitor.py --once` **$0.20**, `midday.py --force` **$0.01** (~$1.73 of $20). `ruff` clean,
-`pytest` 56 green, FRED macro + Fed-balance-sheet sources now active. See the 2026-06-30 entries below.
-A post-live **optimization session** then landed (Opus 4.8 upgrade, model/UA centralization, dead-code
-removal incl. `net_utils`/`build_ratings_html`, 3.1 keyword-only, Fed-stress numeric wiring,
-SYSTEM_PROMPT §9 fix, A2 structured outputs) — **all committed** (`62002e0`→`543065a`; working tree clean).
+**Every code track is done AND live-validated.** The 2026-07-10 live validation run (next entry)
+passed the whole HANDOFF §11 checklist in one shot: the 7/09 efficiency batch (S1+E1, O1, O3),
+the F1a fixes exercised on the run path (PACER commit-after-send; consent-guard default path),
+the **first live v2 memory migration + delta** (v1 backed up automatically), and the
+**first-ever Friday weekly summary**. **E3 (Gmail batch fetch) is SKIPPED — the efficiency
+track is CLOSED** (Gmail was seconds of a ~7-minute run; the wall-clock lives in the 5 Claude
+calls). `ruff` clean, `pytest` **180** green. Budget **~$4.50** after the run's $1.58; daily
+runs remain stopped (task disabled).
 
-✅ **Group B Opus→Sonnet cost A/B — DONE 2026-07-01.** The A/B's *quality* verdict was keep-all-Opus.
-Detail in the dedicated section below and HANDOFF §11 "Cost/efficiency" → Group B.
+**REMAINING (all non-code):** (1) ~~operator OAuth publish + fresh consent~~ ✅ **DONE
+2026-07-10** (see entry below — the 7/14 deadline is cleared; the durable production token is
+what the server gets at deploy); (2) §7.2 server deploy (F1 checklist; run `setup_tasks.ps1`
+as admin on the box); (3) §13 coordination items with jared (Substack ownership, forwarding
+completeness, TRACE/Octus replacements). Watch-item: the 7/09 WILTW hadn't posted by Friday
+9:15 AM (graceful skip); its 6-day window ends Wed 7/15 — a permissioned standalone
+`python thirteen_d.py` (~$0.65–0.9) early next week catches it, or accept the miss.
 
-✅ **Cost refactor steps 1–3 — DONE 2026-07-01** (`pytest` **60** green, `ruff` clean): (1) **13D WILTW
-summary cache** (`wiltw_cache.json`) — stops re-summarizing the same weekly PDF 4–6×/week (~$130–150/yr,
-zero quality impact); (2) **memory → Sonnet** — a *cost* follow-up to the A/B (memory output was
-near-identical, ~$0.16/run saved; one-line, reversible); (3) **2-pass digest prompt caching** — pass 1
-writes the source/PDF prefix to cache, pass 2 reads it (~0.1×) instead of re-sending at full price
-(~$0.10/run text-day, ~$0.54/run on a 5 MB-PDF day). Validated output-equivalent + cache-engaging via a
-permissioned before/after (~$3.5). Detail in the sections below.
+---
 
-➡️ **COST REFACTOR COMPLETE.** Remaining cost ideas are lower-value (conditional pass-2 skip; 13D
-text-extraction) — see §14; not worth the effort/risk. **NEXT MAJOR TRACK: the memory / retrieval
-refactor, scoped + reviewed in `MEMORY_REFACTOR_SPEC.md`** (eval harness → reranker → hybrid search →
-entity metadata → System A↔B convergence; mostly local/free to build + test). **Stage 0 (eval harness)
-is BUILT — 2026-07-01, baseline recorded; Stage 1 (reranker + date-filter fix) is next.** **Other
-tracks:** the §7.2 server deploy (= "done") and the §13 coverage gaps.
+## OAuth production publish + durable token — DONE (2026-07-10)
 
-**Remaining:** the §13 source-coverage gaps (Substack renewal, forwarding completeness w/ jared,
-TRACE + Octus unreplaced), the `.bat`/`setup_tasks` scheduling test, the remaining do-and-test item
-**3.3** (PDF review, needs more PDF data), the wait-and-see items (3.5), and the **§7.2 server deploy**
-(= "done"). See HANDOFF §14.
+The 7/14 hard-deadline item, closed four days early. Free (Gmail API only, no Claude).
+
+- **Operator published the bot's OAuth app to "production"** (console.cloud.google.com as
+  `acorn.research.bot@gmail.com` → OAuth consent screen → Publish app; left unverified —
+  fine for a single-user tool, the consent just shows the "unverified app" interstitial).
+- **Fresh consent minted the durable token:** old `token.json` (Testing-mode, would have died
+  7/14) backed up to `token_testing_0707.json.bak` (gitignored via `*.bak`); consent flow run
+  via `get_gmail_service()` with the operator clicking through as the bot; new `token.json`
+  written. **Order mattered:** a token minted while the app is in Testing keeps its 7-day
+  expiry even after publishing, so publish-then-consent.
+- **Verified:** `getProfile` → authenticated as `acorn.research.bot@gmail.com`;
+  `run_alert._gmail_service_noninteractive()` (the refresh-only failure-alert path) also OK.
+- **Deploy note:** THIS `token.json` is the one to copy to the server (§7.2 item 3) — it no
+  longer expires on a timer, which is the whole unattended-operation requirement.
+
+---
+
+## 2026-07-10 live validation run — GREEN, $1.58 (checklist 9/9; E3 gate: SKIP)
+
+Manual via `run_digest.bat` (absolute-path invocation; task stays disabled). Digest AND the
+first-ever weekly summary both delivered to acohen (`DIGEST_TO` honored). Total **$1.58**
+(under the $1.5–2.0 estimate — no WILTW spend, see below); **~$4.50 credit remains**.
+Per-call: pass 1 $0.39 (cache wrote 36,401 tok) / pass 2 $0.22 (cache read 36,401) / alerts
+$0.12 (2 of 7 triggered) / pacer size-filter $0.06 (5 of 74 kept) / news rank $0.01 (15 of
+126) / memory $0.08 / weekly $0.71 (105,407 in — the run's cost driver).
+
+**Checklist results (HANDOFF §11):**
+1. **O1 wrapper ✓** — `logs\digest_2026-07-10.log` (dated name) created, `env.bat` loaded
+   (FRED live). Prune quirk noted: `forfiles` exits 1 when nothing is >30d old, so the *bat's*
+   exit code is 1 on a clean run — harmless (the failure-alert hook keys off python's exit
+   right after the run, which was 0; no false alert fired), but anything checking the wrapper's
+   own exit code should know.
+2. **E1/S1 ✓** — `Fetch phase: 44s (14 sources, 6 workers)`; per-source log blocks contiguous
+   (no interleaving); all sections populated (TRACE 0 = known-broken; polymathinvestor 403 =
+   known; COT correctly Fri-skipped; 0 inbox PDFs today).
+3. **E3 GATE → SKIP, track closed.** Run wall-clock 9:15:22→9:22:28 (~7m06s): Gmail (5
+   emails, 0 PDFs) took seconds; 44s fetch pool; the rest is the 5 Claude calls + 379-chunk
+   embed. Gmail batch fetch would buy nothing.
+4. **Memory v2 ✓** — `Backed up v1 memory to memory_v1_backup.json` (41 active + 7 resolved
+   preserved); delta applied 10 updated / 4 new / 0 resolved → **45 active**; `memory.json`
+   now `"version": 2`; spot-read timeline good (private-credit story gained a dated GBDC
+   revolver-extension entry with real terms).
+5. **Weekly summary ✓ (first-ever live run)** — synthesized the week's 5 digests
+   (7/06–7/10), sent 📊 to acohen. $0.71. **Operator: eyeball template/styling adherence in
+   the inbox** (its system prompt had never run; the output is not saved to disk).
+6. **PACER commit-after-send ✓** — `pacer_seen.json` mtime 09:19:01, after the digest save
+   (09:19:00) + send; discovery found 76 raw / 74 corporate / 5 kept ≥$500M.
+7. **O3 ✓** — `source_counts.json` created, run 1 of the ~6 needed to arm; counts sane.
+8. **Consent guard default path ✓** — `DIGEST_UNATTENDED` unset ⇒ token refreshed silently,
+   no consent, run proceeded (unchanged attended behavior).
+9. **3.3 ✓** — digest rendered with all sections (alert box, market/macro/Fed BS/auctions
+   tables, Opus §9, WSJ/FT, PACER); archive/2026-07-10 written; index +379 chunks → **3,948
+   vectors / 7 days**; cost summary sane. (No inbox PDFs today, so the trimmed cleaner had no
+   new PDF to exercise — already pinned by tests + the 7/09 rebuild.)
+
+**WILTW note (checklist expected it, reality differed):** `WILTW_2026-07-09` returned "Report
+not found" at 9:15 AM Friday — the report wasn't posted yet (the §7.2 field-finding timing
+behavior, a day later than usual). Graceful skip, $0 spent, no Playwright hang. Window to
+catch it closes Wed 7/15 (see Current state).
 
 ---
 

@@ -37,14 +37,40 @@ silently lost the Wynn story and merged 3 more on 7/09 alone; v2 is 64% cheaper 
 $0.274 and scales with the news, not the store) + the reply-bot storyline router;
 `get_memory_context()` verified byte-identical, v1 migrated read-compatibly. **Residuals /
 watch-items → §14.F** (the standalone spec is retired — deleted 2026-07-09, recoverable from
-git). Daily runs are **stopped** (task
-disabled; operator decision — credit reserved for refactor testing, **~$6.08 remains**, top-up at
-deploy).
-**Next: the efficiency batch →
-server deploy**, all sequenced in **`NEXT_STEPS_SPEC.md`**; the accrual week also produced a list of
-**deploy-blocking fixes (§7.2 field findings — all code halves now DONE)**. Other open items: the
-**§13** coverage gaps (**3.3** PDF review ✅ DONE 2026-07-09 — the aggressive clean rules were the
-damage, not the rescue; trimmed + index rebuilt) — see **§11 / §12 / §13 / §14**.
+git).
+**The EFFICIENCY BATCH is BUILT (all 4 stages, 2026-07-09; `pytest` 180 green):** S1 source
+registry + E1 parallel fetch (pool measured 21s→7s — the 5–8-min estimate was wrong, the time
+lives outside the pool; E3 gate defers to the live run's phase timings), E2 reconstruct-based
+re-index (208.8s→0.01s retained-side, byte-exact), O1 dated logs + 30-day prune (+
+rotation-aware `run_alert._find_log`), O3 content monitor (per-source counts → degradation
+signals into the digest alert box; arms after ~6 runs), O2 hung-run watchdog
+(`run_alert.py --check-completed digest`, live-validated; drill subjects lead with "(TEST
+drill)" after an operator-confusion incident). **All F1a deploy-blocking CODE fixes are DONE
+(2026-07-09):** unattended-consent guard (`DIGEST_UNATTENDED=1` ⇒ fail-fast SystemExit 3),
+`setup_tasks.bat` deleted → **`setup_tasks.ps1`** (all 4 tasks incl. the 09:00 watchdog;
+wake/catch-up/network settings; S4U no-window; dry-run validated — **execute on the server**),
+PACER seen-state stash/commit-after-send. **3.3 PDF review DONE** (the aggressive clean rules
+were the damage — 96% of 5,852 fires glued real words, 99% of PDF chunks corrupted; trimmed,
+index rebuilt to **3,569 chunks**, eval re-baselined identical 0.846/1.0/0.904). **The SERVER
+EXISTS and is workable** (operator; deploy waits on "fairly complete", not hardware; O4 backups
+land on the box — no laptop interim, single-copy risk accepted). Daily runs remain **stopped**
+(task disabled; **~$4.50 credit remains**, top-up at deploy).
+**✅ The 2026-07-10 live validation run is DONE — GREEN, $1.58, checklist 9/9** (manual via
+`run_digest.bat`; validated the whole 7/09 batch at once, ran the first live v2 memory
+migration + delta, and the first-ever Friday weekly summary — **operator: eyeball the 📊
+weekly email's template adherence**). **E3 gate settled: SKIP — the efficiency track is
+CLOSED** (Gmail was seconds of a ~7-min run; wall-clock lives in the Claude calls). Full
+results in `WORKLOG` (2026-07-10). Watch-item: the 7/09 WILTW wasn't posted yet at run time
+(graceful skip, $0); its 6-day window ends Wed 7/15 — catch it with a permissioned standalone
+`python thirteen_d.py` early next week, or accept the miss.
+**✅ OAuth production publish + fresh consent — DONE 2026-07-10** (the 7/14 deadline is
+cleared: app published as the bot, old Testing token backed up, durable production
+`token.json` minted + verified — `getProfile` = the bot; `run_alert`'s refresh-only path OK.
+**This token.json is the one the server gets at deploy.** Detail in WORKLOG 2026-07-10).
+**NEXT: the §7.2 server deploy** (F1 checklist + `setup_tasks.ps1` as admin on the box) — the
+project's definition of "done." Sequenced in **`NEXT_STEPS_SPEC.md`**. Other open items: the
+**§13** coverage gaps (Substack ownership, forwarding completeness, TRACE/Octus unreplaced —
+mostly jared-coordination) — see **§11 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -636,6 +662,48 @@ paths still need a credentialed/permissioned run to confirm. Add a subsection pe
 once a live run exercises them. The natural catch-all is the single permissioned end-to-end
 `digest.py` run (drives `digest`, `substack`, `pacer`, `thirteen_d` in one shot), plus
 separate `midday.py` and `reply_monitor.py` runs.
+
+### ✅ EXECUTED 2026-07-10 — the Friday live validation run: GREEN, $1.58, checklist 9/9
+
+**Result (full detail in WORKLOG 2026-07-10):** all 9 items below passed. **E3 gate: SKIP —
+efficiency track CLOSED** (Gmail took seconds of the ~7-min run; 44s fetch pool; the rest is
+the 5 Claude calls). First live v2 memory migration + delta clean (v1 backup written; 45
+active stories); first-ever weekly summary sent (📊, $0.71 — operator eyeball pending);
+PACER commit-after-send verified by mtime; O3 counts file started. Deviations from the plan:
+the 7/09 WILTW wasn't posted yet ("Report not found" — graceful skip, $0, window ends Wed
+7/15), and no inbox PDFs arrived, so cost landed at $1.58 (**~$4.50 remains**). One wrapper
+quirk recorded: the O1 `forfiles` prune exits 1 when nothing is >30d old, making the *bat's*
+exit code 1 on a clean run — harmless (the failure alert keys off python's exit, which was 0).
+
+**How it was specced:** operator-approved, run **manually via `run_digest.bat`** (leave the old
+task disabled — it's Mon–Thu anyway and the laptop scheduler is throwaway; the server uses
+`setup_tasks.ps1`). Any time of day. **Cost ≈ $1.5–2.0** (digest ~$1.0–1.5 + the new 7/09
+WILTW summary ~$0.65–0.9 + the Friday weekly summary ~$0.3–0.6); budget after ≈ **$4.1–4.6**.
+One run validates the entire 2026-07-09 batch (offline-tested, unit-pinned, but these runtime
+paths were first-time-live):
+
+1. **Wrapper (O1):** `logs\digest_2026-07-10.log` created (dated name), env loaded, prune ran
+   (legacy logs survive — their mtimes are recent).
+2. **E1/S1:** the `Fetch phase: Ns (14 sources, 6 workers)` line, per-source log blocks coherent
+   (not interleaved), all sections populated like 7/09's digest.
+3. **E3 GATE (decision):** from the log, apportion total wall-clock between Gmail, Substack, 13D,
+   the fetch pool, and the 2 Claude passes. Only if Gmail is the dominant remaining phase does E3
+   (batch fetch) get built; expected outcome: **skip, close the efficiency track**.
+4. **Memory v2 (first live delta on the real store):** log shows `Backed up v1 memory to
+   memory_v1_backup.json` (one-time) then `Memory delta applied: X updated, Y new, Z resolved →
+   N active`; `memory.json` now has `"version": 2`; spot-read a story timeline.
+5. **Weekly summary (FIRST-EVER live execution):** Friday trigger → 📊 email from the week's 5–6
+   digests to acohen. **Eyeball template/styling adherence** — its system prompt has never run.
+6. **PACER commit-after-send (F1a-4):** `pacer_seen.json` mtime is AFTER the send line in the log.
+7. **O3:** `source_counts.json` created with the run's counts (signals arm after ~6 runs).
+8. **Consent guard default path (F1a-1):** `DIGEST_UNATTENDED` unset ⇒ behavior unchanged (the
+   token is alive until 7/14, so auth should just refresh).
+9. **3.3:** the day's new inbox PDFs index through the trimmed cleaner (no glued words in their
+   chunks); digest email renders + archive/2026-07-10 + index append + cost summary sane.
+
+**On success:** record results in WORKLOG, mark the batch validated here, make the E3 call — then
+the remaining pre-deploy items are the operator's OAuth swap (**before Tue 7/14**) and the §13
+coordination items; after that, §7.2 deploy per the F1 checklist.
 
 **✅ EXECUTED 2026-06-30 (see WORKLOG).** Steps 0–3 + 5 below are DONE and green — the credentialed
 `digest.py` / `reply_monitor.py --once` / `midday.py --force` runs all passed → acohen, and the FRED

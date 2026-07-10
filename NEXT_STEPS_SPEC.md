@@ -16,9 +16,9 @@
 |---|---|
 | §1 Checkpoint (post-accrual-week decision session) | ✅ RUN 2026-07-09 — week 6/6 green; rerank + hybrid flips REJECTED on the 26-question eval (default won every metric); 3b SKIPPED; Sonnet watch CLOSED (stays); runs stopped (task disabled, operator decision); 3.3 trigger met at the margin (10 unique PDFs: 8 broker + 2 WILTW). Token swap still pending (before 7/14). Full detail in WORKLOG |
 | §2.1 Memory layer (Stages 4–5 + flips) | ✅ **DONE 2026-07-09** — all stages complete (Stage 4 live-validated $0.12; Stage 5 delta-replay-validated $0.098: 64% cheaper than v1's same-day $0.274, zero story loss; **rerank + hybrid parked permanently** after the failed retest). Residuals/watch-items → **HANDOFF §14.F** (spec retired/deleted 2026-07-09) |
-| §2.2 General efficiency (E/S/O items) | ⬜ specced here; O2 allowed during accrual week, rest after checkpoint |
+| §2.2 General efficiency (E/S/O items) | ✅ **CLOSED 2026-07-10** — 7/10 live run validated the batch (S1+E1 fetch phase 44s/14 sources, coherent per-source blocks, all sections populated; O1 dated log + prune live; O3 counts file started), and **the E3 gate ruled SKIP** (Gmail = seconds of a ~7-min run; wall-clock lives in the Claude calls). E2 (208.8s→0.01s retained-side) was validated offline 7/09. Interim O4 CANCELLED (server available — backups land on the box) |
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
-| §3.F1 Server-deploy readiness (§7.2) | ⬜ queued after memory track; checklist pre-work can start anytime |
+| §3.F1 Server-deploy readiness (§7.2) | 🔄 **all F1a CODE fixes DONE 2026-07-09**; ✅ **OAuth publish + durable production token DONE 2026-07-10** (7/14 deadline cleared); the server EXISTS. Remaining: recipient allowlisting of the bot sender, then the on-box install (secrets incl. the new token.json, `setup_tasks.ps1` as admin, headless Playwright check, O4 backups) |
 | §3.F2 PDF-extraction review (3.3) | ✅ **DONE 2026-07-09** — the aggressive rules were the damage (96% of 5,852 fires glued real words; 99% of PDF chunks corrupted), not the rescue (0 fragmentation in the corpus); `_clean_pdf_text` trimmed, index rebuilt clean, eval identical; pypdf bump ungated but deferred |
 
 ---
@@ -273,8 +273,10 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 | ~~Checkpoint (7/09)~~ | ✅ RUN — flips rejected, 3b skipped, Sonnet watch closed, runs stopped; see WORKLOG |
 | ~~Next~~ | ✅ **Stage 4 DONE 2026-07-09** (query understanding + dedup + digest-exclusion; rerank retest run + FAILED → rerank/hybrid parked permanently; live-validated same day, $0.12) |
 | ~~Then~~ | ✅ **Stage 5 DONE 2026-07-09** — v2 story-timeline store, incremental delta updates, reply router; delta-replay validated ($0.098 vs v1's $0.274 same-transition, zero story loss). **Memory track complete** |
-| Next | Efficiency batch, staged order in §2.2: **1)** S1+E1 → **2)** E2 → **3)** O1 → **4)** O3+O2 (watchdog code now, task arms at deploy); interim O4 anytime (needs a destination); E3 only if Stage 1 leaves Gmail the bottleneck |
-| Then | **F1 + F1a → §7.2 server deploy** — the project's "done" |
+| ~~Then~~ | ✅ Efficiency batch **BUILT 2026-07-09** (stages 1–4 per §2.2); interim O4 cancelled (server available); E3 gated on the 7/10 run |
+| ~~Then~~ | ✅ **The 2026-07-10 Friday live run — GREEN, $1.58, checklist 9/9** (whole 7/09 batch validated; first live v2 memory delta; first-ever weekly summary sent — operator eyeball pending; **E3 ruled SKIP → efficiency track closed**; WILTW 7/09 not yet posted — catch by Wed 7/15 or accept). ~$4.50 credit remains. Detail in WORKLOG |
+| ~~Then~~ | ✅ **OAuth production publish + fresh consent — DONE 2026-07-10** (7/14 deadline cleared; durable production token.json minted + verified as the bot; it's the token the server gets) |
+| **Next** | **§7.2 server deploy** (F1 on-box checklist; F1a code all done) — the project's "done" |
 | ~~Unblocked, anytime~~ | ✅ **F2 DONE 2026-07-09** (3.3 PDF review — clean rules trimmed, index rebuilt; see track table) |
 
 **Budget thread:** ~$11.7 remained after 7/2; the accrual week spends ~$5–7 → ~$5–6 left at
