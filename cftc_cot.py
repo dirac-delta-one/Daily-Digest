@@ -128,10 +128,18 @@ def _find_contract(raw_text, cftc_code):
     return fallback
 
 
-def _load_prior_week():
-    """Load cached prior week data for WoW changes."""
+def _load_prior_week(current_report_date=None):
+    """Load the newest cached week STRICTLY OLDER than the current report.
+
+    Cache files are named <report_date>.json. The old version took the newest
+    file regardless — on the 2nd/3rd run within the same report week that file
+    IS the current report, so every WoW change computed as 0 instead of the
+    true week-over-week move. A cache holding only the same date returns {}
+    (WoW renders honestly as n/a)."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_files = sorted(CACHE_DIR.glob("*.json"), reverse=True)
+    if current_report_date:
+        cache_files = [f for f in cache_files if f.stem < current_report_date]
     if cache_files:
         try:
             return json.loads(cache_files[0].read_text(encoding="utf-8"))
@@ -167,18 +175,23 @@ def fetch_cot_data():
         print("    Could not fetch CFTC data.")
         return []
 
-    prior = _load_prior_week()
-    positions = []
-
+    rows = []
     for contract_name, cftc_code, source in TRACKED_CONTRACTS:
         raw = futures_raw if source == "futures" else financial_raw
         if not raw:
             continue
-
         row = _find_contract(raw, cftc_code)
         if not row:
             continue
+        rows.append((contract_name, row))
 
+    # WoW baseline: the newest cached report OLDER than this one (a same-week
+    # rerun otherwise compares the report to itself -> all-zero changes).
+    current_report_date = rows[0][1]["report_date"] if rows else None
+    prior = _load_prior_week(current_report_date)
+    positions = []
+
+    for contract_name, row in rows:
         spec_net = row["noncomm_long"] - row["noncomm_short"]
 
         # Prior week comparison

@@ -29,6 +29,32 @@ recur silently once deployed.
 
 ---
 
+## Cleanup Stage 2.3 — seen-state / cache-state fixes (2026-07-10)
+
+`ruff` clean, `pytest` **217** green (+7).
+
+- **R1 — PACER seen-state eviction is now insertion-ordered** (`pacer.py`, new
+  `_ordered_seen` helper + both scan loops). The old `list(set)[-1000:]` /
+  `[-500:]` trims truncated a SET — arbitrary order — so once a busy court
+  (DEB/TXSB) crossed the cap, recently-seen filings could be evicted and
+  re-reported as duplicate "NEW Chapter 11" entries (re-triggering the paid
+  Sonnet size filter on re-evaluation). Now seen ids live in an ordered list
+  (set alongside for O(1) membership) and the cap evicts oldest-first. On-disk
+  format unchanged (JSON list) — legacy unordered files load as-is. Pinned by
+  mocked-RSS tests (NO live pacer run — its path can trigger Sonnet): seen ids
+  suppress; a 990-seeded + 30-new overflow evicts exactly the 20 oldest.
+- **R2 — CFTC COT WoW compares against the prior WEEK, not the prior file**
+  (`cftc_cot._load_prior_week(current_report_date)` + `fetch_cot_data`
+  restructured to parse rows before picking the baseline). The old code loaded
+  the newest cache file — on the 2nd/3rd run of the same report week that file
+  IS the current report, so `spec_net_change` printed 0 for every contract
+  (silently wrong data on Tue/Wed). Now the newest file STRICTLY OLDER than the
+  current report is used; same-date-only cache → honest "n/a". Pinned by
+  fixture-cache tests (live COT smoke not possible today — Friday skip day; the
+  fix is exercised on the next Mon–Wed run).
+
+---
+
 ## Cleanup Stage 2.2 — small correctness + the missed escaping (2026-07-10)
 
 `ruff` clean, `pytest` **210** green (+11: three new test files + one grown).

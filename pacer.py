@@ -114,6 +114,17 @@ def commit_seen():
         _pending_seen = None
 
 
+def _ordered_seen(ids):
+    """Insertion-ordered, deduped seen-id list.
+
+    Seen ids are kept as an ORDERED list so the size cap evicts oldest-first.
+    The old `list(set)[-N:]` trim kept an arbitrary N (set order), so once a
+    busy court crossed the cap, recently-seen filings could be evicted and
+    re-reported as new. Legacy (unordered) files load fine — order becomes
+    meaningful from the first run that appends."""
+    return list(dict.fromkeys(ids))
+
+
 # ======================================================================
 # RSS FETCHING
 # ======================================================================
@@ -377,12 +388,13 @@ def discover_new_filings():
         tree = _fetch_court_rss(court)
         items = _parse_items(tree)
 
-        court_seen = set(disc_seen.get(court, []))
+        court_seen = _ordered_seen(disc_seen.get(court, []))
+        court_seen_set = set(court_seen)
         court_new = 0
 
         for item in items:
             entry_id = item["link"] or item["title"]
-            if entry_id in court_seen:
+            if entry_id in court_seen_set:
                 continue
 
             if _is_chapter_11_filing(item["title"], item["description"]):
@@ -402,9 +414,10 @@ def discover_new_filings():
                 court_new += 1
                 print(f"    NEW Ch.11: {debtor or item['title'][:50]} ({court.upper()}, {case_number})")
 
-            court_seen.add(entry_id)
+            court_seen.append(entry_id)
+            court_seen_set.add(entry_id)
 
-        disc_seen[court] = list(court_seen)[-1000:]  # keep last 1000 per court
+        disc_seen[court] = court_seen[-1000:]  # ordered trim: oldest evicted first
 
         if court_new == 0 and items:
             print(f"    {court.upper()}: {len(items)} entries, no new Ch.11 petitions")
@@ -462,14 +475,15 @@ def track_existing_cases():
 
     for court, case_number, company in TRACKED_CASES:
         case_key = f"{court}/{case_number}"
-        case_seen = set(track_seen.get(case_key, []))
+        case_seen = _ordered_seen(track_seen.get(case_key, []))
+        case_seen_set = set(case_seen)
 
         tree = _fetch_case_rss(court, case_number)
         items = _parse_items(tree)
 
         for item in items:
             entry_id = item["link"] or item["title"]
-            if entry_id in case_seen:
+            if entry_id in case_seen_set:
                 continue
 
             full_text = f"{item['title']} {item['description']}"
@@ -488,9 +502,10 @@ def track_existing_cases():
                 })
                 print(f"    {company}: {item['title'][:60]}... [{', '.join(matched)}]")
 
-            case_seen.add(entry_id)
+            case_seen.append(entry_id)
+            case_seen_set.add(entry_id)
 
-        track_seen[case_key] = list(case_seen)[-500:]
+        track_seen[case_key] = case_seen[-500:]  # ordered trim: oldest evicted first
         time.sleep(0.3)
 
     seen["tracking"] = track_seen
