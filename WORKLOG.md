@@ -29,6 +29,28 @@ recur silently once deployed.
 
 ---
 
+## Cleanup Stage 2.1 — test additions (tests-first; zero production-code change) (2026-07-10)
+
+Purely additive. `ruff` clean, `pytest` **199** green (+15, three new test files).
+
+- **`tests/test_feeds.py` (+7)** — `feeds.py` had no committed tests (the Phase-2.3
+  "unit tests" were session-ad-hoc). Pins `parse_date` (RFC-2822, ISO-with-Z,
+  garbage→None) and `is_recent` (inside/outside window, naive-date→UTC assumption,
+  and the §6 unparseable→True over-inclusion — pinned as deliberate, not changed).
+- **`tests/test_assemble_digest.py` (+5)** — first coverage for the documented
+  brittle `_assemble_digest_html` coupling (HANDOFF §5): pre-sections insert after
+  the double-border header and before the TL;DR in the pinned order
+  (alerts→market→macro→earnings→fedBS→auctions); post-sections append before the
+  final `</div>` (news→funds→pacer); empty input passes through unchanged; a digest
+  missing the header anchor degrades gracefully (pre-sections skipped, no crash).
+  **The function itself is untouched** (§14.B-3.5a stays wait-and-see).
+- **`tests/test_archive.py` (+3)** — pins hostile-PDF-filename sanitization, PDF
+  bytes saved + `pdf_filenames` recorded, base64 stripped from the archived
+  `emails.json`, wiltw snapshot, empty-source JSON shapes, and that a corrupt
+  base64 payload doesn't crash the archiver.
+
+---
+
 ## Cleanup Stage 1.3 — wrapper clean-exit (forfiles quirk) — PHASE 1 CODE DONE (2026-07-10)
 
 Behavior-neutral for outputs (only the wrapper's own exit code changes). `ruff` clean,
