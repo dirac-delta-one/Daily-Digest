@@ -63,6 +63,48 @@ def test_stale_report_returns_none(temp_cache, monkeypatch):
     assert thirteen_d.fetch_wiltw() is None
 
 
+# --- R8 unattended guard (Stage 2.5): never open the interactive login headless ---
+
+def test_unattended_no_session_skips_before_playwright(temp_cache, monkeypatch):
+    report_date = _most_recent_thursday()
+    monkeypatch.setattr(thirteen_d, "_find_latest_thursday", lambda: report_date)
+    monkeypatch.setenv("DIGEST_UNATTENDED", "1")
+    monkeypatch.setattr(thirteen_d, "_has_session", lambda: False)
+
+    def _boom(*a, **k):
+        raise AssertionError("unattended + no session must not reach the download path")
+    monkeypatch.setattr(thirteen_d, "_download_pdf", _boom)
+
+    assert thirteen_d.fetch_wiltw() is None  # graceful skip, no browser, no input()
+
+
+def test_download_pdf_unattended_no_session_returns_none(monkeypatch):
+    monkeypatch.setenv("DIGEST_UNATTENDED", "1")
+    monkeypatch.setattr(thirteen_d, "_has_session", lambda: False)
+
+    def _boom(*a, **k):
+        raise AssertionError("must not open the interactive login")
+    monkeypatch.setattr(thirteen_d, "_do_manual_login", _boom)
+
+    assert thirteen_d._download_pdf(None, "https://client.13d.com/x") is None
+
+
+def test_download_pdf_attended_still_logs_in(monkeypatch):
+    # Flag unset = unchanged attended behavior: the manual login IS attempted
+    monkeypatch.delenv("DIGEST_UNATTENDED", raising=False)
+    monkeypatch.setattr(thirteen_d, "_has_session", lambda: False)
+
+    class _Sentinel(Exception):
+        pass
+
+    def _login(pw):
+        raise _Sentinel()  # stop before any real Playwright work
+
+    monkeypatch.setattr(thirteen_d, "_do_manual_login", _login)
+    with pytest.raises(_Sentinel):
+        thirteen_d._download_pdf(None, "https://client.13d.com/x")
+
+
 # --- _persist_pdf (Stage 2.2: all download paths archive consistently) ---
 
 def test_persist_pdf_writes_to_archive(tmp_path, monkeypatch):

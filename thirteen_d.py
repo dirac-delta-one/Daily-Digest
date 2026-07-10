@@ -20,7 +20,7 @@ from pathlib import Path
 
 import anthropic
 
-from config import OPUS_MODEL
+from config import OPUS_MODEL, unattended
 import cost
 
 SCRIPT_DIR = Path(__file__).parent
@@ -120,6 +120,10 @@ def _download_pdf(playwright, report_url, force_login=False):
     """Navigate to the report page and download the PDF. Returns PDF bytes or None."""
 
     if force_login or not _has_session():
+        if unattended():
+            print("  13D session missing — manual re-login required "
+                  "(run `python thirteen_d.py --login` on this machine). Skipping WILTW.")
+            return None
         _do_manual_login(playwright)
 
     print("  Loading session...")
@@ -135,6 +139,11 @@ def _download_pdf(playwright, report_url, force_login=False):
 
     # Check if we got redirected to login
     if "login" in page.url.lower():
+        if unattended():
+            print("  13D session expired mid-run — manual re-login required "
+                  "(skipping WILTW).")
+            browser.close()
+            return None
         print("  Session expired — re-login required.")
         browser.close()
         _do_manual_login(playwright)
@@ -330,6 +339,17 @@ def fetch_wiltw():
         return cache[key]
 
     print(f"  Latest WILTW date: {report_date} ({days_since} days ago)")
+
+    # R8 unattended guard (same failure family as F1a-1): without a saved
+    # session, the download path would open a HEADED browser and block on
+    # input() — on the headless server that can hang the whole digest run
+    # until the 3h task limit kills it. Fail soft before any Playwright work;
+    # the O3 content monitor flags the resulting wiltw zero-streak.
+    if unattended() and not _has_session():
+        print("  13D session missing and DIGEST_UNATTENDED is set — manual "
+              "re-login required (run `python thirteen_d.py --login` on this "
+              "machine). Skipping WILTW.")
+        return None
 
     try:
         from playwright.sync_api import sync_playwright

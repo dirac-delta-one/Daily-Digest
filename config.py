@@ -5,6 +5,7 @@ helpers. Centralizes values that were previously hardcoded across modules.
 """
 
 import html
+import os
 
 # --- Claude models ---
 # Opus upgraded 4.6 -> 4.8 (same API surface, same $5/$25 pricing).
@@ -36,6 +37,14 @@ SONNET_PRICE_IN = 3.0
 SONNET_PRICE_OUT = 15.0
 HAIKU_PRICE_IN = 1.0
 HAIKU_PRICE_OUT = 5.0
+
+
+def unattended():
+    """True when running headless (DIGEST_UNATTENDED=1, set machine-wide on the
+    server by setup_tasks.ps1). Guards every interactive fallback that would
+    hang a headless run: Gmail's browser consent (digest.get_gmail_service,
+    F1a-1) and 13D's manual login (thirteen_d, R8)."""
+    return os.environ.get("DIGEST_UNATTENDED", "").strip().lower() in ("1", "true", "yes")
 
 
 def esc(s):

@@ -25,7 +25,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from config import OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, esc, safe_href
+from config import OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, esc, safe_href, unattended
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body
@@ -85,8 +85,9 @@ DIGESTS_DIR = SCRIPT_DIR / "digests"  # saved daily digests for weekly summary
 
 
 def _unattended():
-    """True when running headless (DIGEST_UNATTENDED=1 in the server's env)."""
-    return os.environ.get("DIGEST_UNATTENDED", "").strip().lower() in ("1", "true", "yes")
+    """True when running headless — delegates to config.unattended() (shared
+    with thirteen_d's login guard since Stage 2.5)."""
+    return unattended()
 
 
 def get_gmail_service():

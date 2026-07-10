@@ -29,6 +29,31 @@ recur silently once deployed.
 
 ---
 
+## Cleanup Stage 2.5 — 13D unattended-login guard (R8) (2026-07-10)
+
+`ruff` clean, `pytest` **227** green (+3). Attended behavior byte-identical
+(flag unset = today's laptop behavior, test-pinned).
+
+- **The last "interactive prompt inside an unattended run" hang risk is guarded**
+  (same failure family F1a-1 closed for Gmail): when the 13D session is missing
+  or expires mid-run, `thirteen_d` used to launch a HEADED Chromium and block on
+  `input()` — on the server (S4U, session 0) worst-case a hang until the 3h task
+  limit kills the WHOLE digest run. Now, with `DIGEST_UNATTENDED=1`: a missing
+  session fails soft in `fetch_wiltw` BEFORE any Playwright work; the
+  `_download_pdf` entry and the mid-run login-redirect path do the same (loud
+  "manual re-login required" log lines; O3 flags the resulting wiltw zero-streak).
+- **Env check centralized:** new `config.unattended()`; `digest._unattended`
+  delegates (its F1a-1 tests still green, unchanged); `thirteen_d` shares it.
+- **Pinned:** unattended + no session → skip with `_download_pdf`/
+  `_do_manual_login` boom-guards never firing; attended + no session → the
+  manual login IS attempted (sentinel).
+- **Deploy-checklist residual (add to the §7.2 on-box steps):** on the server,
+  temporarily rename `thirteen_d_session.json`, trigger a run, confirm the loud
+  skip line in the log and no hang — the session-0 stdin/headed-launch behavior
+  is only fully provable there.
+
+---
+
 ## Cleanup Stage 2.4 — weekly-wrap bundle (operator-approved output changes) (2026-07-10)
 
 `ruff` clean, `pytest` **224** green (+8 new `tests/test_weekly_summary.py`, −1
