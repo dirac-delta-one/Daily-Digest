@@ -499,6 +499,14 @@ def _build_source_prompt(*, emails, substack_articles, sec_filings, market_data,
     return prompt
 
 
+def _strip_to_html(text):
+    """Drop any model preamble before the first <div — the emailed HTML must
+    start at the template (Opus occasionally prefixes a sentence of prose).
+    Used by digest pass 2 and the weekly summary; midday has its own copy."""
+    i = text.find("<div")
+    return text[i:] if i > 0 else text
+
+
 def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           market_data=None, macro_data=None, earnings=None,
                           trace_data=None, pacer_entries=None,
@@ -637,12 +645,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
         messages=[{"role": "user", "content": pass2_content}],
     )
 
-    final = review_response.content[0].text
-
-    # Strip any preamble text before the actual HTML
-    html_start = final.find("<div")
-    if html_start > 0:
-        final = final[html_start:]
+    final = _strip_to_html(review_response.content[0].text)
 
     # Log total token usage
     p2_input = review_response.usage.input_tokens
@@ -841,14 +844,37 @@ def _is_friday():
     return datetime.date.today().weekday() == 4
 
 
+def _week_monday(today=None):
+    """Monday of the given (default: current) week."""
+    today = today or datetime.date.today()
+    return today - datetime.timedelta(days=today.weekday())
+
+
+def _weekly_subject(monday=None):
+    """'📊 Weekly Research Wrap — Week of Monday, July 6' (operator-specified
+    wording, 2026-07-10). The 📊 weekly has never matched the reply bot's
+    'Re: 📬 Daily Inbox Digest' query, and still doesn't."""
+    monday = monday or _week_monday()
+    return (f"\U0001f4ca Weekly Research Wrap — "
+            f"Week of {monday.strftime('%A, %B')} {monday.day}")
+
+
+def save_weekly_digest(html, date=None):
+    """Save the weekly wrap to disk — before this, the sent email was the only
+    copy (the 2026-07-10 first-run template check had to be done from the inbox)."""
+    date = date or datetime.date.today()
+    DIGESTS_DIR.mkdir(exist_ok=True)
+    filepath = DIGESTS_DIR / f"weekly_{date.isoformat()}.html"
+    filepath.write_text(html, encoding="utf-8")
+    print(f"  Saved weekly summary to {filepath}")
+
+
 def _get_week_digests():
     """Load this week's daily digests for the weekly summary."""
     if not DIGESTS_DIR.exists():
         return []
 
-    today = datetime.date.today()
-    # Get Monday of this week
-    monday = today - datetime.timedelta(days=today.weekday())
+    monday = _week_monday()
 
     digests = []
     for i in range(5):  # Mon-Fri
@@ -897,7 +923,7 @@ def generate_weekly_summary(digests):
         )}],
     )
 
-    weekly = response.content[0].text
+    weekly = _strip_to_html(response.content[0].text)
 
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
@@ -907,26 +933,28 @@ def generate_weekly_summary(digests):
     return weekly
 
 
-def _digest_subject(prefix=None):
-    """Digest email subject: '<prefix> — <Weekday, Month D>'.
+def _digest_subject():
+    """Daily digest subject: '📬 Daily Inbox Digest — <Weekday, Month D>'.
 
-    The default prefix is config.DIGEST_SUBJECT_PREFIX ("📬 Daily Inbox Digest")
-    — the exact string reply_monitor's Gmail query matches replies against, so
-    the sender and the matcher can't drift apart.
+    Built on config.DIGEST_SUBJECT_PREFIX — the exact string reply_monitor's
+    Gmail query matches replies against, so the sender and the matcher can't
+    drift apart.
     """
     day = datetime.date.today().day
     today = datetime.date.today().strftime(f"%A, %B {day}")
-    return f"{prefix or DIGEST_SUBJECT_PREFIX} — {today}"
+    return f"{DIGEST_SUBJECT_PREFIX} — {today}"
 
 
-def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject_prefix=None):
-    """Send the digest as an email via Gmail, with retry for transient SSL errors."""
+def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject=None):
+    """Send a digest email via Gmail, with retry for transient SSL errors.
+
+    `subject` overrides the daily default (the weekly wrap passes its own)."""
     day = datetime.date.today().day
     today = datetime.date.today().strftime(f"%A, %B {day}")
 
     message = MIMEText(html_body, "html")
     message["to"] = ", ".join(recipients)
-    message["subject"] = _digest_subject(subject_prefix)
+    message["subject"] = subject or _digest_subject()
 
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
@@ -1278,9 +1306,13 @@ def main():
             if len(week_digests) >= 2:  # Need at least 2 days for a meaningful summary
                 weekly_html = generate_weekly_summary(week_digests)
                 if weekly_html:
+                    try:
+                        save_weekly_digest(weekly_html)
+                    except Exception as e:
+                        print(f"Failed to save weekly summary: {e}")
                     send_digest_email(
                         service, weekly_html,
-                        subject_prefix="📊 Daily Inbox Digest",
+                        subject=_weekly_subject(),
                     )
                     print("Weekly summary sent.")
             else:

@@ -30,12 +30,6 @@ def test_daily_subject_byte_identical_to_legacy():
     assert digest._digest_subject() == _legacy_subject("\U0001f4ec")
 
 
-def test_weekly_prefix_override_byte_identical_to_legacy():
-    # The Friday call site passes the full "📊 Daily Inbox Digest" prefix now
-    got = digest._digest_subject("\U0001f4ca Daily Inbox Digest")
-    assert got == _legacy_subject("\U0001f4ca")
-
-
 def test_earnings_watchlist_is_sec_watchlist():
     # Single source of truth: the same list object, not a drift-prone copy
     assert earnings.EARNINGS_WATCHLIST is sec_filings.WATCHLIST

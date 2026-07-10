@@ -29,6 +29,30 @@ recur silently once deployed.
 
 ---
 
+## Cleanup Stage 2.4 — weekly-wrap bundle (operator-approved output changes) (2026-07-10)
+
+`ruff` clean, `pytest` **224** green (+8 new `tests/test_weekly_summary.py`, −1
+obsolete weekly-prefix test). The three visible changes get live confirmation by
+riding along with the next natural Friday run (no dedicated spend).
+
+- **R6 — weekly subject (operator-specified):** now
+  **"📊 Weekly Research Wrap — Week of Monday, July 6"** style, via new
+  `digest._weekly_subject()` (Monday from the shared `_week_monday()` helper,
+  which `_get_week_digests` now also uses; no leading zero on the day).
+  `send_digest_email` swapped its `subject_prefix` param for a full `subject=`
+  override (daily default via the 1.2a constant, byte-identical — pinned).
+  Reply-bot coupling: none, and now test-pinned (the weekly subject must never
+  start with `DIGEST_SUBJECT_PREFIX`).
+- **R5 — weekly saved to disk:** new `save_weekly_digest()` writes
+  `digests/weekly_YYYY-MM-DD.html` before sending (non-fatal on failure). The
+  filename is invisible to `_get_week_digests`'s exact-name loader — test-pinned
+  so a saved weekly can't get slurped back in as next Friday's input.
+- **R4 — weekly preamble strip:** pass 2's strip-to-first-`<div` logic extracted
+  to `_strip_to_html()` and applied to the weekly too (pass 2 behavior
+  unchanged; midday keeps its own copy).
+
+---
+
 ## Cleanup Stage 2.3 — seen-state / cache-state fixes (2026-07-10)
 
 `ruff` clean, `pytest` **217** green (+7).
