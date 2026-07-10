@@ -107,17 +107,25 @@ def _parse_cot_line(line):
 
 
 def _find_contract(raw_text, cftc_code):
-    """Find a specific contract in the CFTC text by code."""
+    """Find a specific contract in the CFTC text by code.
+
+    An exact parsed-code match anywhere in the file wins; a loose (substring)
+    hit is kept only as a fallback when NO line parses to the exact code. The
+    old version returned the first substring hit immediately — the code
+    appearing inside another line's numeric field could hand back the wrong
+    contract's row — which also made its exact-match check unreachable.
+    """
+    fallback = None
     for line in raw_text.split("\n"):
         if cftc_code in line:
             parsed = _parse_cot_line(line)
-            if parsed and parsed["cftc_code"].strip() == cftc_code.strip():
+            if parsed is None:
+                continue
+            if parsed["cftc_code"].strip() == cftc_code.strip():
                 return parsed
-            # Some codes appear in the line but not as the primary code
-            # Accept if the code is in the line at all
-            if parsed:
-                return parsed
-    return None
+            if fallback is None:
+                fallback = parsed
+    return fallback
 
 
 def _load_prior_week():

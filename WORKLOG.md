@@ -29,6 +29,36 @@ recur silently once deployed.
 
 ---
 
+## Cleanup Stage 2.2 — small correctness + the missed escaping (2026-07-10)
+
+`ruff` clean, `pytest` **210** green (+11: three new test files + one grown).
+
+- **S1 — `fund_tracking.build_funds_html` now escapes** (the one builder the
+  Phase-1.2 pass missed): `esc()` on fund/issuer names + filing date,
+  `safe_href()` on the link. 13F issuer names routinely carry `&` ("AT&T INC") —
+  raw interpolation produced invalid entities. Pinned by
+  `tests/test_fund_tracking_html.py` (escaping, `javascript:` → `#`, normal names
+  byte-identical).
+- **R7 — `treasury_auctions.format_auctions_for_prompt`:** the header claimed
+  "last 48h" while `HOURS_LOOKBACK = 24` (misinformed Opus about the window) —
+  now derived from the constant; and a non-numeric `high_investment_rate`
+  (parsed to None) crashed the yield f-string, silently losing the whole section
+  via the registry try/except — now renders "yield n/a". Pinned by
+  `tests/test_treasury_auctions.py`; live free smoke shows "last 24h" + real data.
+- **R3 — `cftc_cot._find_contract`:** the loose fallback returned the FIRST line
+  merely containing the code substring (e.g. inside another contract's
+  open-interest figure), making the exact-code check unreachable. Now: exact
+  parsed-code match anywhere wins; the substring hit survives only as a fallback
+  when no exact match exists. Pinned by `tests/test_cftc_cot.py` (crafted
+  legacy-format lines; live COT smoke not possible today — Friday is a skip day).
+- **D5 — `thirteen_d` download paths unified through new `_persist_pdf()`:** the
+  button-click path used to leave an unarchived `wiltw_<date>.pdf` in the repo
+  root; all three paths now archive to `archive/<today>/pdfs/WILTW_<report>.pdf`
+  (the link path's behavior) and clean up temp files. Helper unit-tested; the
+  Playwright call sites are code-reviewed (exercised by the next live WILTW fetch).
+
+---
+
 ## Cleanup Stage 2.1 — test additions (tests-first; zero production-code change) (2026-07-10)
 
 Purely additive. `ruff` clean, `pytest` **199** green (+15, three new test files).

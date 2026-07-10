@@ -11,6 +11,7 @@ import datetime
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from config import esc, safe_href
 from net_utils import edgar_get
 
 SCRIPT_DIR = Path(__file__).parent
@@ -408,8 +409,8 @@ def build_funds_html(results):
         html += (
             f'<div style="margin-bottom: 20px;">\n'
             f'<h3 style="font-size: 15px; margin: 0 0 6px;">'
-            f'<a href="{url}" style="color: #1a5276;">{fund}</a> '
-            f'<span style="color: #888; font-size: 12px;">(filed {date})</span></h3>\n'
+            f'<a href="{safe_href(url)}" style="color: #1a5276;">{esc(fund)}</a> '
+            f'<span style="color: #888; font-size: 12px;">(filed {esc(date)})</span></h3>\n'
             f'<p style="font-size: 13px; color: #555; margin: 0 0 8px;">'
             f'${total:,.0f} across {count} positions</p>\n'
         )
@@ -427,7 +428,7 @@ def build_funds_html(results):
                     chg_str = f" ({chg:+,} shares, {pct:+.0f}%)"
                 s += (
                     f'<li style="margin-bottom: 4px; font-size: 13px;">'
-                    f'{h["name"]}: {h["shares"]:,} shares, ${h["value"]:,.0f}{chg_str}</li>\n'
+                    f'{esc(h["name"])}: {h["shares"]:,} shares, ${h["value"]:,.0f}{chg_str}</li>\n'
                 )
             s += '</ul>\n'
             return s

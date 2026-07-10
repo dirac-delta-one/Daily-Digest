@@ -103,6 +103,19 @@ def _get_report_url(report_date=None):
     return f"{WILTW_BASE}{report_date.isoformat()}"
 
 
+def _persist_pdf(pdf_bytes, report_date=None):
+    """Save a downloaded WILTW PDF into today's archive (archive/<date>/pdfs/,
+    where the RAG indexer looks). All download paths persist through here so
+    none can litter the repo root (the button-click path used to leave an
+    unarchived wiltw_<date>.pdf behind in SCRIPT_DIR)."""
+    report_date = report_date or _find_latest_thursday()
+    pdf_dir = SCRIPT_DIR / "archive" / datetime.date.today().isoformat() / "pdfs"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    path = pdf_dir / f"WILTW_{report_date.isoformat()}.pdf"
+    path.write_bytes(pdf_bytes)
+    return path
+
+
 def _download_pdf(playwright, report_url, force_login=False):
     """Navigate to the report page and download the PDF. Returns PDF bytes or None."""
 
@@ -169,10 +182,12 @@ def _download_pdf(playwright, report_url, force_login=False):
                 with page.expect_download(timeout=15000) as download_info:
                     el.click()
                 download = download_info.value
-                pdf_path = SCRIPT_DIR / f"wiltw_{_find_latest_thursday().isoformat()}.pdf"
-                download.save_as(str(pdf_path))
-                print(f"  Downloaded PDF via button click: {pdf_path}")
-                pdf_bytes = pdf_path.read_bytes()
+                tmp_path = SCRIPT_DIR / "wiltw_temp.pdf"
+                download.save_as(str(tmp_path))
+                pdf_bytes = tmp_path.read_bytes()
+                tmp_path.unlink()  # clean up temp
+                saved = _persist_pdf(pdf_bytes)
+                print(f"  Downloaded PDF via button click: {saved}")
                 browser.close()
                 return pdf_bytes
         except Exception:
@@ -186,12 +201,7 @@ def _download_pdf(playwright, report_url, force_login=False):
             if resp.ok:
                 pdf_bytes = resp.body()
                 print(f"  Downloaded PDF: {len(pdf_bytes):,} bytes")
-
-                # Save a copy
-                pdf_path = SCRIPT_DIR / "archive" / datetime.date.today().isoformat() / "pdfs"
-                pdf_path.mkdir(parents=True, exist_ok=True)
-                (pdf_path / f"WILTW_{_find_latest_thursday().isoformat()}.pdf").write_bytes(pdf_bytes)
-
+                _persist_pdf(pdf_bytes)
                 _save_session(context)
                 browser.close()
                 return pdf_bytes
@@ -216,6 +226,7 @@ def _download_pdf(playwright, report_url, force_login=False):
                 download.save_as(str(pdf_path))
                 pdf_bytes = pdf_path.read_bytes()
                 pdf_path.unlink()  # clean up temp
+                _persist_pdf(pdf_bytes)
                 print(f"  Downloaded PDF via click: {len(pdf_bytes):,} bytes")
 
                 _save_session(context)

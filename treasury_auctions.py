@@ -130,7 +130,7 @@ def format_auctions_for_prompt(auctions):
     if not auctions:
         return ""
 
-    lines = ["TREASURY AUCTIONS (last 48h):"]
+    lines = [f"TREASURY AUCTIONS (last {HOURS_LOOKBACK}h):"]
     for a in auctions:
         term = a["security_term"]
         atype = a["security_type"]
@@ -139,7 +139,8 @@ def format_auctions_for_prompt(auctions):
         btc = a["bid_to_cover"]
         tail = a["tail_bps"]
 
-        line = f"  {term} {atype} ({date}): {yld:.3f}% yield"
+        yld_str = f"{yld:.3f}% yield" if yld is not None else "yield n/a"
+        line = f"  {term} {atype} ({date}): {yld_str}"
         if btc:
             line += f", bid-to-cover {btc:.2f}x"
         if tail is not None:
