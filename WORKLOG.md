@@ -19,13 +19,26 @@ runs remain stopped (task disabled).
 **REMAINING (all non-code):** (1) ~~operator OAuth publish + fresh consent~~ ✅ **DONE
 2026-07-10** (see entry below — the 7/14 deadline is cleared; the durable production token is
 what the server gets at deploy); (2) §7.2 server deploy (F1 checklist; run `setup_tasks.ps1`
-as admin on the box); (3) §13 coordination items with jared (Substack ownership, forwarding
-completeness, TRACE/Octus replacements). ~~Watch-item: the 7/09 WILTW~~ **CLOSED — miss
+as admin on the box); (3) §13: **Substack ownership/renewal — the LAST jared item**
+(forwarding completeness, TRACE, and Octus/new-issue all resolved 2026-07-13, see entries
+below). ~~Watch-item: the 7/09 WILTW~~ **CLOSED — miss
 accepted (operator, 2026-07-10):** the 7/09 WILTW hadn't posted by Friday's run; with daily
 runs stopped there are no automatic retries, so the week is skipped rather than manually
 probed. One-off only — on the server's Mon–Fri schedule the pipeline retries every day of the
 ≤6-day window (Fri + Mon–Wed) and O3 alerts if wiltw stays at 0 for 3 runs, so this can't
 recur silently once deployed.
+
+---
+
+## §13 closure: Octus/HY-new-issue item RESOLVED — accepted, no replacement (2026-07-13)
+
+Operator decision (docs-only; the Octus code was already removed 2026-06-29): no paid
+feed and no scraper. Evidence from the same-day inbox audit: **20 Stifel "New Issue
+Flash" forwards in 21 days (11 HY + 9 IG)** already deliver deal-by-deal new-issue
+color through the inbox. Accepted loss: a systematic pipeline/tracker view; if ever
+wanted, the code side is one standard fetcher module. **§13 is now down to a single
+open item: Substack ownership/renewal (+ the polymathinvestor 403).** HANDOFF §1/§13
+updated.
 
 ---
 

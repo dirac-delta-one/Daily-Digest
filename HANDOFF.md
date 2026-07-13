@@ -73,9 +73,10 @@ cleared: app published as the bot, old Testing token backed up, durable producti
 **NEXT: the §7.2 server deploy** (F1 checklist + `setup_tasks.ps1` as admin on the box) — the
 project's definition of "done." Sequenced in **`NEXT_STEPS_SPEC.md`**. Other open items: the
 **§13** coverage gaps — narrowed 2026-07-13: **forwarding completeness RESOLVED** (inbox audit —
-everything expected flows; Grant's not in the flow, operator accepted) and **TRACE RESOLVED**
-(operator decided not to use it; the never-functional module removed). Remaining: Substack
-ownership + the Octus/HY-new-issue replacement (jared-coordination) — see **§11 / §13 / §14**.
+everything expected flows; Grant's not in the flow, operator accepted), **TRACE RESOLVED**
+(operator decided not to use it; the never-functional module removed), and **Octus/HY-new-issue
+RESOLVED** (accepted, no replacement — the forwarded Stifel New Issue Flashes carry the color).
+Remaining: **Substack ownership/renewal** (the last jared item) — see **§11 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -951,18 +952,16 @@ rule-based forwards; detail in WORKLOG 2026-07-13):
   absent** (0 full-text hits in 30 days) and the operator accepted the flow as complete
   without it (the prompt's "(Grant's)" strings remain as harmless format examples).
 
-### Genuinely unreplaced sources (no current substitute)
-- [ ] **Octus — HY new-issue Primary Deal Tracker** (removed 2026-06-29). **No free replacement** for the
-  primary/new-issue leveraged-finance pipeline (entity / yield ≥ 8% / price talk / rating / bookrunners).
-  TRACE is secondary-market; SEC S-1/424B lack the HY pricing color. Would need a different paid feed or a
-  custom scraper. *(Octus Intelligence — the distressed/restructuring news — is ~partly covered by
-  PACER + ratings + the credit Substacks.)*
-  **Assessed 2026-07-10:** the decision is a SOURCE decision before any code — jared picks a paid feed
-  (LevFin Insights / LCD-PitchBook / etc.) or commissions a scraper; the code side afterward is one new
-  fetcher module in the standard `fetch_X` / `format_X_for_prompt` pattern. Partial mitigation already
-  flows for free: forwarded broker **"New Issue Flash" emails** (e.g. Stifel's AMEGRE + Energy Transfer
-  flashes in the archive) reach the digest via the inbox — ad hoc coverage, not a systematic tracker,
-  and another reason the §13 forwarding-completeness item matters.
+### Genuinely unreplaced sources
+- [x] **Octus — HY new-issue Primary Deal Tracker — ✅ RESOLVED 2026-07-13 (operator: accepted,
+  no replacement).** No paid feed (LevFin Insights / LCD-PitchBook) will be added and no scraper
+  commissioned. The 2026-07-13 inbox audit showed the practical coverage is already flowing:
+  **20 Stifel "New Issue Flash" forwards in 21 days (11 HY + 9 IG)** reach the digest via the
+  inbox — deal-by-deal color, accepted in lieu of a systematic tracker. Known accepted loss:
+  no structured pipeline view (entity / yield / price talk / bookrunners as a table). If that
+  ever changes, the code side is one new fetcher module in the standard
+  `fetch_X` / `format_X_for_prompt` pattern. *(Octus Intelligence — the distressed/
+  restructuring news — remains ~covered by PACER + ratings + the credit Substacks.)*
 - [x] **FINRA TRACE — ✅ RESOLVED 2026-07-13: option (c), module REMOVED** (operator decision:
   not using TRACE). The stub had NEVER worked anywhere (it targeted a Morningstar/FINRA JSP
   that serves HTML, not JSON; 0 records on every run ever; `trace_cache.json` never existed).
