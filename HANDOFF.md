@@ -10,9 +10,9 @@
 
 **What it is:** A solo-operator Python automation that runs daily on a schedule. It gathers ~17
 financial/market data sources (Gmail inbox + PDF attachments, paid Substack subs, SEC EDGAR, FRED
-macro, Fed balance sheet, Yahoo Finance, earnings calendar, PACER, FINRA TRACE, 13F filings, rating
+macro, Fed balance sheet, Yahoo Finance, earnings calendar, PACER, 13F filings, rating
 actions, central-bank research, Treasury auctions, CFTC COT, FDIC, WSJ/FT RSS, 13D WILTW —
-Octus removed 2026-06-29), summarizes them with Claude in a **two-pass**
+Octus removed 2026-06-29, FINRA TRACE removed 2026-07-13), summarizes them with Claude in a **two-pass**
 flow (draft → review/enhance), emails an HTML "Daily Research Digest," archives all raw content to
 disk, and indexes it into a local FAISS vector store that powers an **email-reply Q&A bot**.
 
@@ -72,8 +72,10 @@ cleared: app published as the bot, old Testing token backed up, durable producti
 **This token.json is the one the server gets at deploy.** Detail in WORKLOG 2026-07-10).
 **NEXT: the §7.2 server deploy** (F1 checklist + `setup_tasks.ps1` as admin on the box) — the
 project's definition of "done." Sequenced in **`NEXT_STEPS_SPEC.md`**. Other open items: the
-**§13** coverage gaps (Substack ownership, forwarding completeness, TRACE/Octus unreplaced —
-mostly jared-coordination) — see **§11 / §13 / §14**.
+**§13** coverage gaps — narrowed 2026-07-13: **forwarding completeness RESOLVED** (inbox audit —
+everything expected flows; Grant's not in the flow, operator accepted) and **TRACE RESOLVED**
+(operator decided not to use it; the never-functional module removed). Remaining: Substack
+ownership + the Octus/HY-new-issue replacement (jared-coordination) — see **§11 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -215,7 +217,7 @@ monitor unattended 24/7. The work happens in three stages:
     and that sessions expire and need a manual re-login. 13D *also* fires a small embedded Claude
     call (Opus summary) — that's a Claude cost, not a subscription cost; Substack has none.
   - **Free (no charge): everything else.** No-key public APIs — SEC EDGAR, Yahoo Finance, WSJ/FT &
-    Google News RSS, Treasury, CFTC, FDIC, FINRA TRACE, PACER court RSS — plus local compute (FAISS +
+    Google News RSS, Treasury, CFTC, FDIC, PACER court RSS — plus local compute (FAISS +
     sentence-transformer embeddings). Also free but key/auth-gated: **Gmail API** (quota-limited,
     never billed) and **FRED** (free key). "Needs a key" ≠ "costs money": only the Claude key maps to
     per-use billing. *PACER nuance:* real PACER document retrieval is pay-per-page, but this code
@@ -255,7 +257,7 @@ monitor unattended 24/7. The work happens in three stages:
 | `reply_monitor.py` | Email-reply RAG bot. Hardcoded recipient + `from:` allow-list. |
 | `midday.py` | Intraday materiality alert (Sonnet). Imports from `digest.py`. |
 | `memory.py`, `alerts.py`, `archive.py` | Cross-digest memory, plain-English alerts, raw-content archiver. |
-| Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `trace_data.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
+| Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. *(`trace_data.py` removed 2026-07-13 — §13.)* |
 | `run_*.bat`, `setup_tasks.ps1` | Task Scheduler wiring: 4 wrappers (`%~dp0`-relative, dated logs + 30-day prune) + the PowerShell provisioning script (run-whether-logged-on, wake/catch-up/network settings, the 09:00 watchdog, `DIGEST_UNATTENDED`). Execute `setup_tasks.ps1` on the server at deploy. |
 | `grab_session.py` | Stale manual helper (writes Playwright session for Substack, which no longer uses it). |
 
@@ -379,7 +381,7 @@ The project is wired to jared's machine. Required to run here:
 
    **Unaffected by the flip** (own keys/sessions or free public APIs — keep working regardless of which
    account sends): SEC EDGAR, 13F fund tracking, WSJ/FT, rating actions, central-bank research, PACER,
-   market data, earnings, FRED macro + Fed balance sheet, Treasury auctions, CFTC COT, FINRA TRACE,
+   market data, earnings, FRED macro + Fed balance sheet, Treasury auctions, CFTC COT,
    FDIC, 13D WILTW (own session).
 
    **Flip sequence (when ready):** (a) forward research email + move Substack subscriptions to the bot
@@ -498,7 +500,7 @@ each piece location- and account-independent as you go so the server install is 
 - **Free, no permission needed:** offline unit tests of pure functions, and standalone fetchers that
   hit only free APIs: `python news.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`,
   `ratings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`,
-  `earnings.py`, `trace_data.py`, `fund_tracking.py`.
+  `earnings.py`, `fund_tracking.py`.
 - **Requires permission (costs money/credits):**
   - Any path that calls Claude — full `digest.py`, `memory.py`, `alerts.py`, `midday.py`,
     `reply_monitor.py`, news ranking, **and `python pacer.py`** (its `__main__` can trigger
@@ -933,13 +935,21 @@ all sources flowed, Octus-free). Each item below is a real gap in what the diges
   any signal into the red alert box (the stale LLM `alerts_config.json` "Fed stress signal" rule was
   removed, so the threshold lives only in code). Pinned by `tests/test_fed_stress.py`.
 
-### Forwarding completeness (verify with jared)
-The inbox layer = whatever jared forwards to `acorn.research.bot@gmail.com`. The first run's window had
-6 broker HTML notes, **0 PDFs, no Bloomberg**. Confirm the full set is forwarding:
-- [ ] **Research PDFs** — the digest sends PDF attachments straight to Opus (a marquee feature). Confirm
-  PDF-bearing research is forwarded **and the attachments survive forwarding** (some forwards drop/inline them).
-- [ ] **Bloomberg emails** (`bloomberg.net`) — the digest has a dedicated §7 Bloomberg section; none seen yet.
-- [ ] **Non-Substack newsletters** (Grant's, Greenmantle, etc. — cited in the SYSTEM_PROMPT) — only appear if forwarded.
+### Forwarding completeness — ✅ RESOLVED 2026-07-13 (operator: "we have everything")
+Settled empirically by a free inbox/archive audit (21 days, 143 emails — all jared's
+rule-based forwards; detail in WORKLOG 2026-07-13):
+- [x] **Research PDFs** — flowing and surviving forwarding (the Greenmantle country-update
+  series, ~daily; identified by embedded branding — header-level probes can't see it).
+- [x] **Bloomberg** — flowing DAILY (the subject-less "FW:" emails = Bloomberg "Today's News",
+  13:30 UTC via an Outlook rule; present in the archive every run day). ⚠️ **Known product
+  limits, accepted for now:** the §7 section's `bloomberg.net` sender-match can never fire on
+  a forward (outer sender = jared), and the digest prompt carries only each email's ~200-char
+  snippet (bodies go to archive/RAG only) — so Bloomberg content is searchable via the reply
+  bot but effectively unread by the morning digest. A body-extract + detection change is a
+  future spec item (touches prompt-adjacent code; needs sign-off + token-cost decision).
+- [x] **Non-Substack newsletters** — Greenmantle confirmed flowing; **Grant's is genuinely
+  absent** (0 full-text hits in 30 days) and the operator accepted the flow as complete
+  without it (the prompt's "(Grant's)" strings remain as harmless format examples).
 
 ### Genuinely unreplaced sources (no current substitute)
 - [ ] **Octus — HY new-issue Primary Deal Tracker** (removed 2026-06-29). **No free replacement** for the
@@ -953,24 +963,17 @@ The inbox layer = whatever jared forwards to `acorn.research.bot@gmail.com`. The
   flows for free: forwarded broker **"New Issue Flash" emails** (e.g. Stifel's AMEGRE + Energy Transfer
   flashes in the archive) reach the digest via the inbox — ad hoc coverage, not a systematic tracker,
   and another reason the §13 forwarding-completeness item matters.
-- [ ] **FINRA TRACE bond data — a stub that has NEVER worked anywhere** (pre-existing, NOT caused by the
-  Octus removal). `trace_data.py` is fully written and wired (registry, prompt, HTML section, O3 counts)
-  but has returned 0 records on every run ever: it targets a Morningstar/FINRA bond-center JSP that
-  serves HTML, not JSON. Evidence it never functioned: `trace_cache.json` (written only on a successful
-  fetch) has never existed; no archive day has TRACE data; `archive.py` never even grew a parameter for it.
-  **Licensing reality (verified 2026-07-10):** the old "needs API registration" fix is optimistic —
-  FINRA Developer Center **Individual accounts are $0 but get only limited/aggregate datasets**
-  (Treasury aggregates, FINRA-Bloomberg index stats), NOT per-bond trade prints. **Per-issue trade-level
-  data (price/yield/volume) is a PAID product** (TRACE real-time feeds / End-of-Day Transaction File /
-  vendors like Finnhub). The free human path is the finra.org Fixed Income Data UI
-  (https://www.finra.org/finra-data/fixed-income — search by CUSIP/symbol, real-time trade history,
-  free login for a Bond Watchlist), but it is **non-commercial human browsing only: FINRA's Terms of
-  Use explicitly prohibit scraping/robots/database-building** — unlike EDGAR/PACER (government
-  open-data with fair-access policies), FINRA data is a licensed commercial product, so do NOT point
-  the fetcher at the web UI. **Options for jared:** (a) pay for TRACE data — hard to justify for the
-  2-issuer watchlist (PGY, CRWV); (b) manual: jared uses the free watchlist UI, with broker-quoted
-  levels arriving via forwarded emails; (c) drop the module (one registry row + `trace_data.py`; the
-  O3 content monitor already treats its permanent zero as normal). Lean (b)/(c) unless the watchlist grows.
+- [x] **FINRA TRACE — ✅ RESOLVED 2026-07-13: option (c), module REMOVED** (operator decision:
+  not using TRACE). The stub had NEVER worked anywhere (it targeted a Morningstar/FINRA JSP
+  that serves HTML, not JSON; 0 records on every run ever; `trace_cache.json` never existed).
+  Pricing check (2026-07-13, finra.org): the data the digest would need is the End-of-Day
+  Transaction File at **$750/month per data set (≈$9k/yr)** — indefensible for a 2-issuer
+  watchlist; the $0 tier is aggregates only, and the free web UI prohibits scraping.
+  **Removed:** `trace_data.py` + the digest wiring (registry row, prompt section + params,
+  HTML build, assemble param), the `.gitignore` cache entry, and test/tool references; the O3
+  monitor keys off each run's actual counts, so the key vanishes cleanly. Bond color still
+  arrives via forwarded broker notes (Stifel HY flashes etc.). Recoverable from git if the
+  watchlist ever grows enough to justify paid data.
 
 ### Latent maintenance (works now, will need a human later)
 - [ ] **13D session** + **Substack cookie** will expire and need a manual re-login (13D's is interactive).

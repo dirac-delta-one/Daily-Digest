@@ -10,10 +10,9 @@ that is NORMALLY nonzero but has now been zero for several consecutive runs.
 
 "Normally nonzero" is data-driven, not a hardcoded list: a source qualifies
 only if it was nonzero in at least half of the runs BEFORE the current zero
-streak. That self-calibrates the noisy cases — TRACE (always 0, never
-qualifies), 13F fund filings (quarterly, share too low), CFTC COT (zero on
-its Thu/Fri skip days, but a 3-zero streak can't happen on a Mon-Thu
-schedule unless it is genuinely broken).
+streak. That self-calibrates the noisy cases — 13F fund filings (quarterly,
+share too low), CFTC COT (zero on its Thu/Fri skip days, but a 3-zero streak
+can't happen on a Mon-Thu schedule unless it is genuinely broken).
 
 digest.main calls record_and_check() after the fetch phase and merges any
 signals into the same red ALERT box as the Fed-stress check — no second

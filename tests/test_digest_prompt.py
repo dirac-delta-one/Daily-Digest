@@ -40,7 +40,6 @@ def _kwargs():
         macro_data=[],
         memory_context="SENTINEL_MEMORY context line",
         earnings=[],
-        trace_data=[],
         pacer_entries=[],
         rating_actions=[{
             "source": "Moody's",

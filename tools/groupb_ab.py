@@ -79,7 +79,6 @@ def _reconstruct_source_text():
         macro_data=_load("macro_data.json"),
         memory_context="",       # not snapshotted for this date; identical for both models
         earnings=[],
-        trace_data=[],
         pacer_entries=_load("pacer_entries.json"),
         rating_actions=_load("rating_actions.json"),
         fund_results=_load("fund_results.json"),

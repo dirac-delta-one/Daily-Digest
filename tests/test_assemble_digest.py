@@ -17,7 +17,7 @@ DIGEST = f'<div style="font-family: Georgia;">{HEADER}{TLDR}{BODY}</div>'
 
 def _assemble(digest_html=DIGEST, **overrides):
     kw = dict(alerts_html="", market_html="", macro_html="", earnings_html="",
-              news_html="", trace_html="", pacer_html="", funds_html="",
+              news_html="", pacer_html="", funds_html="",
               auctions_html="", fed_bs_html="")
     kw.update(overrides)
     return digest._assemble_digest_html(digest_html, **kw)
@@ -47,7 +47,7 @@ def test_post_sections_appended_before_final_close():
     end_pos = out.rfind("</div>")
     for token in ("NEWS", "FUNDS", "PACER"):
         assert body_pos < out.find(token) < end_pos, token
-    # pinned append order: news, funds, (trace,) pacer
+    # pinned append order: news, funds, pacer
     assert out.find("NEWS") < out.find("FUNDS") < out.find("PACER")
 
 

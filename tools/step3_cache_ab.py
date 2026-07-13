@@ -127,7 +127,6 @@ def _build_content(with_pdf):
         macro_data=_load("macro_data.json"),
         memory_context="",
         earnings=[],
-        trace_data=[],
         pacer_entries=_load("pacer_entries.json"),
         rating_actions=_load("rating_actions.json"),
         fund_results=_load("fund_results.json"),

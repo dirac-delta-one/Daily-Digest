@@ -29,6 +29,45 @@ recur silently once deployed.
 
 ---
 
+## §13 closures: forwarding-completeness audit RESOLVED + TRACE module REMOVED (2026-07-13)
+
+Two §13 items closed by operator decision, evidence-backed by free read-only probes
+(archive `emails.json` + Gmail metadata/full-text; no Claude, nothing modified in the
+inbox). `ruff` clean, `pytest` **227** green.
+
+**Forwarding completeness — RESOLVED ("we have everything").** The audit (21 days, 143
+inbox emails) found the ENTIRE inbox layer is jared's rule-based forwards
+(all outer-sender jared, "FW:" subjects — the sender rewrite is inherent to Outlook's
+forward action; redirect would preserve it but commonly breaks DMARC/corporate policy,
+so not recommended). What flows: Stifel HY+IG (daily notes, New Issue Flashes), KBW
+daily, Barclays Special Sits daily, Guggenheim, the Greenmantle country-update PDF
+series (= the archive's "geopolitical PDFs" — branding only visible in bodies), and
+**Bloomberg "Today's News" DAILY at 13:30 UTC** (the subject-less "FW:" emails; in the
+archive every single run day — earlier "no Bloomberg" audit conclusions were
+header-level illusions, corrected). **Grant's: genuinely absent** (0 full-text hits,
+30 days) — operator accepted; the prompts' "(Grant's)" strings stay as format examples.
+**Known accepted limits (future spec item if ever wanted):** §7's `bloomberg.net`
+sender-match can't fire on forwards, and the digest prompt gets only ~200-char
+snippets (bodies go to archive/RAG) — so Bloomberg is reply-bot-searchable but
+effectively unread by the morning digest; fixing that = embedded-From detection + a
+capped body extract = prompt-adjacent + token cost ⇒ sign-off first.
+
+**FINRA TRACE — RESOLVED: not using it; module removed (§13 option c).** Priced it
+first (finra.org): the needed End-of-Day Transaction File is $750/month per data set
+(≈$9k/yr) — indefensible for a 2-issuer watchlist; the $0 tier is aggregates-only and
+the free web UI prohibits scraping. The stub never returned a record anywhere.
+Removed: `trace_data.py` (git rm), digest wiring (import, registry row, prompt
+section + `trace_data` params in `_build_source_prompt`/`summarize_with_claude`,
+`build_trace_html` call, `trace_html` in `_assemble_digest_html`), the
+`.gitignore` `trace_cache.json` entry (file never existed), the config UA-comment
+mention, the content_monitor docstring example, registry/prompt/assemble test
+references, and the two tools' `trace_data=[]` args. O3 keys off each run's actual
+counts, so the key just stops appearing. Recoverable from git. This lifts the
+2026-07-10 "trace_data.py frozen" carve-out in CLEANUP_REFACTOR_SPEC.md — the freeze
+was pending exactly this §13 decision, now made. HANDOFF §1/§2/§4/§7.1/§8/§13 updated.
+
+---
+
 ## Cleanup Stage 2.6 — PyPDF2 → pypdf + rebuild + eval re-baseline — TRACK COMPLETE (2026-07-10)
 
 The last spec stage; **the cleanup/refactor track (CLEANUP_REFACTOR_SPEC.md) is

@@ -37,7 +37,6 @@ from macro_data import fetch_macro_data, build_macro_table_html, format_macro_fo
 from memory import get_memory_context, update_memory
 from alerts import evaluate_alerts, build_alerts_html
 from earnings import fetch_earnings_calendar, build_earnings_html, format_earnings_for_prompt
-from trace_data import fetch_trace_data, format_trace_for_prompt, build_trace_html
 from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html, commit_seen
 from ratings import fetch_rating_actions, format_ratings_for_prompt
 from fund_tracking import fetch_fund_holdings, format_funds_for_prompt, build_funds_html
@@ -335,7 +334,7 @@ Follow this template exactly. Same fonts, same sizes, same spacing every single 
 
 
 def _build_source_prompt(*, emails, substack_articles, sec_filings, market_data,
-                         macro_data, memory_context, earnings, trace_data, pacer_entries,
+                         macro_data, memory_context, earnings, pacer_entries,
                          rating_actions=None, fund_results=None,
                          wiltw=None,
                          research_articles=None, treasury_auctions=None,
@@ -445,11 +444,6 @@ def _build_source_prompt(*, emails, substack_articles, sec_filings, market_data,
         prompt += "\n\n" + "=" * 40 + "\nSEC FILINGS:\n" + "=" * 40 + "\n\n"
         prompt += "\n\n".join(filing_lines)
 
-    # TRACE bond data
-    trace_text = format_trace_for_prompt(trace_data)
-    if trace_text:
-        prompt += "\n\n" + "=" * 40 + "\n" + trace_text + "\n" + "=" * 40
-
     # PACER docket entries
     pacer_text = format_pacer_for_prompt(pacer_entries)
     if pacer_text:
@@ -510,7 +504,7 @@ def _strip_to_html(text):
 
 def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           market_data=None, macro_data=None, earnings=None,
-                          trace_data=None, pacer_entries=None,
+                          pacer_entries=None,
                           rating_actions=None, fund_results=None,
                           wiltw=None,
                           research_articles=None, treasury_auctions=None,
@@ -525,7 +519,6 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     market_data = market_data or []
     macro_data = macro_data or []
     earnings = earnings or []
-    trace_data = trace_data or []
     pacer_entries = pacer_entries or []
     rating_actions = rating_actions or []
     fund_results = fund_results or []
@@ -547,7 +540,6 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
         macro_data=macro_data,
         memory_context=memory_context,
         earnings=earnings,
-        trace_data=trace_data,
         pacer_entries=pacer_entries,
         rating_actions=rating_actions,
         fund_results=fund_results,
@@ -782,7 +774,7 @@ def build_news_html(articles):
 
 
 def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
-                          earnings_html, news_html, trace_html, pacer_html,
+                          earnings_html, news_html, pacer_html,
                           funds_html="",
                           auctions_html="", fed_bs_html=""):
     """
@@ -819,8 +811,6 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
         post_sections += news_html
     if funds_html:
         post_sections += funds_html
-    if trace_html:
-        post_sections += trace_html
     if pacer_html:
         post_sections += pacer_html
 
@@ -999,8 +989,6 @@ SOURCE_FETCHERS = [
      fetch_macro_data),
     ("earnings", "Checking earnings calendar...", "Earnings calendar",
      fetch_earnings_calendar),
-    ("trace_data", "Fetching TRACE bond data...", "TRACE fetch",
-     fetch_trace_data),
     ("pacer_entries", "Checking PACER dockets...", "PACER fetch",
      fetch_pacer_docket),
     ("rating_actions", "Fetching rating actions...", "Rating actions",
@@ -1132,7 +1120,6 @@ def main():
     market_data = fetched["market_data"]
     macro_data = fetched["macro_data"]
     earnings = fetched["earnings"]
-    trace_data = fetched["trace_data"]
     pacer_entries = fetched["pacer_entries"]
     rating_actions = fetched["rating_actions"]
     fund_results = fetched["fund_results"]
@@ -1161,7 +1148,6 @@ def main():
         market_data=market_data,
         macro_data=macro_data,
         earnings=earnings,
-        trace_data=trace_data,
         pacer_entries=pacer_entries,
         rating_actions=rating_actions,
         fund_results=fund_results,
@@ -1222,7 +1208,6 @@ def main():
     macro_html = build_macro_table_html(macro_data)
     earnings_html = build_earnings_html(earnings)
     news_html = build_news_html(news_articles)
-    trace_html = build_trace_html(trace_data)
     pacer_html = build_pacer_html(pacer_entries)
     # No ratings section is pre-built here — Opus writes the §9 "Rating Actions" section itself from
     # the rating data (see SYSTEM_PROMPT), unlike other sources which pre-render their section.
@@ -1233,7 +1218,7 @@ def main():
     # --- Assemble final digest ---
     final_html = _assemble_digest_html(
         digest_html, alerts_html, market_html, macro_html,
-        earnings_html, news_html, trace_html, pacer_html,
+        earnings_html, news_html, pacer_html,
         funds_html,
         auctions_html, fed_bs_html,
     )
