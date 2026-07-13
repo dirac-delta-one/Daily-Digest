@@ -299,7 +299,7 @@ def test_substack_context_header_and_isolation(mem_files, tmp_path, monkeypatch)
     ]}, sub_file)
 
     ctx = memory.get_substack_memory_context()
-    assert ctx.startswith("SUBSTACK MEMORY")
+    assert ctx.startswith("TRACKED SUBSTACK STORYLINES")
     assert "Data-center bond fragility" in ctx
     assert "ORIGINAL publication" in ctx
     # the MAIN context is untouched by the substack store

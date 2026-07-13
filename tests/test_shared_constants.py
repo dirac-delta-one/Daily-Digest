@@ -27,7 +27,27 @@ def test_subject_prefix_is_shared():
 
 
 def test_daily_subject_byte_identical_to_legacy():
+    # The default (team / no-marker) subject is unchanged from the legacy format.
     assert digest._digest_subject() == _legacy_subject("\U0001f4ec")
+
+
+def test_full_marker_prepended_only_when_full():
+    # FULL variant (jared) carries the marker; team variant does not.
+    plain = digest._digest_subject()
+    full = digest._digest_subject(full=True)
+    assert full == f"{digest.FULL_SUBJECT_MARKER}{plain}"
+    assert full.startswith("[FULL] ")
+    # The prefix phrase the reply query matches still appears verbatim, so the
+    # marker can't break reply matching (query ANDs "Re:" + the prefix phrase).
+    assert config.DIGEST_SUBJECT_PREFIX in full
+
+
+def test_full_marker_on_weekly_subject():
+    monday = datetime.date(2026, 7, 6)
+    plain = digest._weekly_subject(monday)
+    full = digest._weekly_subject(monday, full=True)
+    assert full == f"{digest.FULL_SUBJECT_MARKER}{plain}"
+    assert full.startswith("[FULL] ")
 
 
 def test_earnings_watchlist_is_sec_watchlist():

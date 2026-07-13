@@ -5,25 +5,81 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-13)
+## Current state (2026-07-13, end of session — all session work committed)
 
-**Every code track is done AND live-validated**, and the last open §13 item (Substack
-ownership/renewal) is **~resolved — cookie renewal is now AUTOMATED** (2026-07-13 entry
-below): the silently-dead cookie was found + replaced, `_check_session` fixed to a real auth
-probe, `SUBSTACK_EMAIL` set, jared's auto-forward requested, paid-sub coverage expanded
-**11 → 17 pubs**, and polymathinvestor removed. `ruff` clean, `pytest` **232** green. Budget
-**~$4.50** ($0 spent 2026-07-13 — all checks free/read-only); daily runs remain stopped
-(task disabled).
+**Every code track is done AND live-validated — including the NEW `TEAM_DIGEST_SPEC`
+track, which went spec → build → audit → paid validation → Stage-5 activation →
+live-run proof in this one session.** Substack is now jared-personal: two digests
+generate daily (full to jared's list, Substack-free team variant to `DIGEST_TO_TEAM`
+— **pilot: acohen**), sharing a prompt-cache prefix (team runs first, full pays only
+its substack tail); separate `substack_memory.json`; asker-tiered reply bot
+(reply-to-asker-only; non-`FULL_ACCESS_SENDERS` askers get substack-free retrieval,
+the team digest as context, no substack storylines); the team digest is the indexed
+one; per-variant alert boxes; team weekly wrap. The first activated run (GREEN,
+$1.47) closed every run-day check: sent team email greps CLEAN, cross-variant cache
+confirmed, both memory feeds flipped, eval re-baselined **0.846/0.962/0.897**
+(`2026-07-13_post_team_activation.json`). Also this session: Substack renewal
+automated (dead cookie found + replaced, real auth probe, `SUBSTACK_EMAIL` set,
+jared auto-forward requested), paid-sub coverage 11 → **17 pubs**, paywall-preview
+flagging, the weekly-wrap review PASSED, IT's Abnormal allowlist CONFIRMED.
+`ruff` clean, `pytest` **277** green. Session spend ~$3.3 (validations $1.81 + the
+activated run $1.47) against the fresh top-up; daily runs remain stopped (task
+disabled).
 
-**REMAINING:** (1) **jared's one-time Gmail forward confirmation** — watch the bot inbox for
-Google's confirmation email (none arrived as of 2026-07-13 EOD); the auto-renewal chain is
-inert until it's clicked; (2) **§7.2 server deploy** (F1 checklist; run `setup_tasks.ps1` as
-admin on the box) — the project's definition of "done"; (3) optional end-state: flip the
-Substack account email to the bot (removes the jared-account dependency entirely — his call).
-~~Abnormal allowlist confirmation~~ ✅ **CONFIRMED 2026-07-13** (IT allows the bot sender for
-Outlook inboxes — §7.2 field-finding 7 satisfied for the acorn.com recipients). ~~Weekly-wrap
-template eyeball~~ ✅ **PASSED 2026-07-13** (entry below). ~~7/09 WILTW~~ closed 2026-07-10
-(miss accepted; its ≤6-day window lapsed Wed 7/15).
+**REMAINING:**
+1. **jared's one-time Gmail forward confirmation** — watch the bot inbox for
+   Google's confirmation email (none as of 2026-07-13 EOD); Substack auto-renewal
+   is inert until it's clicked (manual cookie paste is the fallback).
+2. **§7.2 server deploy** (F1 checklist; `setup_tasks.ps1` as admin on the box) —
+   the project's definition of "done". **Deploy checklist additions from this
+   session:** server env.bat must carry `DIGEST_TO_TEAM` (else post-activation
+   full digests get indexed and leak to team askers) + `SUBSTACK_EMAIL`; copy the
+   fresh `substack_cookie.txt` and `substack_memory.json`.
+3. **Three cosmetic watch items from the first dual run** (details in the
+   comparison entry below): (a) the model occasionally appends "memory" to source
+   tags — "(Greenmantle memory)", "(13D memory)", and one alert detail said
+   "Substack memory references..." — candidate one-line SYSTEM_PROMPT/memory-header
+   tweak if it recurs; (b) run-variance factual slip in the team variant ($TCBK
+   expanded as "TrustCo Bancorp"; it's TriCo Bancshares — each variant is an
+   independent generation with independent error draws); (c) full digest wrote its
+   own "9. Bankruptcy Activity" and numbered Rating Actions "10", colliding with
+   the appended "10. WSJ/FT" (§14.B template-drift family, cosmetic).
+4. **F3 golden-set refresh:** `mstr-week-evolution` is a stale relative-time
+   question (the eval's one top-3 slip); refresh/add questions for the new days.
+5. Optional end-state: flip the Substack account email to the bot (jared's call).
+
+---
+
+## Sent-email comparison (jared vs team) + three cosmetic watch items (2026-07-13)
+
+Operator-requested: both sent emails fetched read-only from the bot's Gmail Sent
+mail and verified **byte-identical** to the local `digests/` saves (delivery
+fidelity confirmed), then compared side-by-side.
+
+**Verdict: the separation works as a product, not just a filter.** Shared
+infrastructure identical in both (all data tables, appended WSJ/FT + PACER
+sections, ratings, the MSTR 8-K). Jared-only: the substack-memory-sourced
+"Distressed exchange" alert box, 2 of 3 TL;DR bullets, and the deep substack
+analysis (JBI capital-allocation conflict, Blue Owl/UBS post-mortem, software
+markdowns, redemption scoreboard, HYL/ARE, Krugman, Burry). The team variant
+**redistributed attention rather than hollowing out**: Greenmantle's Burnham-UK
+analysis got 3 takeaways + themes + contrarian + the Worth Reading slot (the full
+digest compresses it to one bullet), plus richer MSTR-8-K and CFTC-COT detail.
+Team leak grep on the delivered artifact: CLEAN.
+
+**Three cosmetic nits logged as watch items (also in Current state):**
+1. **"…memory" leaking into source tags** — the team digest cited "(Greenmantle
+   memory)" / "(13D memory)" and the full digest's alert detail opened with
+   "Substack memory references…". Violates the never-cite-the-memory-system
+   spirit at the wording level (attribution itself was correct). If it recurs:
+   a one-line tweak to the SYSTEM_PROMPT rule and/or the memory context headers.
+2. **Team-variant factual slip:** `$TCBK` expanded as "TrustCo Bancorp" — it's
+   TriCo Bancshares (full digest + WSJ correct). Reminder that the team digest
+   is an independent second generation with independent hallucination draws.
+3. **Numbering collision in the full digest:** Opus added its own "9. Bankruptcy
+   Activity" section and numbered Rating Actions "10", colliding with the
+   appended "10. WSJ/FT Articles" (and duplicating the appended PACER section's
+   content). §14.B-3.5a template-drift family — cosmetic, renders fine.
 
 ---
 

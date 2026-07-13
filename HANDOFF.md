@@ -25,8 +25,8 @@ low-risk improvements.
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), run daily
 through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**, and the whole
 2026-07-09 batch **live-validated by the 2026-07-10 run (GREEN, $1.58, checklist 9/9)**; `ruff`
-clean, `pytest` **227** green. The **cost refactor is complete** (2026-07-01; see §11 / §14 +
-`WORKLOG`).
+clean, `pytest` **277** green (2026-07-13). The **cost refactor is complete** (2026-07-01; see
+§11 / §14 + `WORKLOG`).
 **✅ The CLEANUP/REFACTOR TRACK is COMPLETE (2026-07-10; `CLEANUP_REFACTOR_SPEC.md`, all 9
 stages, $0 Claude spend, tests 180 → 227).** Highlights: dead code out (write-only FRED
 cache etc.); one subject constant + one watchlist source of truth; wrappers exit 0 on clean
@@ -97,6 +97,25 @@ The account-email flip to the bot remains an optional end-state. Detail in §13 
 `acorn.research.bot@gmail.com` on Outlook inboxes (§7.2 item 7 satisfied for acorn.com
 recipients), and the **first weekly wrap passed its template review** (fetched from the bot's
 Sent mail; §11 checklist item 5 closed).
+**✅ NEW TRACK COMPLETE 2026-07-13 — `TEAM_DIGEST_SPEC.md`: Substack is now
+jared-personal.** Spec → build → post-build audit → paid validations ($1.81) → Stage-5
+activation → first live run (GREEN, $1.47), all one session, operator-approved throughout.
+Two digests generate per run: the FULL (Substack + a new `substack_memory.json` layer) to
+`DIGEST_TO` and a **Substack-free TEAM variant** to `DIGEST_TO_TEAM` (**pilot: acohen**;
+generation is skipped entirely if that list is empty). The team prompt is a byte-identical
+cache prefix of the full prompt (team runs first; the full run's pass 1 paid 36 uncached
+tokens live), the TEAM digest is the indexed one (full-digest prose embeds substack), alert
+boxes are per-variant (a substack-sourced alert fired only in jared's box on the live run),
+`memory.json` is substack-cleansed (20 stories migrated) and fed by the team digest, the
+reply bot answers the asker only with substack-free retrieval/context for
+non-`FULL_ACCESS_SENDERS` (acohen is deliberately team-tier), and Fridays produce a team
+weekly wrap. Sent-email comparison verified delivery fidelity + zero team leakage; eval
+re-baselined **0.846/0.962/0.897** (the one slip is a stale relative-time golden question).
+Suite now **277** tests. **Three cosmetic watch items** from the first dual run (WORKLOG
+2026-07-13 comparison entry): "(…memory)" wording leaking into source tags / an alert
+detail; one team-variant ticker-expansion slip ($TCBK ≠ TrustCo); a §14.B-family section-
+numbering collision in the full digest. **Deploy note: the server's env.bat must carry
+`DIGEST_TO_TEAM`** or post-activation full digests would be indexed and leak to team askers.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -283,11 +302,15 @@ monitor unattended 24/7. The work happens in three stages:
 
 **Gitignored, account-bound secrets** (must exist on the machine; copy or regenerate):
 `credentials.json`, `token.json` (Gmail), `substack_cookie.txt`,
-`thirteen_d_session.json`, `env.bat`, plus caches (`*_cache.json`, `pacer_seen.json`, `memory.json`).
+`thirteen_d_session.json`, `env.bat`, plus caches/state (`*_cache.json`, `pacer_seen.json`,
+`memory.json`, `substack_memory.json`).
 
 **Env vars used:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),
-`SUBSTACK_EMAIL` (Substack magic-link). Note: `SUBSTACK_PASSWORD` appears in the README but is **not
-used** by current code (Substack is cookie/magic-link based) — README is stale on this point.
+`SUBSTACK_EMAIL` (Substack magic-link renewal — set 2026-07-13), `DIGEST_TO` (full-digest
+recipient override), `DIGEST_TO_TEAM` (the Substack-free TEAM digest's recipients —
+TEAM_DIGEST_SPEC; empty = team generation skipped; **must be set on the server at deploy**).
+Note: `SUBSTACK_PASSWORD` appears in the README but is **not used** by current code (Substack
+is cookie/magic-link based) — README is stale on this point.
 
 ---
 
@@ -451,6 +474,10 @@ and `config.py`), then provision the server:
    **copy that exact file to the server.** (Background: Testing-mode refresh tokens expire after
    7 days and would break the digest weekly under unattended operation; a headless server can't
    do an interactive consent, so the non-expiring production token is the real requirement.)
+   **Added 2026-07-13 (TEAM_DIGEST_SPEC):** the server's env must also carry **`DIGEST_TO_TEAM`**
+   (team activation is live — a machine running without it generates only full digests, which
+   then get INDEXED and leak substack prose to team askers) and **`SUBSTACK_EMAIL`**; copy the
+   fresh `substack_cookie.txt` (renewed 2026-07-13) and `substack_memory.json` too.
 4. **Reliability & observability:** ✅ **all code halves DONE.** Log rotation (O1, 2026-07-09:
    date-stamped `logs\<label>_YYYY-MM-DD.log` + 30-day prune in the wrappers); failure alerting
    (run-error half 2026-07-02: `run_alert.py`, nonzero exit → red alert email with the log tail);
@@ -1063,6 +1090,19 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
 - **3.5b — PACER company-sizing search (`pacer._search_company_size`)** — Google scraping is fragile
   but degrades gracefully. Options: a free-tier search API (e.g. Brave) or dropping the web step. Low
   priority, low volume.
+- **Three cosmetic nits from the first dual-variant run (2026-07-13; WORKLOG comparison
+  entry).** Watch, fix only on recurrence:
+  (1) **"…memory" in source tags** — the team digest cited "(Greenmantle memory)" /
+  "(13D memory)" and a full-digest alert detail opened "Substack memory references…";
+  attribution itself was correct, only the wording violates the never-cite-the-memory-system
+  spirit. Candidate fix: a one-line tightening of the SYSTEM_PROMPT rule and/or the memory
+  context headers (touches the load-bearing prompt — §6 caution applies).
+  (2) **Variant-independent hallucination draws** — the team variant expanded `$TCBK` as
+  "TrustCo Bancorp" (it's TriCo Bancshares; the full digest and WSJ were correct). Each
+  variant is its own generation; a fact can be right in one email and wrong in the other.
+  (3) **Section-numbering collision** — the full digest wrote its own "9. Bankruptcy
+  Activity" and numbered Rating Actions "10", colliding with the appended "10. WSJ/FT"
+  (and duplicating the appended PACER section). Same family as 3.5a; renders fine.
 
 ### C. Low-value cleanup
 ✅ **Done 2026-06-30** — three "nice-to-have" dedups consolidated, behavior-neutral (`ruff` clean,

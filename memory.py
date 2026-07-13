@@ -259,8 +259,8 @@ def get_substack_memory_context():
         return ""
 
     lines = [
-        "SUBSTACK MEMORY — storylines tracked from the paid Substack "
-        "subscriptions (these appear only in this digest, never the team one):",
+        "TRACKED SUBSTACK STORYLINES — from the paid Substack subscriptions "
+        "(these appear only in this digest, never the team one):",
         f"Last updated: {memory.get('last_updated', 'never')}",
         "",
     ]
@@ -275,9 +275,9 @@ def get_substack_memory_context():
         lines.append("")
 
     lines.append(
-        "Reference prior context where relevant. When citing data from this "
-        "memory, attribute it to the ORIGINAL publication (e.g. PETITION, "
-        "SemiAnalysis), not to this memory system."
+        "Reference prior context where relevant. When citing this data, "
+        "attribute it to the ORIGINAL publication (e.g. PETITION, "
+        "SemiAnalysis), not to this tracking layer."
     )
 
     return "\n".join(lines)

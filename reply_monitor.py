@@ -230,9 +230,14 @@ def check_for_replies(service):
     Returns list of (message_id, thread_id, subject, question_text,
     digest_date, rfc_message_id, asker_email).
     """
-    # Search for replies to digest threads from the user
+    # Search for replies to digest threads. Two separate subject: terms (AND)
+    # rather than one "Re: <prefix>" phrase, so the FULL variant's "[FULL] "
+    # marker sitting between "Re:" and the prefix (digest.FULL_SUBJECT_MARKER)
+    # still matches. The "Re:" term keeps excluding the original digest (which
+    # the bot also receives in its own inbox); the prefix phrase matches both
+    # the full and team subjects and their replies.
     query = (
-        f'subject:"Re: {DIGEST_SUBJECT_PREFIX}" '
+        f'subject:"Re:" subject:"{DIGEST_SUBJECT_PREFIX}" '
         f'is:unread '
         f'newer_than:1d '
         f'(from:jtramontano@acorninv.com OR from:acorn.research.bot@gmail.com '

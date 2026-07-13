@@ -87,6 +87,13 @@ DIGEST_RECIPIENTS = _recipients_from_env(
 # team generation is skipped entirely until a recipient is added (the Stage-5
 # activation checklist), so the second 2-pass run costs nothing today.
 TEAM_RECIPIENTS = _recipients_from_env("DIGEST_TO_TEAM", "")
+
+# Prefixed onto the FULL variant's subjects (daily + weekly) so the Substack-
+# inclusive digest jared receives is visually distinguishable from the team
+# variant, which keeps the plain subject. The reply-bot Gmail query matches on
+# DIGEST_SUBJECT_PREFIX (a separate subject: term from the "Re:" anchor), so this
+# leading marker does NOT break reply matching — see reply_monitor.check_for_replies.
+FULL_SUBJECT_MARKER = "[FULL] "
 CLAUDE_MODEL = OPUS_MODEL
 
 # Paths (relative to this script)
@@ -283,17 +290,26 @@ One line each: entity (with ticker if known), the action (upgrade/downgrade/outl
 and specifics (new rating, notches, rationale). Lead with downgrades and fallen angels — \
 they carry the most credit signal. Tag the source at the end of each line.
 
-Sections 10 (WSJ/FT Articles) and 11 (Fund Position Changes) \
-are appended separately — do NOT generate those yourself.
+Sections 10 (WSJ/FT Articles) and 11 (Fund Position Changes), plus the appended \
+"Bankruptcy Court Activity" section (built from the PACER dockets), are appended \
+separately — do NOT generate those yourself. The PACER docket entries below are \
+provided only so you can cross-reference them where relevant (e.g. Takeaways/Themes); \
+do NOT write a standalone bankruptcy or court-activity section, and do NOT renumber \
+your sections around one.
 
 Rules:
 - Be specific. Include numbers, tickers, dates, and names — not vague summaries.
+- Do not expand a ticker into a company name unless that name appears in the source \
+material. If you are unsure of the issuer, cite the bare ticker (e.g. "$TCBK") rather \
+than guessing the company name.
 - If multiple sources discuss the same topic, synthesize them and note where they agree \
 or disagree.
 - Tag each claim with its source in parentheses at the end, e.g. "(Grant's)" or "(Greenmantle)". \
 Be consistent — always at the end of the bullet, never woven into the sentence. \
 Only cite real sources: publication names (Grant's, FT, Bloomberg), SEC filing types, \
-agency names. NEVER cite "Cross-Digest Memory" or any internal system component as a source.
+agency names. NEVER cite "Cross-Digest Memory" or any internal system component as a source, \
+and NEVER append "memory" (or any system-layer word) to a source tag — write "(Greenmantle)", \
+never "(Greenmantle memory)".
 - Skip promotional content, subscription upsells, and anything with no analytical substance.
 - Keep it scannable — short bullets, no filler.
 - If cross-digest memory is provided, use it to add context about evolving stories \
@@ -908,13 +924,15 @@ def _week_monday(today=None):
     return today - datetime.timedelta(days=today.weekday())
 
 
-def _weekly_subject(monday=None):
+def _weekly_subject(monday=None, full=False):
     """'📊 Weekly Research Wrap — Week of Monday, July 6' (operator-specified
     wording, 2026-07-10). The 📊 weekly has never matched the reply bot's
-    'Re: 📬 Daily Inbox Digest' query, and still doesn't."""
+    'Re: 📬 Daily Inbox Digest' query, and still doesn't. full=True prepends
+    FULL_SUBJECT_MARKER for jared's variant; the team weekly keeps it plain."""
     monday = monday or _week_monday()
-    return (f"\U0001f4ca Weekly Research Wrap — "
-            f"Week of {monday.strftime('%A, %B')} {monday.day}")
+    subject = (f"\U0001f4ca Weekly Research Wrap — "
+               f"Week of {monday.strftime('%A, %B')} {monday.day}")
+    return f"{FULL_SUBJECT_MARKER}{subject}" if full else subject
 
 
 def save_weekly_digest(html, date=None, team=False):
@@ -996,16 +1014,19 @@ def generate_weekly_summary(digests, cost_label=""):
     return weekly
 
 
-def _digest_subject():
+def _digest_subject(full=False):
     """Daily digest subject: '📬 Daily Inbox Digest — <Weekday, Month D>'.
 
     Built on config.DIGEST_SUBJECT_PREFIX — the exact string reply_monitor's
     Gmail query matches replies against, so the sender and the matcher can't
-    drift apart.
+    drift apart. full=True prepends FULL_SUBJECT_MARKER for jared's Substack-
+    inclusive variant (the marker sits before the prefix, which reply matching
+    tolerates); the team variant passes full=False and keeps the plain subject.
     """
     day = datetime.date.today().day
     today = datetime.date.today().strftime(f"%A, %B {day}")
-    return f"{DIGEST_SUBJECT_PREFIX} — {today}"
+    subject = f"{DIGEST_SUBJECT_PREFIX} — {today}"
+    return f"{FULL_SUBJECT_MARKER}{subject}" if full else subject
 
 
 def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject=None):
@@ -1362,7 +1383,7 @@ def main():
 
     # --- Send digest(s) ---
     print("Sending digest email...")
-    send_digest_email(service, final_html)
+    send_digest_email(service, final_html, subject=_digest_subject(full=True))
     if team_final_html:
         print("Sending TEAM digest email...")
         send_digest_email(service, team_final_html, recipients=TEAM_RECIPIENTS)
@@ -1442,7 +1463,7 @@ def main():
                         print(f"Failed to save weekly summary: {e}")
                     send_digest_email(
                         service, weekly_html,
-                        subject=_weekly_subject(),
+                        subject=_weekly_subject(full=True),
                     )
                     print("Weekly summary sent.")
             else:
