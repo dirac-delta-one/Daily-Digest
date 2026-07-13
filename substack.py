@@ -31,7 +31,6 @@ MAX_ARTICLE_CHARS = 8000
 # ======================================================================
 SUBSCRIPTIONS = [
     "https://www.junkbondinvestor.com/",
-    "https://www.polymathinvestor.com/",
     "https://www.petition11.com/",
     "https://michaeljburry.substack.com/",
     "https://www.privatedebtnews.org/",
@@ -40,7 +39,17 @@ SUBSCRIPTIONS = [
     "https://whatiscalledthinking.substack.com/",
     "https://aletteraday.substack.com/",
     "https://www.high-yield-landlord.com/",
+    # No active sub — full text arrives via Substack's public per-post API;
+    # keep until that breaks (operator decision 2026-07-13)
     "https://www.yetanothervalueblog.com/",
+    # Paid subs found on the account but previously unfetched (2026-07-13 audit)
+    "https://damnang2.substack.com/",
+    "https://fixedincomebeacon.substack.com/",
+    "https://www.paripassunewsletter.com/",  # API 403s (bot-blocked, like polymath) — degrades gracefully
+    "https://paulomacro.substack.com/",
+    "https://newsletter.semianalysis.com/",
+    "https://www.techinvestments.io/",
+    "https://contrarianunicus.substack.com/",
 ]
 
 # Persistence
@@ -124,9 +133,15 @@ def _save_cookie(value):
 
 
 def _check_session(session):
-    """Verify the session is authenticated."""
+    """Verify the session is authenticated.
+
+    Probes /user/profile/self: 200 only when logged in, 401 when the cookie is
+    dead. The old probe (/reader/feed) returns 200 even to anonymous requests,
+    so an expired cookie passed the check and auto-renewal never fired — the
+    2026-07-13 dead-cookie incident went unnoticed for exactly that reason.
+    """
     try:
-        r = session.get("https://substack.com/api/v1/reader/feed", timeout=10)
+        r = session.get("https://substack.com/api/v1/user/profile/self", timeout=10)
         if r.status_code == 200:
             return True
         if r.status_code in (401, 403):

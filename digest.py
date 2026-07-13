@@ -971,8 +971,8 @@ def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject=
 # SOURCE REGISTRY + PARALLEL FETCH (efficiency S1 + E1, 2026-07-09)
 # ======================================================================
 
-# S1: the 14 independent fetchers main() runs before the Claude passes, as a
-# table instead of 14 near-identical try/except blocks. Each row:
+# S1: the 13 independent fetchers main() runs before the Claude passes, as a
+# table instead of 13 near-identical try/except blocks. Each row:
 # (result key, progress line, failure label, zero-arg callable). Any source
 # failing yields [] and the run continues — the same per-source isolation the
 # old blocks provided. Gmail, Substack, and 13D are deliberately NOT here:
@@ -1113,7 +1113,7 @@ def main():
         print(f"13D WILTW failed: {e} — continuing without.")
         wiltw = None
 
-    # --- The 14 independent sources (S1 registry, fetched in parallel — E1) ---
+    # --- The 13 independent sources (S1 registry, fetched in parallel — E1) ---
     fetched = _fetch_all_sources()
     sec_filings = fetched["sec_filings"]
     news_articles = fetched["news_articles"]

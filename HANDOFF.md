@@ -69,8 +69,9 @@ land on the box — no laptop interim, single-copy risk accepted). Daily runs re
 (task disabled; **~$4.50 credit remains**, top-up at deploy).
 **✅ The 2026-07-10 live validation run is DONE — GREEN, $1.58, checklist 9/9** (manual via
 `run_digest.bat`; validated the whole 7/09 batch at once, ran the first live v2 memory
-migration + delta, and the first-ever Friday weekly summary — **operator: eyeball the 📊
-weekly email's template adherence**). **E3 gate settled: SKIP — the efficiency track is
+migration + delta, and the first-ever Friday weekly summary — **template review PASSED
+2026-07-13** (fetched from the bot's Sent mail; correct Georgia/680px template, the 4
+requested sections + a sensible scorecard table, honest footnotes)). **E3 gate settled: SKIP — the efficiency track is
 CLOSED** (Gmail was seconds of a ~7-min run; wall-clock lives in the Claude calls). Full
 results in `WORKLOG` (2026-07-10). The 7/09 WILTW wasn't posted yet at run time (graceful
 skip, $0); **miss accepted (operator, 2026-07-10)** — a one-off from the paused scheduler; on
@@ -86,8 +87,16 @@ project's definition of "done." Sequenced in **`NEXT_STEPS_SPEC.md`**. Other ope
 everything expected flows; Grant's not in the flow, operator accepted), **TRACE RESOLVED**
 (operator decided not to use it; the never-functional module removed), and **Octus/HY-new-issue
 RESOLVED** (accepted, no replacement — the forwarded Stifel New Issue Flashes carry the color).
-Remaining: **Substack ownership/renewal — 🚩 flagged, operator speaking to jared** — see
-**§11 / §13 / §14**.
+**Substack ownership/renewal — ~RESOLVED 2026-07-13 (renewal AUTOMATED)**: full account audit
+(browser + API) run, 7 unfetched paid pubs added (11 → 17 configured), a silently-dead cookie
+found + replaced, `_check_session` fixed to a real auth probe, and the magic-link renewal chain
+wired end-to-end (jared auto-forward + `SUBSTACK_EMAIL` in env.bat) — pending only jared's
+one-time Gmail forward confirmation (watch the bot inbox for Google's confirmation email).
+The account-email flip to the bot remains an optional end-state. Detail in §13 + WORKLOG
+2026-07-13. Also 2026-07-13: **IT confirmed the Abnormal allowlist** for
+`acorn.research.bot@gmail.com` on Outlook inboxes (§7.2 item 7 satisfied for acorn.com
+recipients), and the **first weekly wrap passed its template review** (fetched from the bot's
+Sent mail; §11 checklist item 5 closed).
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -344,9 +353,9 @@ The project is wired to jared's machine. Required to run here:
 4. **`env.bat`** (gitignored) — create on this machine with `ANTHROPIC_API_KEY`, `FRED_API_KEY`,
    `SUBSTACK_EMAIL`.
 5. **Secret files** — copy `credentials.json`, `token.json`, `substack_cookie.txt`,
-   `octus_session.json`, `thirteen_d_session.json` from jared's machine, OR re-provision (Gmail
-   OAuth re-consent, Substack magic-link, Octus/13D manual login). These bind to *accounts*, not the
-   machine.
+   `thirteen_d_session.json` from jared's machine, OR re-provision (Gmail
+   OAuth re-consent, Substack magic-link, 13D manual login). These bind to *accounts*, not the
+   machine. *(`octus_session.json` is gone — Octus removed 2026-06-29.)*
 6. **`EDGAR_USER_AGENT` / `USER_AGENT` contact string** (`sec_filings.py:27`, `pacer.py:29`,
    `trace_data.py:17`, `fund_tracking.py:19`) — SEC/PACER want a real contact. ~~Decision
    (2026-06-19): KEEP `jtramontano@acorninv.com`.~~ **SUPERSEDED 2026-06-29 (see item 8): the
@@ -493,10 +502,10 @@ exactly the failure modes this section predicted plus several new ones:
    and removed it (new Gmail sender + emoji subject + link-dense HTML); delivery is intermittent.
    Deploy runbook: have every production recipient's mail security **allowlist
    `acorn.research.bot@gmail.com`** — the failure alerts share the sender, so quarantine can
-   silence both signal paths at once. **Status 2026-07-10: acohen submitted the IT/service-desk
-   allowlist request for the bot sender** (confirmation from IT pending; watch that digests keep
-   arriving). Still open for deploy: the same allowlisting for **every other production
-   recipient** (incl. `jtramontano@acorninv.com`) before recipients are switched to production.
+   silence both signal paths at once. **✅ CONFIRMED 2026-07-13: IT allows
+   `acorn.research.bot@gmail.com` for Outlook inboxes** — covers the acorn.com production
+   recipients (acohen + jtramontano). Satisfied for deploy; re-verify only if a non-Outlook
+   recipient is ever added.
 8. **WILTW Thursday timing (known behavior, no fix).** The report posts after 8 AM Thursdays;
    the same-day run misses it gracefully and the next run within the 6-day window picks it up
    (on a Mon–Fri server schedule: Friday).
@@ -927,13 +936,26 @@ all sources flowed, Octus-free). Each item below is a real gap in what the diges
   OAS, 2Y/10Y + derived 2s10s, breakevens, jobless claims, CPI, SOFR, dollar) and the **Fed Balance
   Sheet (H.4.1)** (6 series) are now active. ⚠️ See the `fed_balance_sheet` series-label bug under
   "Data bugs" below — audit before trusting that section.
-- [ ] **`SUBSTACK_EMAIL` blank — 🚩 FLAGGED 2026-07-13: operator is speaking to jared.** Substack
-  runs on the saved cookie today, but **auto-renewal will fail when the cookie expires** (the magic
-  link is delivered to the account that owns the subs — jared's — not the bot). Decide the
-  ownership/renewal path before the cookie dies, or Substack silently goes empty (O3 would flag the
-  zero-streak after 3 runs, but the fix needs the account owner). Sub-item for the same
-  conversation: the lapsed/blocked **polymathinvestor.com** sub (403). **This is the LAST open
-  §13 item** (forwarding, TRACE, Octus all resolved 2026-07-13).
+- [x] **Substack renewal — ~RESOLVED 2026-07-13 (automated; one confirmation pending).** The
+  cookie had in fact ALREADY died silently — undetected because `_check_session` probed
+  `/reader/feed`, which returns 200 even logged-out, and because Substack's per-post API serves
+  many pubs' full paid bodies unauthenticated (the leak masked the outage). Fixed the same day:
+  (a) operator installed a fresh cookie from the logged-in browser (verified: auth probe 200,
+  gated paid pubs now full-text); (b) `_check_session` now probes `/api/v1/user/profile/self`
+  (401 when dead — pinned by `tests/test_substack.py`); (c) `SUBSTACK_EMAIL=jared's gmail` set
+  in env.bat; (d) jared asked to auto-forward `no-reply@substack.com` to the bot — once his
+  one-time Gmail forward confirmation is clicked (watch the bot inbox), a dead cookie
+  self-heals in-run via the existing magic-link flow (failure path: Substack `[]` → O3 flags
+  after 3 runs). **Full account audit** (operator's browser session + API, 2026-07-13):
+  account = jaredtramontano@gmail.com, 43 subs (12 paid / 31 free); the 7 unfetched paid pubs
+  were ADDED to `SUBSCRIPTIONS` (Damnang, Fixed Income Beacon, Pari Passu*, PauloMacro,
+  SemiAnalysis, Tech Investments, Unicus — *Pari Passu's custom domain bot-blocks like
+  polymath, degrades gracefully); **polymathinvestor REMOVED** (paid sub lapsed to free AND
+  site 403s — contributed nothing); whatiscalledthinking/aletteraday kept (free tier: free
+  posts + paywall previews, operator accepted); **yetanothervalueblog kept-until-breaks**
+  (NO active sub — full text arrives only via the public per-post API; flag to jared).
+  Remaining/optional: the account-email flip to the bot (end-state; removes the
+  jared-account dependency entirely — his call).
 
 ### Data bugs
 - [x] **`fed_balance_sheet.py` mislabeled FRED series — FIXED 2026-06-30** (verified against the FRED
@@ -989,8 +1011,13 @@ rule-based forwards; detail in WORKLOG 2026-07-13):
   watchlist ever grows enough to justify paid data.
 
 ### Latent maintenance (works now, will need a human later)
-- [ ] **13D session** + **Substack cookie** will expire and need a manual re-login (13D's is interactive).
-- [ ] **polymathinvestor.com** Substack returns 403 (lapsed/blocked sub) — contributing nothing; degrades gracefully.
+- [ ] **13D session** will expire and need a manual re-login (interactive; unattended runs skip
+  gracefully via the R8 guard and O3 flags the zero-streak).
+- [x] ~~**Substack cookie** manual renewal~~ — auto-renews since 2026-07-13 (see the renewal item
+  above; pending jared's one-time forward confirmation). Manual fallback: paste a fresh
+  `substack.sid` from a logged-in browser into `substack_cookie.txt`.
+- [x] ~~**polymathinvestor.com** 403~~ — removed from `SUBSCRIPTIONS` 2026-07-13 (operator: sub
+  lapsed, not renewing).
 
 ---
 

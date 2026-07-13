@@ -5,28 +5,81 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-10)
+## Current state (2026-07-13)
 
-**Every code track is done AND live-validated.** The 2026-07-10 live validation run (next entry)
-passed the whole HANDOFF §11 checklist in one shot: the 7/09 efficiency batch (S1+E1, O1, O3),
-the F1a fixes exercised on the run path (PACER commit-after-send; consent-guard default path),
-the **first live v2 memory migration + delta** (v1 backed up automatically), and the
-**first-ever Friday weekly summary**. **E3 (Gmail batch fetch) is SKIPPED — the efficiency
-track is CLOSED** (Gmail was seconds of a ~7-minute run; the wall-clock lives in the 5 Claude
-calls). `ruff` clean, `pytest` **180** green. Budget **~$4.50** after the run's $1.58; daily
-runs remain stopped (task disabled).
+**Every code track is done AND live-validated**, and the last open §13 item (Substack
+ownership/renewal) is **~resolved — cookie renewal is now AUTOMATED** (2026-07-13 entry
+below): the silently-dead cookie was found + replaced, `_check_session` fixed to a real auth
+probe, `SUBSTACK_EMAIL` set, jared's auto-forward requested, paid-sub coverage expanded
+**11 → 17 pubs**, and polymathinvestor removed. `ruff` clean, `pytest` **232** green. Budget
+**~$4.50** ($0 spent 2026-07-13 — all checks free/read-only); daily runs remain stopped
+(task disabled).
 
-**REMAINING (all non-code):** (1) ~~operator OAuth publish + fresh consent~~ ✅ **DONE
-2026-07-10** (see entry below — the 7/14 deadline is cleared; the durable production token is
-what the server gets at deploy); (2) §7.2 server deploy (F1 checklist; run `setup_tasks.ps1`
-as admin on the box); (3) §13: **Substack ownership/renewal — the LAST jared item,
-🚩 flagged 2026-07-13: operator speaking to jared** (forwarding completeness, TRACE, and
-Octus/new-issue all resolved 2026-07-13, see entries below). ~~Watch-item: the 7/09 WILTW~~ **CLOSED — miss
-accepted (operator, 2026-07-10):** the 7/09 WILTW hadn't posted by Friday's run; with daily
-runs stopped there are no automatic retries, so the week is skipped rather than manually
-probed. One-off only — on the server's Mon–Fri schedule the pipeline retries every day of the
-≤6-day window (Fri + Mon–Wed) and O3 alerts if wiltw stays at 0 for 3 runs, so this can't
-recur silently once deployed.
+**REMAINING:** (1) **jared's one-time Gmail forward confirmation** — watch the bot inbox for
+Google's confirmation email (none arrived as of 2026-07-13 EOD); the auto-renewal chain is
+inert until it's clicked; (2) **§7.2 server deploy** (F1 checklist; run `setup_tasks.ps1` as
+admin on the box) — the project's definition of "done"; (3) optional end-state: flip the
+Substack account email to the bot (removes the jared-account dependency entirely — his call).
+~~Abnormal allowlist confirmation~~ ✅ **CONFIRMED 2026-07-13** (IT allows the bot sender for
+Outlook inboxes — §7.2 field-finding 7 satisfied for the acorn.com recipients). ~~Weekly-wrap
+template eyeball~~ ✅ **PASSED 2026-07-13** (entry below). ~~7/09 WILTW~~ closed 2026-07-10
+(miss accepted; its ≤6-day window lapsed Wed 7/15).
+
+---
+
+## Substack: renewal automated, dead-cookie incident, +7 paid pubs; weekly wrap reviewed (2026-07-13)
+
+Operator-driven session (browser access to jared's Substack + free read-only API probes; $0
+Claude spend). `ruff` clean, `pytest` **232** green (+5, first-ever `tests/test_substack.py`).
+
+**Weekly-wrap template review — PASSED (closes the 2026-07-10 operator-eyeball item).** The
+wrap wasn't on disk (save-to-disk landed after the 7/10 run), so it was fetched read-only from
+the bot's Gmail Sent mail. Verdict: correct Georgia/680px inline-style template, the 4
+requested sections in order, plus two sensible additions in house style (a TL;DR-style "Week
+at a Glance" box and a Mon→Fri scorecard table) and an honest footnote for a missing Friday
+S&P level. No fixes needed.
+
+**Substack account audit (operator's logged-in Chrome + the saved cookie via API):**
+- Account: **jaredtramontano@gmail.com** (handle @dirac1), **43 subscriptions = 12 paid +
+  31 free**. The code fetched only 5 of the 12 paid pubs.
+- **+7 paid pubs added to `SUBSCRIPTIONS`** (11 → 18): Damnang's Substack, Fixed Income
+  Beacon, Pari Passu, PauloMacro, SemiAnalysis, Tech Investments, The Unicus Investor —
+  live-verified (SemiAnalysis 84k-char paid bodies; Pari Passu's custom domain bot-blocks
+  like polymath, kept with a comment, degrades gracefully).
+- **polymathinvestor REMOVED** (operator: not renewing) — the paid sub had lapsed to free AND
+  the site 403s; it contributed nothing every run. 18 → **17 pubs**.
+- Kept (operator decisions): whatiscalledthinking + aletteraday (free tier — free posts +
+  ~350-char paywall previews accepted); **yetanothervalueblog kept-until-breaks** (NO active
+  sub — its full text arrives only via Substack's public per-post API; flag to jared).
+
+**Dead-cookie incident (found during the audit; the §13 risk had ALREADY fired, silently):**
+- The saved `substack_cookie.txt` no longer authenticated (401 on real auth endpoints), yet
+  nothing noticed: `_check_session` probed `/api/v1/reader/feed`, which returns **200 even
+  logged out** (vacuous check), and Substack's per-post API serves many pubs' full paid bodies
+  **unauthenticated** (verified: byte-identical with/without cookie on HYL, PETITION, Burry) —
+  the leak masked the outage. Properly-gated pubs (Fixed Income Beacon, PauloMacro) were
+  silently delivering previews only.
+- **Fixes:** operator pasted a fresh `substack.sid` from the logged-in browser (verified:
+  auth probe 200 as "Dirac"; Fixed Income Beacon 903 → **35,081** chars; PauloMacro 1,273 →
+  **464,773** chars — full paid bodies); `_check_session` now probes
+  **`/api/v1/user/profile/self`** (200 = live, 401 = dead — the probe endpoint is test-pinned
+  so the vacuous check can't return).
+
+**Renewal automated (the §13 decision, operator-chosen from 4 options):** keep the account as
+jared's; auto-forward the magic link. Chain: dead cookie detected (fixed probe) →
+`_login_via_magic_link` posts `SUBSTACK_EMAIL=jaredtramontano@gmail.com` (now set in env.bat)
+→ Substack emails jared's gmail → **jared's auto-forward filter** (`from:no-reply@substack.com`
+→ the bot; text sent, filter presumed set) → the code finds it in the bot's inbox → fresh
+cookie saved → the SAME run proceeds. Failure path: renewal fails → Substack `[]` → retried
+every run → O3 flags after 3 zero runs (Option A, operator-chosen: visible failure over
+silent leak-dependent degradation). **Inert until jared's one-time Gmail forward confirmation
+is clicked** — the bot inbox had no confirmation email yet at EOD.
+
+**Also:** digest.py's stale "14 sources" comments corrected to 13 (post-TRACE); HANDOFF §1 /
+§7.1 (octus_session gone) / §7.2-7 (allowlist confirmed) / §13 / latent-maintenance updated.
+Two dev-machine/prod notes: jared's machine and this one hold independent Substack sessions
+(no conflict; account-level logout/2FA would kill both); IT's allowlist confirmation covers
+Outlook inboxes org-wide.
 
 ---
 
