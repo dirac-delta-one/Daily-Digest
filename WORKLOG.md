@@ -27,6 +27,200 @@ template eyeball~~ ✅ **PASSED 2026-07-13** (entry below). ~~7/09 WILTW~~ close
 
 ---
 
+## First activated run — GREEN, $1.47; Stage-5 run-day items CLOSED (2026-07-13)
+
+Operator-requested manual run via `run_digest.bat` (~14:51–14:57), the first with
+the team pipeline live. Wrapper exit 0; both digests delivered to acohen
+(DIGEST_TO + DIGEST_TO_TEAM). **The team-digest track is now fully COMPLETE —
+built, validated, activated, and live-run-proven in one day.**
+
+- **Team-email grep — PASS (Stage-5 item):** the SENT team digest (41,424 chars)
+  contains ZERO substack markers across 20 probes; the full digest control
+  carries 10. The indexed digest chunks for 2026-07-13 (19) come from
+  `digest_team.html` with zero markers — the indexing flip works live.
+- **Cross-variant cache in production — CONFIRMED:** team pass 1 wrote the
+  32,270-token shared prefix (incl. the day's 1 inbox PDF); full pass 1 paid 36
+  uncached input tokens, wrote only its 23,979-token substack tail (6 articles
+  + the substack-memory context); full pass 2 read all 56,249. Team 2-pass
+  $0.51 + full 2-pass $0.56.
+- **Per-variant alerts — the separation showcase:** full triggered 1/7 — a
+  "Distressed exchange" alert evidenced by the substack-memory LME-wave story —
+  while the team variant triggered 0/7 and renders NO alert box. Also proves
+  the alert-window carve (the substack tail was visible to the full eval).
+  Cosmetic watch: the alert detail text says "Substack memory references..." —
+  the eval citing the memory layer in its detail wording (jared-only, harmless).
+- **Memory feeds flipped live:** shared memory updated FROM THE TEAM DIGEST
+  (9 updated / 7 new -> 35 active — substack-free store rebuilding team-visible
+  narratives as predicted); substack memory updated in place (5 updated / 1 new
+  -> 24 active — no duplication of the migrated stories). PACER commit +
+  completion marker written together after both sends. O3 counts recorded once.
+- **Eval re-baselined (Stage-5 item):** hit@1 0.846 / hit@3 0.962 / hit@5 0.962
+  / hit@10 1.0 / MRR 0.897 (snapshot `2026-07-13_post_team_activation.json`; was
+  0.846/1.0/0.904). The one top-3 slip is `mstr-week-evolution` — a
+  relative-time ("this week") question written against the 7/06–09 week, now
+  outranked by the new week's 614 chunks: golden-set staleness + corpus growth,
+  not a retrieval regression. F3 cadence: refresh relative-time questions when
+  the set next grows.
+- **WILTW 2026-07-09: permanently absent** — still "Report not found" 4 days
+  after its publish date; 13D appears to have skipped that week entirely
+  (upgrades the 7/10 "not posted yet" to "never posted"). Nothing to fix.
+- Run stats: 12 emails (1 PDF — the trimmed cleaner's first live PDF), 6
+  substacks, fetch pool 21s/13 sources, index +614 -> 4,561 vectors / 8 days,
+  full alert eval $0.136 + team $0.117, total **$1.47**.
+
+---
+
+## TEAM_DIGEST_SPEC Stage 5 — ACTIVATED, pilot = acohen (2026-07-13)
+
+Operator chose activation now with themselves as the pilot team recipient
+(monitor the Substack-free variant end-to-end before real teammates join).
+Free — no Claude calls. `ruff` clean, `pytest` **277** green.
+
+- **`DIGEST_TO_TEAM=acohen@acorninv.com`** in env.bat — every future run on this
+  machine generates/sends/indexes the team variant. **Deploy note: the server's
+  env.bat must carry this var too**, or post-activation full digests would be
+  indexed and leak to team askers (recorded in the config comment).
+- **`config.TEAM_ACTIVATION_DATE = "2026-07-13"`** — safe because no digests
+  will be generated between now and the next (team-aware) run; all indexed
+  digests ≤ 2026-07-10 are correctly excluded for team askers.
+- **Memory cleanse APPLIED** (heuristic + operator-visible dry-run, per spec):
+  52 → **32 shared stories** (28 active), **20 substack-sourced stories moved**
+  to substack_memory.json (now 26 incl. the 6 fresh ones — some topical overlap
+  between migrated and fresh AI-capex/tower stories is accepted, jared-only
+  context). Verified: zero substack-flagged stories left in the shared store;
+  the rendered shared context (21,388 chars) greps CLEAN of all pub markers.
+  Backups: `memory_prestage5.bak` / `substack_memory_prestage5.bak`.
+  Self-healing note: narratives the cleanse removed from team memory (private
+  credit redemptions, serial LME wave) rebuild automatically from team-visible
+  sources once team digests start feeding the store.
+- **Heuristic upgraded first** (the dry-run caught misses): word-level matching
+  + a literal-"substack" keyword in `_story_mentions_substack` — "Krugman
+  Substack"/"Burry Substack" class now matches; shared by the router guard and
+  the cleanse; +4 test assertions.
+- **No-ops (already satisfied):** acohen already on the reply `from:` allow-list
+  (team tier — deliberately NOT in FULL_ACCESS_SENDERS); Abnormal covers
+  acorn.com Outlook. **Deferred to the FIRST activated run:** eval re-baseline
+  (indexed digest corpus flips to team) + substack-free grep of the sent team
+  email. Also: `substack_memory.json` added to .gitignore (was missing).
+
+---
+
+## TEAM_DIGEST_SPEC paid validations — ALL THREE PASSED ($1.81 total, 2026-07-13)
+
+Run same-day on the operator's go-ahead after the credit top-up. Isolation methods
+throughout (nothing sent, real stores untouched except the intended substack-memory
+seeding); outputs in the session scratchpad.
+
+1. **Substack-memory delta ($0.045)** — first real run on 7 fresh articles: **6 new
+   stories**, sane topics/sources/data points (AI capex equity/credit split, Blue
+   Owl OTIC run, custom-memory cycle…); context renders with the SUBSTACK MEMORY
+   header. **The production `substack_memory.json` is now seeded** — jared's next
+   digest gets the context.
+2. **Reply A/B at both tiers ($0.23)** — same AI-capex question, digest_date
+   7/10: FULL (asker=None) 20 chunks/32.5k chars, cites Junk Bond Investor ×4;
+   TEAM (asker=acohen) 20 chunks/18.5k chars, **zero substack citations** while
+   still covering Oracle/CRWV from ratings+filings+news; storyline router and
+   [team access] tier label fired; missing digest_team.html correctly omitted the
+   digest context. (One false alarm during review: a case-insensitive "PETITION"
+   marker matched "com**petition**"/"voluntary petition" — bankruptcy vocabulary,
+   not the pub; case-sensitive grep clean.)
+3. **Digest structure A/B ($1.53)** — archived 7/10 inputs + that morning's exact
+   memory snapshot; three arms (team-new, full-new, full-old-from-git-HEAD):
+   - **Cache: cross-variant hit exactly as designed** — team pass 1 wrote the
+     28,403-token shared prefix; full pass 1 READ all 28,403 and wrote only the
+     7,311-token substack tail; full pass 2 read 35,714. Full-variant 2-pass cost
+     **$0.41 vs $0.57 old** — the restructure is a net saving when both run.
+   - **Output equivalence: PASS** — identical template/sections/numbering, same
+     stories with the same numbers (Oracle BBB-/$160B, CRWV Form 4 details, GBDC
+     revolver terms, HYL CCI/SBAC figures, market data, docket names, same Worth
+     Reading links). Substack integration UNDIMINISHED by the tail move (HYL/Burry
+     woven through Takeaways/Ideas/Themes/Contrarian as before). Differences are
+     normal run variance. The "eyeball jared's next run" caveat is CLOSED — this
+     was the Group-C-style check.
+   - **Team render: PASS** (same template; Stifel/KBW/ratings fill the space) —
+     with one EXPECTED finding: substack pub names surfaced via the **pre-cleanse
+     memory context** (4 contaminated stories verified in the archived snapshot),
+     proving the Stage-5 memory cleanse is load-bearing. Hardened same day:
+     `main()` now prints a loud warning if team generation runs while
+     `TEAM_ACTIVATION_DATE` is unset.
+
+Remaining before any real team send: the Stage-5 activation checklist only.
+
+---
+
+## TEAM_DIGEST_SPEC built — Substack becomes jared-personal (Stages 1–4, 2026-07-13)
+
+Operator-approved spec (`TEAM_DIGEST_SPEC.md`, drafted + consistency-reviewed the
+same day) built in one pass. `ruff` clean, `pytest` 238 → **275** (+32 across a new
+`tests/test_team_digest.py` and grown search/reply/memory/archive/prompt suites).
+$0 Claude spend — all verification free/offline (see the residual paid items below).
+
+**What it does:** Substack summary/analysis reaches only jared. When
+`DIGEST_TO_TEAM` is non-empty a second, Substack-free digest (and Friday wrap) is
+generated and sent to the team list; with the list empty (today) only jared's full
+variant runs, at today's cost.
+
+- **Stage 1 — recipients:** `_recipients_from_env` helper; `TEAM_RECIPIENTS` (env
+  `DIGEST_TO_TEAM`, default empty). `DIGEST_RECIPIENTS`/`DIGEST_TO` semantics
+  unchanged (midday/reply_monitor import it by name; run_alert reads the env).
+- **Stage 2 — asker-aware reply bot:** answers now go to the ASKER ONLY (was: every
+  answer broadcast to all recipients). `check_for_replies` captures the From
+  address; `config.FULL_ACCESS_SENDERS` (jared ×2 + the bot; acohen deliberately
+  team-tier) picks the tier. Team askers: retrieval excludes `substack` chunks and
+  digest chunks dated before `config.TEAM_ACTIVATION_DATE` (None ⇒ all digest
+  chunks — every archived digest is a full one today) via new
+  `search(exclude_source_types=, exclude_digest_before=)` params (the §14.F parked
+  source_type filter, now production-triggered); digest context loads
+  `digest_team.html` (absent pre-activation ⇒ omitted, never the full one); the
+  storyline router drops substack-store stories and (heuristic pub-name match vs
+  SUBSCRIPTIONS) main-store stories that look substack-sourced. `asker=None`
+  (internal/tool calls) = full access, back-compat.
+- **Stage 3 — substack memory:** `memory.py` store-parameterized (main-store
+  behavior byte-identical, v1-backup logic main-only); new
+  `substack_memory.json` fed daily from the articles themselves (3k-char/article
+  cap), rendered by `get_substack_memory_context()` into the FULL prompt only;
+  `match_stories(path=)` lets full-access askers match substack storylines.
+- **Stage 4 — dual generation (gated):** Substack moved OUT of
+  `_build_source_prompt` into a trailing `_build_substack_block` content block
+  after the shared cache breakpoint — the team prompt is a byte-identical strict
+  prefix of the full prompt (test-pinned), so when both variants run (team first)
+  the full run reads the team run's cached prefix and pays only for the substack
+  tail. Per-variant alert eval (team alerts can never cite a Substack pub);
+  deterministic signals (Fed stress, O3) appended to both boxes; shared pre-built
+  sections; `digests/<date>_team.html` + `archive/<date>/digest_team.html`;
+  **search indexes the team digest when present** (full-digest prose embeds
+  substack analysis — the v2 leak fix); `memory.json` fed by the team digest once
+  it exists (full until then); PACER commit + the O2 marker moved after the LAST
+  send; team weekly wrap from team dailies. The two A/B tools updated for the new
+  builder split.
+
+**Free verifications:** 275 tests; entry points import; retrieval eval
+**metric-identical** (0.846/1.0/0.904 — the search changes are behavior-neutral for
+all existing callers); live-index check — a team-asker query returns zero
+substack/digest chunks where the unrestricted query surfaces both.
+
+**Post-build spec audit (same session, operator-requested):** found + fixed four
+gaps — (1) **midday alert now sends to both lists** (deduped; the spec's §1 row
+had been missed — midday.py was untouched); (2) **full-variant alert source
+carves a guaranteed 15k-char window for the substack tail** (alerts.py evaluates
+only the first ~50k chars, and with Substack moved to the tail jared's alert box
+would otherwise have been silently blind to it — e.g. PETITION flagging an LME);
+(3) storyline context re-capped at 2 across both stores (the Stage-5 pinned
+budget; main-store matches take priority); (4) full/team daily saves isolated
+into separate non-fatal try blocks. Final: `pytest` **277** green, `ruff` clean.
+Known accepted nit: the frozen groupb_ab harness reconstructs the un-carved
+alert source (pre-carve production behavior) — fine for its A/B purpose.
+
+**Residual (flagged in the spec banner):** Stage-5 activation checklist (when the
+first team recipient is added: set env + activation date, memory cleanse, reply
+allow-list, eval re-baseline, substack-free grep of the first team send); paid
+validations pending permission — reply (~$0.15), substack-memory delta (~$0.10),
+and the Stage-4 A/B day (~$2–3) before any real team send. ⚠️ The prompt
+restructure is live for jared's daily digest NOW — eyeball the next natural run's
+output (the Group-C-style paid A/B is the rigorous check).
+
+---
+
 ## Substack: renewal automated, dead-cookie incident, +7 paid pubs; weekly wrap reviewed (2026-07-13)
 
 Operator-driven session (browser access to jared's Substack + free read-only API probes; $0

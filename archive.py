@@ -30,6 +30,7 @@ ARCHIVE_DIR = SCRIPT_DIR / "archive"
 def archive_daily_content(
     date=None,
     digest_html="",
+    digest_team_html="",
     emails=None,
     substack_articles=None,
     sec_filings=None,
@@ -44,6 +45,11 @@ def archive_daily_content(
     """
     Save all raw content from today's digest run to the archive.
     Everything saved here gets indexed into the RAG vector search.
+
+    digest_team_html (TEAM_DIGEST_SPEC): the Substack-free variant. When
+    present it becomes the reply bot's context for team askers AND the
+    variant search indexes for digest chunks (full-digest prose embeds
+    Substack analysis).
     """
     date = date or datetime.date.today().isoformat()
     day_dir = ARCHIVE_DIR / date
@@ -54,9 +60,11 @@ def archive_daily_content(
 
     print(f"  Archiving content to {day_dir}...")
 
-    # Save digest HTML
+    # Save digest HTML (both variants when the team one exists)
     if digest_html:
         (day_dir / "digest.html").write_text(digest_html, encoding="utf-8")
+    if digest_team_html:
+        (day_dir / "digest_team.html").write_text(digest_team_html, encoding="utf-8")
 
     # Save emails (strip base64 PDF data to save disk — PDFs saved separately)
     emails = emails or []

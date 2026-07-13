@@ -56,6 +56,19 @@ def test_wiltw_snapshot_and_empty_sources(tmp_archive):
         assert json.loads((day_dir / name).read_text(encoding="utf-8")) == []
 
 
+def test_team_digest_archived_when_provided(tmp_archive):
+    archive.archive_daily_content(date="2026-07-13", digest_html="<div>full</div>",
+                                  digest_team_html="<div>team</div>")
+    day_dir = tmp_archive / "2026-07-13"
+    assert (day_dir / "digest.html").read_text(encoding="utf-8") == "<div>full</div>"
+    assert (day_dir / "digest_team.html").read_text(encoding="utf-8") == "<div>team</div>"
+
+
+def test_no_team_file_when_not_provided(tmp_archive):
+    archive.archive_daily_content(date="2026-07-13", digest_html="<div>full</div>")
+    assert not (tmp_archive / "2026-07-13" / "digest_team.html").exists()
+
+
 def test_unreadable_pdf_base64_does_not_crash(tmp_archive):
     emails = [{"from": "x", "subject": "s", "date": "", "snippet": "", "body": "",
                "pdfs": [{"filename": "bad.pdf", "base64": "!!!not-base64!!!"}]}]

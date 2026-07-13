@@ -104,3 +104,73 @@ def test_query_filters_bare_may_not_a_date():
     # "may" as a verb must not trigger the month regex (needs a trailing day number)
     _, df, dt = reply_monitor._extract_query_filters("How may spreads react to this?")
     assert (df, dt) == (None, None)
+
+
+# --- Access tiers (TEAM_DIGEST_SPEC Stage 2) ---
+
+def test_sender_email_parses_display_name():
+    assert reply_monitor._sender_email("Jared T <JTramontano@acorninv.com>") == \
+        "jtramontano@acorninv.com"
+    assert reply_monitor._sender_email("plain@x.com") == "plain@x.com"
+    assert reply_monitor._sender_email("") == ""
+    assert reply_monitor._sender_email(None) == ""
+
+
+def test_is_full_access_tiers():
+    assert reply_monitor._is_full_access(None) is True          # internal/tool calls
+    assert reply_monitor._is_full_access("jtramontano@acorninv.com") is True
+    assert reply_monitor._is_full_access("JAREDTRAMONTANO@GMAIL.COM") is True
+    assert reply_monitor._is_full_access("acohen@acorninv.com") is False
+    assert reply_monitor._is_full_access("stranger@example.com") is False
+
+
+def test_team_exclusions_without_activation(monkeypatch):
+    monkeypatch.setattr(reply_monitor, "TEAM_ACTIVATION_DATE", None)
+    excl = reply_monitor._team_search_exclusions()
+    assert excl["exclude_source_types"] == ("substack",)
+    assert excl["exclude_digest_before"] == "9999-12-31"   # every digest is a full one
+
+
+def test_team_exclusions_with_activation(monkeypatch):
+    monkeypatch.setattr(reply_monitor, "TEAM_ACTIVATION_DATE", "2026-08-01")
+    excl = reply_monitor._team_search_exclusions()
+    assert excl["exclude_digest_before"] == "2026-08-01"
+
+
+def test_story_mentions_substack_heuristic():
+    assert reply_monitor._story_mentions_substack(
+        {"sources": ["PETITION", "FT"]}) is True          # petition11.com
+    assert reply_monitor._story_mentions_substack(
+        {"sources": ["Junk Bond Investor"]}) is True      # junkbondinvestor.com
+    assert reply_monitor._story_mentions_substack(
+        {"sources": ["Krugman Substack"]}) is True        # word-level + keyword
+    assert reply_monitor._story_mentions_substack(
+        {"sources": ["Burry Substack"]}) is True          # michaeljburry
+    assert reply_monitor._story_mentions_substack(
+        {"sources": ["Yet Another Value Blog"]}) is True  # yetanothervalueblog.com
+    assert reply_monitor._story_mentions_substack(
+        {"sources": ["FT", "Moody's", "Bloomberg"]}) is False
+    assert reply_monitor._story_mentions_substack(
+        {"sources": ["13D Research", "Greenmantle", "Yahoo Finance"]}) is False
+    assert reply_monitor._story_mentions_substack({"sources": []}) is False
+    assert reply_monitor._story_mentions_substack({}) is False
+
+
+def test_load_digest_for_date_variants(tmp_path, monkeypatch):
+    monkeypatch.setattr(reply_monitor, "ARCHIVE_DIR", tmp_path)
+    day = tmp_path / "2026-07-13"
+    day.mkdir()
+    (day / "digest.html").write_text("<div>FULL</div>", encoding="utf-8")
+    (day / "digest_team.html").write_text("<div>TEAM</div>", encoding="utf-8")
+    assert reply_monitor._load_digest_for_date("2026-07-13") == "<div>FULL</div>"
+    assert reply_monitor._load_digest_for_date("2026-07-13", team=True) == "<div>TEAM</div>"
+
+
+def test_load_digest_for_date_team_missing_returns_none(tmp_path, monkeypatch):
+    # Pre-activation: no team file exists -> team askers get NO digest context
+    # (rather than leaking the full one)
+    monkeypatch.setattr(reply_monitor, "ARCHIVE_DIR", tmp_path)
+    day = tmp_path / "2026-07-13"
+    day.mkdir()
+    (day / "digest.html").write_text("<div>FULL</div>", encoding="utf-8")
+    assert reply_monitor._load_digest_for_date("2026-07-13", team=True) is None

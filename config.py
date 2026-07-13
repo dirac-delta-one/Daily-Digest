@@ -30,6 +30,27 @@ FEED_USER_AGENT = "DailyDigest/1.0"
 # edit in only one place can no longer silently break reply matching.
 DIGEST_SUBJECT_PREFIX = "\U0001f4ec Daily Inbox Digest"
 
+# --- Reply-bot access tiers (TEAM_DIGEST_SPEC Stage 2) ---
+# Substack content is personal to jared: full-access askers get Substack in
+# reply answers (raw substack chunks, substack-memory storylines, the FULL
+# digest as context); every other asker gets the team (Substack-free) view.
+# Add an address here to grant full access.
+FULL_ACCESS_SENDERS = {
+    "jtramontano@acorninv.com",
+    "jaredtramontano@gmail.com",
+    "acorn.research.bot@gmail.com",
+}
+
+# Set at Stage-5 team activation (ISO date string). Digest chunks dated BEFORE
+# this are FULL digests with Substack woven into their prose, so team askers'
+# retrieval excludes them. None = team never activated -> every digest chunk
+# is a full digest -> all of them are excluded for team askers.
+# ACTIVATED 2026-07-13 (pilot: acohen on DIGEST_TO_TEAM). Every run from this
+# date generates + indexes the team digest — the server's env.bat must also
+# carry DIGEST_TO_TEAM at deploy or post-activation full digests would be
+# indexed and leak to team askers.
+TEAM_ACTIVATION_DATE = "2026-07-13"
+
 # --- Pricing ($ per million tokens) ---
 OPUS_PRICE_IN = 5.0
 OPUS_PRICE_OUT = 25.0

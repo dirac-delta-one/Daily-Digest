@@ -42,6 +42,13 @@ import cost
 SCRIPT_DIR = Path(__file__).parent
 MEMORY_FILE = SCRIPT_DIR / "memory.json"
 V1_BACKUP_FILE = SCRIPT_DIR / "memory_v1_backup.json"
+# TEAM_DIGEST_SPEC Stage 3: a SECOND story store for jared's personal Substack
+# subscriptions — same v2 machinery, fed from the day's Substack articles
+# directly (never from a digest), rendered only into the FULL digest's prompt.
+SUBSTACK_MEMORY_FILE = SCRIPT_DIR / "substack_memory.json"
+# Story deltas don't need full article text; uncapped, 17 pubs could spike the
+# Sonnet call to ~$0.30 on heavy days.
+SUBSTACK_ARTICLE_CAP = 3000
 MEMORY_VERSION = 2
 
 # Memory runs on Sonnet 4.6 (not Opus): the 2026-07-01 cost A/B found Sonnet's
@@ -161,12 +168,17 @@ def _migrate_v1(memory):
     }
 
 
-def _load_memory():
-    """Load memory as v2, migrating a v1 file in memory (no write on load)."""
+def _load_memory(path=None):
+    """Load a store as v2, migrating a v1 file in memory (no write on load).
+
+    `path` defaults to the main MEMORY_FILE; the substack store passes
+    SUBSTACK_MEMORY_FILE (Stage 3 — store-parameterized, main-store behavior
+    unchanged)."""
+    path = path or MEMORY_FILE
     raw = None
-    if MEMORY_FILE.exists():
+    if path.exists():
         try:
-            raw = json.loads(MEMORY_FILE.read_text(encoding="utf-8"))
+            raw = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             raw = None
     if raw is None:
@@ -176,11 +188,13 @@ def _load_memory():
     return _migrate_v1(raw)
 
 
-def _save_memory(memory):
-    """Save v2 memory; back up the on-disk v1 file once before first overwrite."""
-    if MEMORY_FILE.exists() and not V1_BACKUP_FILE.exists():
+def _save_memory(memory, path=None):
+    """Save v2 memory; back up the on-disk v1 file once before first overwrite
+    (v1 backups apply only to the main store — the substack store is born v2)."""
+    path = path or MEMORY_FILE
+    if path == MEMORY_FILE and path.exists() and not V1_BACKUP_FILE.exists():
         try:
-            existing = json.loads(MEMORY_FILE.read_text(encoding="utf-8"))
+            existing = json.loads(path.read_text(encoding="utf-8"))
             if existing.get("version") != MEMORY_VERSION:
                 V1_BACKUP_FILE.write_text(
                     json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -188,7 +202,7 @@ def _save_memory(memory):
                 print(f"  Backed up v1 memory to {V1_BACKUP_FILE.name}")
         except Exception:
             pass
-    MEMORY_FILE.write_text(json.dumps(memory, indent=2, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(memory, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 # ======================================================================
@@ -227,6 +241,43 @@ def get_memory_context():
         "updates or changes previous analysis. When citing data from memory, "
         "attribute it to the ORIGINAL source (e.g. Grant's, Bloomberg), not to "
         "this memory system."
+    )
+
+    return "\n".join(lines)
+
+
+def get_substack_memory_context():
+    """Render the substack store for the FULL digest's prompt (Stage 3).
+
+    Same per-story block as get_memory_context but with a header that scopes
+    it to the Substack subscriptions — this block is appended ONLY to the full
+    variant's prompt (TEAM_DIGEST_SPEC §1), never the team one.
+    """
+    memory = _load_memory(SUBSTACK_MEMORY_FILE)
+    active = [s for s in memory.get("stories", []) if s.get("status") == "active"]
+    if not active:
+        return ""
+
+    lines = [
+        "SUBSTACK MEMORY — storylines tracked from the paid Substack "
+        "subscriptions (these appear only in this digest, never the team one):",
+        f"Last updated: {memory.get('last_updated', 'never')}",
+        "",
+    ]
+
+    for story in active:
+        lines.append(f"• {story['topic']} (tracking since {story.get('first_seen', '?')})")
+        lines.append(f"  Summary: {story.get('summary', '')}")
+        for dp in story.get("key_data_points") or []:
+            lines.append(f"    - {dp}")
+        if story.get("sources"):
+            lines.append(f"  Sources: {', '.join(story['sources'])}")
+        lines.append("")
+
+    lines.append(
+        "Reference prior context where relevant. When citing data from this "
+        "memory, attribute it to the ORIGINAL publication (e.g. PETITION, "
+        "SemiAnalysis), not to this memory system."
     )
 
     return "\n".join(lines)
@@ -423,6 +474,93 @@ def update_memory(digest_html):
         return memory
 
 
+def _substack_articles_text(articles):
+    """Compact text of the day's Substack articles for the substack-memory
+    delta (title/author + capped body — story deltas don't need full text)."""
+    parts = []
+    for a in articles or []:
+        body = (a.get("text") or "")[:SUBSTACK_ARTICLE_CAP]
+        parts.append(f"--- {a.get('title', '')} ({a.get('author', '')}) ---\n{body}")
+    return "\n\n".join(parts)
+
+
+def update_substack_memory(articles):
+    """Incrementally update the SUBSTACK story store from today's articles
+    (Stage 3). Mirrors update_memory but reads the articles directly — feeding
+    it from the full digest would double-track team stories. Failure keeps the
+    existing store untouched. No-op when no articles were fetched."""
+    if not articles:
+        print("  No Substack articles today — substack memory unchanged.")
+        return _load_memory(SUBSTACK_MEMORY_FILE)
+
+    print("  Updating substack memory (incremental)...")
+
+    memory = _load_memory(SUBSTACK_MEMORY_FILE)
+    client = anthropic.Anthropic()
+    source_text = _substack_articles_text(articles)
+    today = str(datetime.date.today())
+
+    prompt = (
+        "Below are today's Substack research articles (paid investment "
+        "newsletters), followed by a compact index of the Substack storylines "
+        "already being tracked.\n\n"
+        "YOUR TASK: return ONLY the incremental changes to the story memory as JSON.\n"
+        "- story_updates: one entry per EXISTING story that today's articles materially "
+        "advance. \"id\" must be an exact id from the index. \"update\" = 1-3 specific "
+        "sentences on today's development (numbers, names, dates). \"sources\" = the "
+        "publication names behind it (e.g. PETITION, SemiAnalysis). Set \"summary\" / "
+        "\"key_data_points\" (max 5) only if the story's rolling summary is now wrong "
+        "or stale, else null. Set \"status\" to \"resolved\" only if the story concluded "
+        "today, else null. \"entities\" = ticker symbols if obvious, else null.\n"
+        "- new_stories: storylines genuinely new today (not in the index and not in the "
+        "resolved list). Give a short-kebab-slug id, topic, 2-3 sentence summary, "
+        "today's update, up to 5 key_data_points, sources, and entities (may be []).\n"
+        "- Do NOT include stories the articles don't advance. Do NOT re-emit unchanged "
+        "stories. Both arrays may be empty.\n\n"
+        f"{_story_index_for_prompt(memory)}\n\n"
+        f"TODAY'S SUBSTACK ARTICLES:\n{'=' * 40}\n{source_text}\n{'=' * 40}\n"
+    )
+
+    try:
+        response = client.messages.create(
+            model=CLAUDE_MODEL,
+            max_tokens=8000,
+            system=(
+                "You are a research memory manager maintaining evolving investment "
+                "storylines from paid Substack newsletters. Output only valid JSON "
+                "matching the requested delta shape. Be concise and specific — "
+                "updates are 1-3 sentences with real numbers."
+            ),
+            output_config=json_schema_output(DELTA_SCHEMA),
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        if response.stop_reason != "end_turn":
+            print(f"  Substack memory update truncated (stop_reason="
+                  f"{response.stop_reason}). Keeping existing store.")
+            return memory
+
+        delta = parse_json_response(response.content[0].text)
+        n_updated, n_created, n_resolved = _apply_delta(memory, delta, today)
+        _age_stale_stories(memory, today)
+        memory["last_updated"] = today
+        _save_memory(memory, SUBSTACK_MEMORY_FILE)
+
+        n_active = sum(1 for s in memory["stories"] if s["status"] == "active")
+        print(f"  Substack memory delta: {n_updated} updated, {n_created} new, "
+              f"{n_resolved} resolved -> {n_active} active stories.")
+        cost.record("substack memory", CLAUDE_MODEL, response.usage)
+
+        return memory
+
+    except json.JSONDecodeError as e:
+        print(f"  Substack memory update failed (invalid JSON): {e}")
+        return memory
+    except Exception as e:
+        print(f"  Substack memory update failed: {e}")
+        return memory
+
+
 # ======================================================================
 # REPLY-BOT ROUTER (Stage 5: System A -> System B)
 # ======================================================================
@@ -442,8 +580,11 @@ def _topic_words(story):
     return {w for w in words if len(w) >= 4} - _STOPWORDS
 
 
-def match_stories(question, top_n=2):
+def match_stories(question, top_n=2, path=None):
     """Match a reply question to tracked storylines (Stage-5 router).
+
+    `path` selects the store (default: the main memory; the reply bot also
+    passes SUBSTACK_MEMORY_FILE for full-access askers — TEAM_DIGEST_SPEC).
 
     Scoring, strongest first:
     - entity hits (story entity found in the question, via the shared lexicon
@@ -455,7 +596,7 @@ def match_stories(question, top_n=2):
     - shared topic words ("credit", "downgrade") count 1x and need >=2.
     No match returns [] and the reply path behaves exactly as Stage 4.
     """
-    memory = _load_memory()
+    memory = _load_memory(path)
     stories = memory.get("stories", [])
     if not stories or not question:
         return []

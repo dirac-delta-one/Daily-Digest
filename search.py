@@ -298,10 +298,11 @@ def dedupe_near_duplicates(results, threshold=0.85):
 
 
 def _filter_ids(metadata, date_filter=None, date_from=None, date_to=None,
-                entity_filter=None, exclude_digest_date=None):
+                entity_filter=None, exclude_digest_date=None,
+                exclude_source_types=None, exclude_digest_before=None):
     """Chunk ids passing all supplied filters (Stage 1 date prefix + Stage 3a
-    range/entity + Stage 4 digest exclusion). Returns None when no filter is
-    active (= search everything).
+    range/entity + Stage 4 digest exclusion + the TEAM_DIGEST_SPEC access
+    exclusions). Returns None when no filter is active (= search everything).
 
     exclude_digest_date drops digest-type chunks whose date starts with the
     given prefix. The reply bot passes the day it is replying about — that
@@ -311,12 +312,22 @@ def _filter_ids(metadata, date_filter=None, date_from=None, date_to=None,
     exclusion, it yields a nearly-full id list and sends search down the
     brute-force subset path — exact and cheap at the current scale (~3.5k
     vectors); revisit if the archive approaches the 100k-chunk FAISS ceiling.
+
+    exclude_source_types drops chunks of the given source_types entirely
+    (TEAM_DIGEST_SPEC: team askers pass {"substack"} so jared's paid research
+    never enters their answers). exclude_digest_before drops digest-type
+    chunks dated strictly before the given ISO date — digests archived before
+    the team activation date are FULL digests with Substack woven into their
+    prose (team askers pass the activation date, or "9999-12-31" when the
+    team has never been activated).
     """
     if not (date_filter or date_from or date_to or entity_filter
-            or exclude_digest_date is not None):
+            or exclude_digest_date is not None
+            or exclude_source_types or exclude_digest_before):
         return None
 
     ent = _entity_key(entity_filter) if entity_filter else None
+    excluded_types = set(exclude_source_types or ())
     allowed = []
     for i, m in enumerate(metadata):
         d = m.get("date", "")
@@ -331,6 +342,12 @@ def _filter_ids(metadata, date_filter=None, date_from=None, date_to=None,
         if (exclude_digest_date is not None
                 and m.get("source_type") == "digest"
                 and d.startswith(exclude_digest_date)):
+            continue
+        if excluded_types and m.get("source_type") in excluded_types:
+            continue
+        if (exclude_digest_before
+                and m.get("source_type") == "digest"
+                and d < exclude_digest_before):
             continue
         allowed.append(i)
     return allowed
@@ -415,7 +432,13 @@ def _chunks_for_date(date_str):
     chunks = []  # list of (text, metadata_dict)
 
     # --- Digest HTML ---
-    digest_file = day_dir / "digest.html"
+    # TEAM_DIGEST_SPEC: once the team variant exists, IT is the indexed digest —
+    # the full digest's prose embeds Substack analysis, and digest-type chunks
+    # would leak it to team askers (jared still gets the raw substack chunks
+    # below, his substack memory, and the full digest as verbatim reply context).
+    digest_file = day_dir / "digest_team.html"
+    if not digest_file.exists():
+        digest_file = day_dir / "digest.html"
     if digest_file.exists():
         text = strip_html(digest_file.read_text(encoding="utf-8"))
         for i, chunk in enumerate(_chunk_text(text)):
@@ -888,7 +911,8 @@ def _rerank_candidates(query, candidates, top_k):
 
 def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
            entity_filter=None, date_from=None, date_to=None,
-           exclude_digest_date=None):
+           exclude_digest_date=None,
+           exclude_source_types=None, exclude_digest_before=None):
     """
     Search the archive: dense retrieval (optionally fused with BM25), then
     keyword boost or cross-encoder rerank.
@@ -915,6 +939,11 @@ def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
             chunks from that date ("" = all digests). The reply bot passes the
             digest day it is replying about, since that digest is already in its
             context. Combines with the include-filters above.
+        exclude_source_types: Optional iterable of source_types to exclude
+            entirely (TEAM_DIGEST_SPEC — team askers pass {"substack"}).
+        exclude_digest_before: Optional ISO date — exclude digest-type chunks
+            dated strictly before it (pre-team-activation digests are FULL
+            digests with Substack woven in).
 
     Returns:
         List of (metadata_dict, score) tuples, best-first.
@@ -937,7 +966,9 @@ def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
     allowed_ids = _filter_ids(metadata, date_filter=date_filter,
                               date_from=date_from, date_to=date_to,
                               entity_filter=entity_filter,
-                              exclude_digest_date=exclude_digest_date)
+                              exclude_digest_date=exclude_digest_date,
+                              exclude_source_types=exclude_source_types,
+                              exclude_digest_before=exclude_digest_before)
     if allowed_ids is not None and not allowed_ids:
         return []
 

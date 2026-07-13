@@ -119,9 +119,10 @@ def _build_content(with_pdf):
     for e in emails:
         e["pdfs"] = []  # archived emails store pdf_filenames; prompt reads e["pdfs"]
 
+    # (Substack moved to the trailing _build_substack_block — TEAM_DIGEST_SPEC;
+    # concatenated here so the harness's input matches the FULL variant's view.)
     prompt = digest._build_source_prompt(
         emails=emails,
-        substack_articles=_load("substacks.json"),
         sec_filings=_load("filings.json"),
         market_data=_load("market_data.json"),
         macro_data=_load("macro_data.json"),
@@ -132,6 +133,9 @@ def _build_content(with_pdf):
         fund_results=_load("fund_results.json"),
         wiltw=_load("wiltw.json"),
     )
+    substack_block = digest._build_substack_block(_load("substacks.json"))
+    if substack_block:
+        prompt += "\n\n" + substack_block
     content = [{"type": "text", "text": prompt}]
 
     if with_pdf:

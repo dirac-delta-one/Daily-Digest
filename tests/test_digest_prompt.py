@@ -11,6 +11,14 @@ import pytest
 import digest
 
 
+SUBSTACK_ARTICLES = [{
+    "title": "SENTINEL_SUBSTACK",
+    "author": "Author",
+    "url": "https://example.com/p/x",
+    "text": "substack body",
+}]
+
+
 def _kwargs():
     """Representative inputs with a distinct sentinel per source we can assert on."""
     return dict(
@@ -20,12 +28,6 @@ def _kwargs():
             "date": "Mon, 30 Jun 2026 09:00:00 -0400",
             "snippet": "email snippet",
             "pdfs": [],
-        }],
-        substack_articles=[{
-            "title": "SENTINEL_SUBSTACK",
-            "author": "Author",
-            "url": "https://example.com/p/x",
-            "text": "substack body",
         }],
         sec_filings=[{
             "ticker": "ABC",
@@ -79,9 +81,6 @@ def test_each_source_routes_to_its_section():
     # Emails
     assert "SENTINEL_EMAIL" in prompt
     assert "Subject: SENTINEL_EMAIL" in prompt
-    # Substack
-    assert "SUBSTACK ARTICLES:" in prompt
-    assert "SENTINEL_SUBSTACK" in prompt
     # SEC filings
     assert "SEC FILINGS:" in prompt
     assert "SENTINEL_FILING" in prompt
@@ -95,6 +94,14 @@ def test_each_source_routes_to_its_section():
     assert "SENTINEL_MEMORY" in prompt
 
 
+def test_source_prompt_never_contains_substack():
+    # TEAM_DIGEST_SPEC: the base prompt is the TEAM-shareable view — Substack
+    # lives only in the trailing _build_substack_block, so the team prompt is a
+    # strict prefix of the full prompt (and can never leak jared's subs).
+    prompt = digest._build_source_prompt(**_kwargs())
+    assert "SUBSTACK" not in prompt.upper()
+
+
 def test_build_source_prompt_is_deterministic():
     kwargs = _kwargs()
     assert digest._build_source_prompt(**kwargs) == digest._build_source_prompt(**kwargs)
@@ -103,15 +110,42 @@ def test_build_source_prompt_is_deterministic():
 def test_omitted_sources_produce_no_section():
     # With only emails supplied, none of the other section headers appear.
     kwargs = _kwargs()
-    for k in ("substack_articles", "sec_filings", "rating_actions"):
+    for k in ("sec_filings", "rating_actions"):
         kwargs[k] = []
     kwargs["wiltw"] = None
     kwargs["memory_context"] = ""
     prompt = digest._build_source_prompt(**kwargs)
 
-    assert "SUBSTACK ARTICLES:" not in prompt
     assert "SEC FILINGS:" not in prompt
     assert "RATING AGENCY ACTIONS:" not in prompt
     assert "13D RESEARCH" not in prompt
     # Email content still present
     assert "SENTINEL_EMAIL" in prompt
+
+
+# --- _build_substack_block (TEAM_DIGEST_SPEC: the full variant's tail) ---
+
+def test_substack_block_contains_articles():
+    block = digest._build_substack_block(SUBSTACK_ARTICLES)
+    assert "SUBSTACK ARTICLES:" in block
+    assert "SENTINEL_SUBSTACK" in block
+    assert "primary research sources" in block
+
+
+def test_substack_block_includes_memory_context():
+    block = digest._build_substack_block(
+        SUBSTACK_ARTICLES, substack_memory_context="SENTINEL_SUBMEM context")
+    assert "SENTINEL_SUBMEM" in block
+    # memory context precedes the articles (yesterday's storylines frame today's)
+    assert block.find("SENTINEL_SUBMEM") < block.find("SENTINEL_SUBSTACK")
+
+
+def test_substack_block_empty_when_nothing():
+    assert digest._build_substack_block([]) == ""
+    assert digest._build_substack_block([], substack_memory_context="") == ""
+
+
+def test_substack_block_memory_only():
+    block = digest._build_substack_block([], substack_memory_context="SENTINEL_SUBMEM")
+    assert "SENTINEL_SUBMEM" in block
+    assert "SUBSTACK ARTICLES:" not in block

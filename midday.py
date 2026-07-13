@@ -19,7 +19,7 @@ from pathlib import Path
 import anthropic
 
 from config import SONNET_MODEL
-from digest import get_gmail_service, DIGEST_RECIPIENTS
+from digest import get_gmail_service, DIGEST_RECIPIENTS, TEAM_RECIPIENTS
 from news import fetch_wsj_ft_articles
 from sec_filings import fetch_recent_filings
 from ratings import fetch_rating_actions
@@ -164,9 +164,13 @@ def evaluate_materiality(emails, articles, filings, rating_actions):
 
 
 def send_alert_email(service, subject_desc, alert_html):
-    """Send the midday alert email."""
+    """Send the midday alert email.
+
+    Midday's sources (inbox/news/EDGAR/ratings) contain no Substack, so the
+    alert goes to BOTH recipient lists (TEAM_DIGEST_SPEC §1), deduped."""
+    recipients = list(dict.fromkeys(DIGEST_RECIPIENTS + TEAM_RECIPIENTS))
     message = MIMEText(alert_html, "html")
-    message["to"] = ", ".join(DIGEST_RECIPIENTS)
+    message["to"] = ", ".join(recipients)
     message["subject"] = f"\U0001f6a8 Midday Alert — {subject_desc}"
 
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()

@@ -66,14 +66,17 @@ def _run_one(call, tier, model, fn):
 # ======================================================================
 
 def _reconstruct_source_text():
-    """Rebuild the digest source material via the real _build_source_prompt."""
+    """Rebuild the digest source material via the real prompt builders.
+
+    (Substack moved out of _build_source_prompt into the trailing
+    _build_substack_block — TEAM_DIGEST_SPEC; concatenated here so the
+    reconstructed source matches the FULL variant's view.)"""
     import digest
     emails = _load("emails.json")
     for e in emails:            # archived emails use pdf_filenames; prompt reads e["pdfs"]
         e["pdfs"] = []
-    return digest._build_source_prompt(
+    prompt = digest._build_source_prompt(
         emails=emails,
-        substack_articles=_load("substacks.json"),
         sec_filings=_load("filings.json"),
         market_data=_load("market_data.json"),
         macro_data=_load("macro_data.json"),
@@ -84,6 +87,8 @@ def _reconstruct_source_text():
         fund_results=_load("fund_results.json"),
         wiltw=_load("wiltw.json"),
     )
+    substack_block = digest._build_substack_block(_load("substacks.json"))
+    return prompt + ("\n\n" + substack_block if substack_block else "")
 
 
 def run_alerts():

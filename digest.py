@@ -25,7 +25,10 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from config import OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, esc, safe_href, unattended
+from config import (
+    OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, TEAM_ACTIVATION_DATE,
+    esc, safe_href, unattended,
+)
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body
@@ -34,7 +37,10 @@ from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
 from market_data import fetch_market_data, build_market_table_html, format_market_data_for_prompt
 from macro_data import fetch_macro_data, build_macro_table_html, format_macro_for_prompt
-from memory import get_memory_context, update_memory
+from memory import (
+    get_memory_context, update_memory,
+    get_substack_memory_context, update_substack_memory,
+)
 from alerts import evaluate_alerts, build_alerts_html
 from earnings import fetch_earnings_calendar, build_earnings_html, format_earnings_for_prompt
 from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html, commit_seen
@@ -64,16 +70,23 @@ for _arg in sys.argv[1:]:
             pass
 MAX_EMAILS = 50  # max emails to include in digest
 MAX_PDF_SIZE_MB = 5  # skip PDFs larger than this (to control token usage)
+def _recipients_from_env(var, default):
+    """Comma-split, whitespace-stripped recipient list from an env var."""
+    return [r.strip() for r in os.environ.get(var, default).split(",") if r.strip()]
+
+
 # Recipients default to production (jared); override with the DIGEST_TO env var
 # (e.g. set DIGEST_TO=acohen@acorninv.com on a test machine). midday.py and
-# reply_monitor.py import this, so the override applies there too.
-DIGEST_RECIPIENTS = [
-    r.strip()
-    for r in os.environ.get(
-        "DIGEST_TO", "jtramontano@acorninv.com,acorn.research.bot@gmail.com"
-    ).split(",")
-    if r.strip()
-]
+# reply_monitor.py import this, so the override applies there too. This is the
+# FULL variant's audience (Substack included) — TEAM_DIGEST_SPEC Stage 1.
+DIGEST_RECIPIENTS = _recipients_from_env(
+    "DIGEST_TO", "jtramontano@acorninv.com,acorn.research.bot@gmail.com"
+)
+
+# The Substack-free TEAM variant's audience (TEAM_DIGEST_SPEC). Default EMPTY:
+# team generation is skipped entirely until a recipient is added (the Stage-5
+# activation checklist), so the second 2-pass run costs nothing today.
+TEAM_RECIPIENTS = _recipients_from_env("DIGEST_TO_TEAM", "")
 CLAUDE_MODEL = OPUS_MODEL
 
 # Paths (relative to this script)
@@ -333,16 +346,21 @@ Follow this template exactly. Same fonts, same sizes, same spacing every single 
 """
 
 
-def _build_source_prompt(*, emails, substack_articles, sec_filings, market_data,
+def _build_source_prompt(*, emails, sec_filings, market_data,
                          macro_data, memory_context, earnings, pacer_entries,
                          rating_actions=None, fund_results=None,
                          wiltw=None,
                          research_articles=None, treasury_auctions=None,
                          cot_data=None, fed_bs=None, bank_failures=None):
-    """Build the full source material text for the Opus prompt.
+    """Build the TEAM-shareable source material text for the Opus prompt.
 
-    Keyword-only (Phase 3.1): with 17 same-typed source arguments, positional
+    Keyword-only (Phase 3.1): with 15 same-typed source arguments, positional
     calls were a misroute footgun — `*` forces every caller to name each source.
+
+    Substack is NOT here (TEAM_DIGEST_SPEC): it is personal to jared, so it
+    lives in `_build_substack_block`, appended as a TRAILING block for the
+    full variant only — which also makes this prompt a strict prefix of the
+    full prompt, so the two variants share the prompt cache.
     """
     # Email metadata
     email_lines = []
@@ -369,17 +387,9 @@ def _build_source_prompt(*, emails, substack_articles, sec_filings, market_data,
             "extract and synthesize their key content."
         )
 
-    substack_note = ""
-    if substack_articles:
-        substack_note = (
-            f"\n\nAdditionally, {len(substack_articles)} paid Substack articles are included below. "
-            "Treat these as primary research sources — summarize their key arguments, "
-            "data points, and investment implications."
-        )
-
     prompt = (
         f"Here are {len(emails)} emails from my inbox in the last {HOURS_LOOKBACK} hours."
-        f"{pdf_note}{substack_note}\n\n"
+        f"{pdf_note}\n\n"
         + "\n\n".join(email_lines)
     )
 
@@ -401,20 +411,6 @@ def _build_source_prompt(*, emails, substack_articles, sec_filings, market_data,
     # Cross-digest memory
     if memory_context:
         prompt += "\n\n" + "=" * 40 + "\n" + memory_context + "\n" + "=" * 40
-
-    # Substack articles
-    if substack_articles:
-        substack_lines = []
-        for i, a in enumerate(substack_articles):
-            substack_lines.append(
-                f"--- Substack Article {i+1} ---\n"
-                f"Title: {a['title']}\n"
-                f"Author: {a['author']}\n"
-                f"URL: {a['url']}\n\n"
-                f"{a['text']}"
-            )
-        prompt += "\n\n" + "=" * 40 + "\nSUBSTACK ARTICLES:\n" + "=" * 40 + "\n\n"
-        prompt += "\n\n".join(substack_lines)
 
     # 13D Research WILTW (Opus-summarized PDF)
     if wiltw and wiltw.get("summary"):
@@ -494,6 +490,41 @@ def _build_source_prompt(*, emails, substack_articles, sec_filings, market_data,
     return prompt
 
 
+def _build_substack_block(substack_articles, substack_memory_context=None):
+    """Trailing prompt block for the FULL variant only (TEAM_DIGEST_SPEC §1):
+    the Substack articles + the substack-memory context.
+
+    Kept OUT of _build_source_prompt so the team prompt is a strict prefix of
+    the full prompt — both extras must sit here in the tail, after the shared
+    cache breakpoint, or the prefix diverges and the variants stop sharing
+    the prompt cache. Returns "" when there is nothing to add.
+    """
+    parts = []
+
+    if substack_memory_context:
+        parts.append("=" * 40 + "\n" + substack_memory_context + "\n" + "=" * 40)
+
+    if substack_articles:
+        substack_lines = []
+        for i, a in enumerate(substack_articles):
+            substack_lines.append(
+                f"--- Substack Article {i+1} ---\n"
+                f"Title: {a['title']}\n"
+                f"Author: {a['author']}\n"
+                f"URL: {a['url']}\n\n"
+                f"{a['text']}"
+            )
+        parts.append(
+            f"Additionally, {len(substack_articles)} paid Substack articles follow. "
+            "Treat these as primary research sources — summarize their key arguments, "
+            "data points, and investment implications.\n\n"
+            + "=" * 40 + "\nSUBSTACK ARTICLES:\n" + "=" * 40 + "\n\n"
+            + "\n\n".join(substack_lines)
+        )
+
+    return "\n\n".join(parts)
+
+
 def _strip_to_html(text):
     """Drop any model preamble before the first <div — the emailed HTML must
     start at the template (Opus occasionally prefixes a sentence of prose).
@@ -508,10 +539,18 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           rating_actions=None, fund_results=None,
                           wiltw=None,
                           research_articles=None, treasury_auctions=None,
-                          cot_data=None, fed_bs=None, bank_failures=None):
+                          cot_data=None, fed_bs=None, bank_failures=None,
+                          substack_memory_context=None, cost_label=""):
     """Send all sources to Claude for digest generation (2-pass).
 
     Keyword-only (Phase 3.1) — see `_build_source_prompt` for the rationale.
+
+    TEAM_DIGEST_SPEC: the team variant passes substack_articles=[] (and no
+    substack_memory_context); the full variant passes both, which land in a
+    trailing content block AFTER the shared cache breakpoint — so when both
+    variants run (team first), the full run reads the team run's cached
+    prefix and pays only for the substack tail. `cost_label` distinguishes
+    the variants in the per-run cost summary (e.g. " (team)").
     """
     client = anthropic.Anthropic()
     substack_articles = substack_articles or []
@@ -528,13 +567,12 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     fed_bs = fed_bs or []
     bank_failures = bank_failures or []
 
-    # Get cross-digest memory context
+    # Get cross-digest memory context (the shared/team store — both variants)
     memory_context = get_memory_context()
 
-    # Build full source prompt
+    # Build the team-shareable source prompt (no Substack — see the builder)
     prompt = _build_source_prompt(
         emails=emails,
-        substack_articles=substack_articles,
         sec_filings=sec_filings,
         market_data=market_data,
         macro_data=macro_data,
@@ -577,7 +615,18 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     # price to re-send the sources+PDFs. The passes run seconds apart, well within the
     # 5-minute cache TTL. Validated output-equivalent + cache-engaging 2026-07-01 (see
     # WORKLOG) — caching is transparent to the model (identical tokens either way).
+    # TEAM_DIGEST_SPEC: this breakpoint also marks the team/full SHARED prefix.
     content[-1] = {**content[-1], "cache_control": {"type": "ephemeral"}}
+
+    # Substack tail (full variant only): articles + substack-memory context,
+    # with its own breakpoint so the full run's two passes share it too.
+    substack_block = _build_substack_block(substack_articles, substack_memory_context)
+    if substack_block:
+        content.append({
+            "type": "text",
+            "text": "\n" + substack_block,
+            "cache_control": {"type": "ephemeral"},
+        })
 
     # ---- PASS 1: Generate initial digest ----
     print("  Pass 1: Generating initial digest...")
@@ -602,7 +651,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     p1_input = response.usage.input_tokens
     p1_output = response.usage.output_tokens
     print(f"  Pass 1 tokens: {p1_input:,} in + {p1_output:,} out")
-    cost.record("digest pass 1", CLAUDE_MODEL, response.usage)
+    cost.record(f"digest pass 1{cost_label}", CLAUDE_MODEL, response.usage)
 
     # ---- PASS 2: Review and enhance ----
     # Same system + same cached source prefix as pass 1; the review instruction (with the
@@ -644,7 +693,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     p2_input = review_response.usage.input_tokens
     p2_output = review_response.usage.output_tokens
     print(f"  Pass 2 tokens: {p2_input:,} in + {p2_output:,} out")
-    cost.record("digest pass 2", CLAUDE_MODEL, review_response.usage)
+    cost.record(f"digest pass 2{cost_label}", CLAUDE_MODEL, review_response.usage)
 
     # Cost (cache-aware): usage.input_tokens excludes cached tokens, so price via
     # cost.cost_of, which bills cache reads at 0.1x and writes at 1.25x.
@@ -659,7 +708,21 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     print(f"  Cache: pass 1 wrote {cw1:,} tok; pass 2 read {cr2:,} tok from cache")
     print(f"  Estimated 2-pass cost: ${total_cost:.2f}")
 
-    return final, prompt  # Return prompt too for alert evaluation
+    # Source text for alert evaluation — the variant's view (the team variant
+    # has no substack block, so its alerts can never cite Substack). alerts.py
+    # evaluates only the first ~50k chars; with the substack block now at the
+    # TAIL it would rarely make that window, silently blinding the FULL alert
+    # box to Substack (e.g. PETITION flagging a distressed exchange). Carve
+    # the window instead: most of it for the shared sources, a guaranteed
+    # slice for Substack.
+    if substack_block:
+        head = prompt[:35000]
+        if len(prompt) > 35000:
+            head += "\n\n[...remaining shared sources truncated for alert evaluation...]"
+        source_text = head + "\n\n" + substack_block[:15000]
+    else:
+        source_text = prompt
+    return final, source_text
 
 
 def _rank_news_articles(articles, max_articles=15):
@@ -821,11 +884,15 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
     return digest_html
 
 
-def save_daily_digest(html, date=None):
-    """Save the daily digest HTML to disk for weekly summary."""
+def save_daily_digest(html, date=None, team=False):
+    """Save the daily digest HTML to disk for weekly summary.
+
+    team=True saves the Substack-free variant alongside (TEAM_DIGEST_SPEC) —
+    each variant's weekly wrap synthesizes its own dailies."""
     date = date or datetime.date.today()
     DIGESTS_DIR.mkdir(exist_ok=True)
-    filepath = DIGESTS_DIR / f"{date.isoformat()}.html"
+    suffix = "_team" if team else ""
+    filepath = DIGESTS_DIR / f"{date.isoformat()}{suffix}.html"
     filepath.write_text(html, encoding="utf-8")
     print(f"  Saved digest to {filepath}")
 
@@ -850,27 +917,32 @@ def _weekly_subject(monday=None):
             f"Week of {monday.strftime('%A, %B')} {monday.day}")
 
 
-def save_weekly_digest(html, date=None):
+def save_weekly_digest(html, date=None, team=False):
     """Save the weekly wrap to disk — before this, the sent email was the only
     copy (the 2026-07-10 first-run template check had to be done from the inbox)."""
     date = date or datetime.date.today()
     DIGESTS_DIR.mkdir(exist_ok=True)
-    filepath = DIGESTS_DIR / f"weekly_{date.isoformat()}.html"
+    suffix = "_team" if team else ""
+    filepath = DIGESTS_DIR / f"weekly_{date.isoformat()}{suffix}.html"
     filepath.write_text(html, encoding="utf-8")
     print(f"  Saved weekly summary to {filepath}")
 
 
-def _get_week_digests():
-    """Load this week's daily digests for the weekly summary."""
+def _get_week_digests(team=False):
+    """Load this week's daily digests for the weekly summary.
+
+    team=True loads the Substack-free variant's dailies — the team wrap must
+    be synthesized only from inputs that never contained Substack."""
     if not DIGESTS_DIR.exists():
         return []
 
     monday = _week_monday()
+    suffix = "_team" if team else ""
 
     digests = []
     for i in range(5):  # Mon-Fri
         d = monday + datetime.timedelta(days=i)
-        filepath = DIGESTS_DIR / f"{d.isoformat()}.html"
+        filepath = DIGESTS_DIR / f"{d.isoformat()}{suffix}.html"
         if filepath.exists():
             digests.append({
                 "date": d.isoformat(),
@@ -881,7 +953,7 @@ def _get_week_digests():
     return digests
 
 
-def generate_weekly_summary(digests):
+def generate_weekly_summary(digests, cost_label=""):
     """Generate a weekly summary by synthesizing the week's daily digests with Opus."""
     if not digests:
         return ""
@@ -919,7 +991,7 @@ def generate_weekly_summary(digests):
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  Weekly summary tokens: {tokens_in:,} in + {tokens_out:,} out")
-    cost.record("weekly summary", CLAUDE_MODEL, response.usage)
+    cost.record(f"weekly summary{cost_label}", CLAUDE_MODEL, response.usage)
 
     return weekly
 
@@ -1141,9 +1213,22 @@ def main():
                     f"{len(rating_actions)} rating actions, {len(fund_results)} 13F filings")
     print(f"Summarizing with Claude ({source_count})...")
 
-    digest_html, source_text = summarize_with_claude(
+    # TEAM_DIGEST_SPEC: Substack is personal to jared, so when TEAM_RECIPIENTS
+    # is non-empty a second, Substack-free variant is generated FIRST — its
+    # prompt is the shared cache prefix, so the full run that follows reads it
+    # and pays only for the substack tail. With the list empty (today), only
+    # the full variant runs, exactly as before.
+    team_active = bool(TEAM_RECIPIENTS)
+
+    # Substack-memory context (yesterday's store) for the FULL prompt only
+    substack_memory_context = ""
+    try:
+        substack_memory_context = get_substack_memory_context()
+    except Exception as e:
+        print(f"Substack memory context failed: {e} — continuing without.")
+
+    shared_kwargs = dict(
         emails=emails,
-        substack_articles=substack_articles,
         sec_filings=sec_filings,
         market_data=market_data,
         macro_data=macro_data,
@@ -1159,7 +1244,26 @@ def main():
         bank_failures=bank_failures,
     )
 
-    # --- Custom Alerts ---
+    team_digest_html = team_source_text = None
+    if team_active:
+        if not TEAM_ACTIVATION_DATE:
+            # The 7/13 validation A/B proved this leaks: pre-cleanse memory.json
+            # carries substack-derived storylines that surface in the team digest.
+            print("  WARNING: TEAM_RECIPIENTS set but config.TEAM_ACTIVATION_DATE "
+                  "is None — run the TEAM_DIGEST_SPEC Stage-5 activation checklist "
+                  "(memory cleanse!) or the shared memory can leak Substack "
+                  "storylines into the team digest.")
+        print("  TEAM variant (Substack-free)...")
+        team_digest_html, team_source_text = summarize_with_claude(
+            substack_articles=[], cost_label=" (team)", **shared_kwargs)
+
+    digest_html, source_text = summarize_with_claude(
+        substack_articles=substack_articles,
+        substack_memory_context=substack_memory_context,
+        **shared_kwargs)
+
+    # --- Custom Alerts (per variant — the team box is evaluated on the team
+    # source text, so it can never cite a Substack pub) ---
     print("Evaluating custom alerts...")
     try:
         triggered_alerts = evaluate_alerts(source_text)
@@ -1167,15 +1271,25 @@ def main():
         print(f"Alert evaluation failed: {e} — continuing without.")
         triggered_alerts = []
 
-    # --- Fed discount-window stress (numeric, from FRED H.4.1) ---
-    # Deterministic threshold check on the actual discount-window level, merged
-    # into the same alert box. Replaces the old LLM-evaluated "Fed stress signal"
-    # rule (removed from alerts_config.json) so the threshold lives in exactly one
-    # place: fed_balance_sheet.DISCOUNT_WINDOW_ALERT_MM / _SURGE_MM. Runs even if
-    # the LLM alert eval above failed.
+    team_alerts = []
+    if team_active:
+        print("Evaluating custom alerts (team source)...")
+        try:
+            team_alerts = evaluate_alerts(team_source_text)
+        except Exception as e:
+            print(f"Team alert evaluation failed: {e} — continuing without.")
+
+    # --- Deterministic signals (appended to BOTH variants' alert boxes) ---
+    deterministic_alerts = []
+
+    # Fed discount-window stress (numeric, from FRED H.4.1): threshold check on
+    # the actual discount-window level. Replaces the old LLM-evaluated "Fed
+    # stress signal" rule (removed from alerts_config.json) so the threshold
+    # lives in exactly one place: fed_balance_sheet.DISCOUNT_WINDOW_ALERT_MM /
+    # _SURGE_MM. Runs even if the LLM alert eval above failed.
     try:
         for signal in check_fed_stress(fed_bs):
-            triggered_alerts.append({
+            deterministic_alerts.append({
                 "name": "Fed stress signal",
                 "detail": signal,
                 "source": "FRED H.4.1",
@@ -1183,9 +1297,9 @@ def main():
     except Exception as e:
         print(f"Fed stress check failed: {e} — continuing without.")
 
-    # --- Content monitor (O3): record per-source counts; flag a normally-
-    # nonzero source stuck at zero (the silent-degradation mode the per-source
-    # try/except deliberately swallows). Signals merge into the same alert box.
+    # Content monitor (O3): record per-source counts; flag a normally-nonzero
+    # source stuck at zero (the silent-degradation mode the per-source
+    # try/except deliberately swallows). Recorded ONCE per run.
     try:
         counts = {
             "emails": len(emails),
@@ -1194,7 +1308,7 @@ def main():
             **{key: len(fetched[key]) for key in fetched},
         }
         for signal in record_and_check(counts):
-            triggered_alerts.append({
+            deterministic_alerts.append({
                 "name": "Source degradation",
                 "detail": signal,
                 "source": "content monitor",
@@ -1202,8 +1316,12 @@ def main():
     except Exception as e:
         print(f"Content monitor failed: {e} — continuing.")
 
-    # --- Build pre-formatted HTML sections ---
+    triggered_alerts.extend(deterministic_alerts)
+    team_alerts.extend(deterministic_alerts)
+
+    # --- Build pre-formatted HTML sections (shared by both variants) ---
     alerts_html = build_alerts_html(triggered_alerts)
+    team_alerts_html = build_alerts_html(team_alerts)
     market_html = build_market_table_html(market_data)
     macro_html = build_macro_table_html(macro_data)
     earnings_html = build_earnings_html(earnings)
@@ -1215,25 +1333,41 @@ def main():
     auctions_html = build_auctions_table_html(treasury_auctions)
     fed_bs_html = build_fed_bs_table_html(fed_bs)
 
-    # --- Assemble final digest ---
+    # --- Assemble final digest(s) ---
     final_html = _assemble_digest_html(
         digest_html, alerts_html, market_html, macro_html,
         earnings_html, news_html, pacer_html,
         funds_html,
         auctions_html, fed_bs_html,
     )
+    team_final_html = None
+    if team_active:
+        team_final_html = _assemble_digest_html(
+            team_digest_html, team_alerts_html, market_html, macro_html,
+            earnings_html, news_html, pacer_html,
+            funds_html,
+            auctions_html, fed_bs_html,
+        )
 
-    # --- Save daily digest for weekly summary ---
+    # --- Save daily digest(s) for weekly summary (each non-fatal on its own) ---
     try:
         save_daily_digest(final_html)
     except Exception as e:
         print(f"Failed to save daily digest: {e}")
+    if team_final_html:
+        try:
+            save_daily_digest(team_final_html, team=True)
+        except Exception as e:
+            print(f"Failed to save team daily digest: {e}")
 
-    # --- Send digest ---
+    # --- Send digest(s) ---
     print("Sending digest email...")
     send_digest_email(service, final_html)
+    if team_final_html:
+        print("Sending TEAM digest email...")
+        send_digest_email(service, team_final_html, recipients=TEAM_RECIPIENTS)
 
-    # --- PACER seen-state (F1a-4): persist only now that the digest actually
+    # --- PACER seen-state (F1a-4): persist only now that the digest(s) actually
     # sent — a crash anywhere earlier leaves the entries unseen for the next run.
     try:
         commit_seen()
@@ -1257,6 +1391,7 @@ def main():
         archive_daily_content(
             date=today_str,
             digest_html=final_html,
+            digest_team_html=team_final_html or "",
             emails=emails,
             substack_articles=substack_articles,
             sec_filings=sec_filings,
@@ -1272,17 +1407,26 @@ def main():
         print(f"Archiving failed: {e} — continuing.")
 
     # --- Index into vector search ---
+    # (search prefers digest_team.html for the digest chunks when it exists —
+    # full-digest prose embeds Substack analysis; see search._chunks_for_date)
     print("Indexing archive for search...")
     try:
         index_daily_content(today_str)
     except Exception as e:
         print(f"Indexing failed: {e} — continuing.")
 
-    # --- Update cross-digest memory ---
+    # --- Update cross-digest memory (the shared store must stay Substack-free
+    # once the team variant exists, so it learns from the team digest then) ---
     try:
-        update_memory(final_html)
+        update_memory(team_final_html if team_final_html else final_html)
     except Exception as e:
         print(f"Memory update failed: {e} — continuing.")
+
+    # --- Update substack memory (Stage 3 — jared-personal storylines) ---
+    try:
+        update_substack_memory(substack_articles)
+    except Exception as e:
+        print(f"Substack memory update failed: {e} — continuing.")
 
     # --- Weekly Summary (Friday only) ---
     if _is_friday():
@@ -1305,6 +1449,31 @@ def main():
                 print(f"Only {len(week_digests)} digest(s) this week — skipping weekly summary.")
         except Exception as e:
             print(f"Weekly summary failed: {e}")
+
+        # TEAM weekly wrap (TEAM_DIGEST_SPEC): synthesized only from the team
+        # dailies, so it can't contain Substack; the first partial week after
+        # activation self-skips on the >=2 check.
+        if team_active:
+            try:
+                team_week = _get_week_digests(team=True)
+                if len(team_week) >= 2:
+                    team_weekly = generate_weekly_summary(team_week, cost_label=" (team)")
+                    if team_weekly:
+                        try:
+                            save_weekly_digest(team_weekly, team=True)
+                        except Exception as e:
+                            print(f"Failed to save team weekly summary: {e}")
+                        send_digest_email(
+                            service, team_weekly,
+                            recipients=TEAM_RECIPIENTS,
+                            subject=_weekly_subject(),
+                        )
+                        print("Team weekly summary sent.")
+                else:
+                    print(f"Only {len(team_week)} team digest(s) this week — "
+                          "skipping team weekly summary.")
+            except Exception as e:
+                print(f"Team weekly summary failed: {e}")
 
     # --- Per-run Claude cost (every call, not just the two Opus passes) ---
     cost_text, _ = cost.summary()

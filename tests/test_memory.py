@@ -266,6 +266,87 @@ def test_match_stories_unique_topic_word_matches_alone(mem_files):
     assert matched[0]["topic"].startswith("Wynn Resorts")
 
 
+# --- Substack store (TEAM_DIGEST_SPEC Stage 3) ---
+
+def test_store_isolation(mem_files, tmp_path, monkeypatch):
+    # Saving to the substack store must not touch the main one (or its backup)
+    mem_file, backup_file = mem_files
+    sub_file = tmp_path / "substack_memory.json"
+    monkeypatch.setattr(memory, "SUBSTACK_MEMORY_FILE", sub_file)
+    main_before = mem_file.read_text(encoding="utf-8")
+
+    store = {"version": 2, "last_updated": "2026-07-13", "stories": [
+        {"id": "petition-lme", "topic": "PETITION LME coverage", "status": "active",
+         "first_seen": "2026-07-13", "last_updated": "2026-07-13", "entities": [],
+         "summary": "S.", "key_data_points": [], "sources": ["PETITION"],
+         "timeline": []},
+    ]}
+    memory._save_memory(store, sub_file)
+
+    assert mem_file.read_text(encoding="utf-8") == main_before
+    assert not backup_file.exists()  # v1 backup is a main-store-only behavior
+    assert memory._load_memory(sub_file) == store
+
+
+def test_substack_context_header_and_isolation(mem_files, tmp_path, monkeypatch):
+    sub_file = tmp_path / "substack_memory.json"
+    monkeypatch.setattr(memory, "SUBSTACK_MEMORY_FILE", sub_file)
+    memory._save_memory({"version": 2, "last_updated": "2026-07-13", "stories": [
+        {"id": "s1", "topic": "Data-center bond fragility", "status": "active",
+         "first_seen": "2026-07-13", "last_updated": "2026-07-13", "entities": [],
+         "summary": "Residual-value risk.", "key_data_points": ["dp"],
+         "sources": ["Junk Bond Investor"], "timeline": []},
+    ]}, sub_file)
+
+    ctx = memory.get_substack_memory_context()
+    assert ctx.startswith("SUBSTACK MEMORY")
+    assert "Data-center bond fragility" in ctx
+    assert "ORIGINAL publication" in ctx
+    # the MAIN context is untouched by the substack store
+    assert "Data-center bond fragility" not in memory.get_memory_context()
+
+
+def test_substack_context_empty_store(tmp_path, monkeypatch):
+    monkeypatch.setattr(memory, "SUBSTACK_MEMORY_FILE", tmp_path / "nope.json")
+    assert memory.get_substack_memory_context() == ""
+
+
+def test_match_stories_path_param(mem_files, tmp_path, monkeypatch):
+    sub_file = tmp_path / "substack_memory.json"
+    monkeypatch.setattr(memory, "SUBSTACK_MEMORY_FILE", sub_file)
+    memory._save_memory({"version": 2, "last_updated": "2026-07-13", "stories": [
+        {"id": "saaspocalypse", "topic": "SaaSpocalypse asset-light unwind",
+         "status": "active", "first_seen": "2026-07-13",
+         "last_updated": "2026-07-13", "entities": [], "summary": "",
+         "key_data_points": [], "sources": ["High Yield Landlord"],
+         "timeline": []},
+    ]}, sub_file)
+    q = "What is the latest on the SaaSpocalypse thesis?"
+    assert memory.match_stories(q) == []  # not in the main store
+    matched = memory.match_stories(q, path=sub_file)
+    assert [s["id"] for s in matched] == ["saaspocalypse"]
+
+
+def test_substack_articles_text_caps_body():
+    articles = [{"title": "T", "author": "A", "text": "x" * 5000}]
+    text = memory._substack_articles_text(articles)
+    assert len(text) < 3200  # capped at SUBSTACK_ARTICLE_CAP + header
+    assert text.startswith("--- T (A) ---")
+
+
+def test_update_substack_memory_no_articles_makes_no_call(tmp_path, monkeypatch):
+    monkeypatch.setattr(memory, "SUBSTACK_MEMORY_FILE", tmp_path / "sub.json")
+
+    class _Boom:
+        def __init__(self):
+            raise AssertionError("no-articles path must not build a client")
+    monkeypatch.setattr(memory.anthropic, "Anthropic", _Boom)
+
+    result = memory.update_substack_memory([])
+    assert result["stories"] == []
+    assert not (tmp_path / "sub.json").exists()  # nothing written either
+
+
 def test_match_stories_common_word_alone_no_match(tmp_path, monkeypatch):
     # A topic word shared by several stories (df>1) must NOT match alone.
     mem_file = tmp_path / "memory.json"

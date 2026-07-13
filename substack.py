@@ -305,6 +305,24 @@ def _is_recent(post, hours=HOURS_LOOKBACK):
         return True
 
 
+def _cap_and_flag_preview(text, wordcount=None):
+    """Cap article text at MAX_ARTICLE_CHARS and flag paywall previews.
+
+    The API reports each post's TRUE wordcount; when the text we could access
+    is far shorter (a free-tier sub, or a pub that stops serving full bodies),
+    Opus would otherwise summarize the intro paragraphs with full-article
+    confidence — the marker lets it hedge/tag the item and makes the gap
+    visible in the email. The preview check runs BEFORE the cap so our own
+    truncation of a long full article can't be mistaken for a paywall preview.
+    """
+    is_preview = bool(wordcount) and len(text.split()) < 0.5 * wordcount
+    if len(text) > MAX_ARTICLE_CHARS:
+        text = text[:MAX_ARTICLE_CHARS] + "\n[...truncated]"
+    if is_preview:
+        text += "\n[preview only — the remainder of this article is paywalled]"
+    return text
+
+
 def _get_article_text(session, post, pub_url):
     """Get full article text for a post. Tries API body_html, then fetches the post page."""
     # The archive API often includes body_html directly
@@ -313,9 +331,7 @@ def _get_article_text(session, post, pub_url):
     if body_html:
         text = _html_to_text(body_html)
         if len(text) > 200:
-            if len(text) > MAX_ARTICLE_CHARS:
-                text = text[:MAX_ARTICLE_CHARS] + "\n[...truncated]"
-            return text
+            return _cap_and_flag_preview(text, post.get("wordcount"))
 
     # If body_html not in archive response, fetch the individual post
     slug = post.get("slug", "")
@@ -329,9 +345,8 @@ def _get_article_text(session, post, pub_url):
                 body_html = data.get("body_html", "")
                 if body_html:
                     text = _html_to_text(body_html)
-                    if len(text) > MAX_ARTICLE_CHARS:
-                        text = text[:MAX_ARTICLE_CHARS] + "\n[...truncated]"
-                    return text
+                    return _cap_and_flag_preview(
+                        text, data.get("wordcount") or post.get("wordcount"))
         except Exception:
             pass
 

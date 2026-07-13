@@ -296,6 +296,74 @@ def test_exclude_digest_none_means_no_filter():
     assert search._filter_ids(_META_DIGEST) is None
 
 
+# --- _filter_ids access exclusions (TEAM_DIGEST_SPEC Stage 2) ---
+
+_META_ACCESS = [
+    {"date": "2026-07-01", "source_type": "substack"},
+    {"date": "2026-07-01", "source_type": "email"},
+    {"date": "2026-07-01", "source_type": "digest"},   # pre-activation (full)
+    {"date": "2026-08-01", "source_type": "digest"},   # post-activation (team)
+    {"date": "2026-08-01", "source_type": "wiltw"},
+]
+
+
+def test_exclude_source_types_drops_substack():
+    ids = search._filter_ids(_META_ACCESS, exclude_source_types=("substack",))
+    assert ids == [1, 2, 3, 4]
+
+
+def test_exclude_digest_before_drops_only_old_digests():
+    ids = search._filter_ids(_META_ACCESS, exclude_digest_before="2026-07-15")
+    assert ids == [0, 1, 3, 4]  # only the pre-activation digest chunk drops
+
+
+def test_team_asker_combined_exclusions():
+    # substack gone entirely; pre-activation digest gone; team digest + raw
+    # non-substack sources (email, wiltw) survive
+    ids = search._filter_ids(_META_ACCESS,
+                             exclude_source_types=("substack",),
+                             exclude_digest_before="2026-07-15")
+    assert ids == [1, 3, 4]
+
+
+def test_never_activated_excludes_all_digests():
+    # exclude_digest_before="9999-12-31" (no activation date) -> every digest drops
+    ids = search._filter_ids(_META_ACCESS,
+                             exclude_source_types=("substack",),
+                             exclude_digest_before="9999-12-31")
+    assert ids == [1, 4]
+
+
+# --- _chunks_for_date digest-variant preference (TEAM_DIGEST_SPEC Stage 4) ---
+
+def _day_dir(tmp_path, monkeypatch, date="2026-07-13"):
+    monkeypatch.setattr(search, "ARCHIVE_DIR", tmp_path / "archive")
+    monkeypatch.setattr(search, "SCRIPT_DIR", tmp_path)
+    day = tmp_path / "archive" / date
+    day.mkdir(parents=True)
+    return day
+
+
+def test_chunks_prefer_team_digest_when_present(tmp_path, monkeypatch):
+    day = _day_dir(tmp_path, monkeypatch)
+    filler = "team digest prose without the private word. " * 5
+    (day / "digest.html").write_text("<div>" + "FULLSECRET substack analysis. " * 10 + "</div>",
+                                     encoding="utf-8")
+    (day / "digest_team.html").write_text("<div>" + filler + "</div>", encoding="utf-8")
+    chunks = search._chunks_for_date("2026-07-13")
+    digest_chunks = [c for c, m in chunks if m["source_type"] == "digest"]
+    assert digest_chunks, "team digest should have been chunked"
+    assert all("FULLSECRET" not in c for c in digest_chunks)
+
+
+def test_chunks_fall_back_to_full_digest(tmp_path, monkeypatch):
+    day = _day_dir(tmp_path, monkeypatch)
+    (day / "digest.html").write_text("<div>" + "full digest only, no team file. " * 10 + "</div>",
+                                     encoding="utf-8")
+    chunks = search._chunks_for_date("2026-07-13")
+    assert any(m["source_type"] == "digest" for _c, m in chunks)
+
+
 # --- dedupe_near_duplicates (Stage 4: near-dup text filter) ---
 
 _DUP_A = {"text": "Global Update: China demand dips, EU stimulus talk, oil range-bound this week."}

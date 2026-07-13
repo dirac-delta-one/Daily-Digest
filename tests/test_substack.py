@@ -48,3 +48,53 @@ def test_check_session_probes_profile_not_reader_feed():
     session = _FakeSession(200)
     substack._check_session(session)
     assert session.requested_urls == ["https://substack.com/api/v1/user/profile/self"]
+
+
+# --- _cap_and_flag_preview: paywall previews must be visibly labeled ---
+
+PREVIEW_MARK = "[preview only — the remainder of this article is paywalled]"
+
+
+def test_preview_flagged_when_text_far_short_of_wordcount():
+    # ~140 accessible words of a 2,064-word post (the Fixed Income Beacon case)
+    text = "word " * 140
+    out = substack._cap_and_flag_preview(text, wordcount=2064)
+    assert out.endswith(PREVIEW_MARK)
+
+
+def test_full_text_not_flagged():
+    text = "word " * 2000
+    out = substack._cap_and_flag_preview(text, wordcount=2064)
+    assert PREVIEW_MARK not in out
+
+
+def test_no_wordcount_never_flags():
+    out = substack._cap_and_flag_preview("short intro text", wordcount=None)
+    assert PREVIEW_MARK not in out
+    assert substack._cap_and_flag_preview("short", wordcount=0) == "short"
+
+
+def test_our_truncation_is_not_mistaken_for_preview():
+    # A full long article capped by MAX_ARTICLE_CHARS: the preview check runs
+    # on the UNCAPPED text, so only the truncation marker appears.
+    text = "word " * 4000  # 20,000 chars, wordcount matches -> full text
+    out = substack._cap_and_flag_preview(text, wordcount=4000)
+    assert "[...truncated]" in out
+    assert PREVIEW_MARK not in out
+
+
+def test_long_preview_gets_both_markers():
+    # A preview that ALSO exceeds the cap (huge article): both markers, with
+    # the preview marker appended after the cap so it can't be cut off.
+    text = "word " * 2000  # 10,000 chars but only 20% of the true wordcount
+    out = substack._cap_and_flag_preview(text, wordcount=10000)
+    assert "[...truncated]" in out
+    assert out.endswith(PREVIEW_MARK)
+
+
+def test_get_article_text_flags_archive_branch_preview():
+    # Archive body_html present (>200 chars) but far short of wordcount.
+    post = {"body_html": "<p>" + "intro words here " * 20 + "</p>",
+            "wordcount": 3000}
+    out = substack._get_article_text(_FakeSession(200), post, "https://x.substack.com/")
+    assert out.endswith(PREVIEW_MARK)
