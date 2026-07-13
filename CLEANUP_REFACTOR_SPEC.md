@@ -1,5 +1,13 @@
 # Cleanup + Refactor Spec
 
+> ✅ **TRACK COMPLETE 2026-07-10 — all 9 stages implemented, gated, and committed**
+> ("fable cleanup/refactor stage X.Y done" commits; per-stage detail in WORKLOG).
+> Final state: `ruff` clean, `pytest` 180 → **227**, pypdf eval re-baseline
+> **metric-identical** (0.846/1.0/0.904), $0 Claude spend. The `trace_data.py`
+> freeze below was lifted 2026-07-13 when the operator resolved §13 (module
+> removed — see WORKLOG 2026-07-13). This document is retained as the record of
+> what was specced and why.
+
 > Output of the 2026-07-10 full-codebase review (operator-approved item list, same day).
 > Companion to `HANDOFF.md` (state/constraints) and `WORKLOG.md` (running log);
 > follows the house item style (what / where / fix / verify + priority / effort).

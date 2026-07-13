@@ -19,14 +19,31 @@ runs remain stopped (task disabled).
 **REMAINING (all non-code):** (1) ~~operator OAuth publish + fresh consent~~ ✅ **DONE
 2026-07-10** (see entry below — the 7/14 deadline is cleared; the durable production token is
 what the server gets at deploy); (2) §7.2 server deploy (F1 checklist; run `setup_tasks.ps1`
-as admin on the box); (3) §13: **Substack ownership/renewal — the LAST jared item**
-(forwarding completeness, TRACE, and Octus/new-issue all resolved 2026-07-13, see entries
-below). ~~Watch-item: the 7/09 WILTW~~ **CLOSED — miss
+as admin on the box); (3) §13: **Substack ownership/renewal — the LAST jared item,
+🚩 flagged 2026-07-13: operator speaking to jared** (forwarding completeness, TRACE, and
+Octus/new-issue all resolved 2026-07-13, see entries below). ~~Watch-item: the 7/09 WILTW~~ **CLOSED — miss
 accepted (operator, 2026-07-10):** the 7/09 WILTW hadn't posted by Friday's run; with daily
 runs stopped there are no automatic retries, so the week is skipped rather than manually
 probed. One-off only — on the server's Mon–Fri schedule the pipeline retries every day of the
 ≤6-day window (Fri + Mon–Wed) and O3 alerts if wiltw stays at 0 for 3 runs, so this can't
 recur silently once deployed.
+
+---
+
+## Docs housekeeping: cleanup-track phase-close in HANDOFF; Substack flagged (2026-07-13)
+
+Operator-confirmed phase close for the cleanup/refactor track (docs only, no code):
+
+- **HANDOFF §1** now records the track complete (9 stages, tests 180 → **227**, pypdf
+  bump + metric-identical eval, $0 spend) and the stale "pytest 180" status corrected;
+  **§10** "Done" list extended; **§4** — the `grab_session.py` row removed (file was
+  deleted back in Phase 0, commit `1f400f6`; the deferred 1.2d item) and the wrapper row
+  notes the clean `exit /b 0`.
+- **CLEANUP_REFACTOR_SPEC.md** got a completion banner (incl. the note that its
+  trace_data freeze was lifted by the 2026-07-13 §13 decision); retained as the record.
+- **Substack ownership/renewal 🚩 FLAGGED** (§13 + §1 + this file's Current state):
+  operator is speaking to jared. It is the last open §13 item; polymathinvestor's 403
+  rides along in the same conversation.
 
 ---
 

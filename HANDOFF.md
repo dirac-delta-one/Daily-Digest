@@ -25,8 +25,18 @@ low-risk improvements.
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), run daily
 through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**, and the whole
 2026-07-09 batch **live-validated by the 2026-07-10 run (GREEN, $1.58, checklist 9/9)**; `ruff`
-clean, `pytest` **180** green. The **cost refactor is complete** (2026-07-01; see §11 / §14 +
+clean, `pytest` **227** green. The **cost refactor is complete** (2026-07-01; see §11 / §14 +
 `WORKLOG`).
+**✅ The CLEANUP/REFACTOR TRACK is COMPLETE (2026-07-10; `CLEANUP_REFACTOR_SPEC.md`, all 9
+stages, $0 Claude spend, tests 180 → 227).** Highlights: dead code out (write-only FRED
+cache etc.); one subject constant + one watchlist source of truth; wrappers exit 0 on clean
+runs (forfiles quirk); first-ever pin tests for `_assemble_digest_html`/feeds/archive; the
+missed `build_funds_html` escaping; PACER ordered seen-eviction; COT prior-week WoW + exact
+contract match; the weekly wrap saves to disk with the "📊 Weekly Research Wrap — Week of
+Monday, July 6" subject + preamble strip; the 13D unattended-login guard (R8 — add its drill
+to the deploy checklist); **PyPDF2 → pypdf 6.14.2** with a full index rebuild (3,947 chunks)
+and a **metric-identical eval re-baseline (0.846/1.0/0.904)**. Per-stage detail in `WORKLOG`
+(2026-07-10 entries).
 **The memory / retrieval refactor is COMPLETE (Stages 0–5, closed 2026-07-09).** Its 7/09
 checkpoint had the 6-day / 26-question eval **rejecting both "best-practice" upgrades** — the
 rerank and hybrid production flips (rerank also failed its one Stage-4 retest → **both parked
@@ -76,7 +86,8 @@ project's definition of "done." Sequenced in **`NEXT_STEPS_SPEC.md`**. Other ope
 everything expected flows; Grant's not in the flow, operator accepted), **TRACE RESOLVED**
 (operator decided not to use it; the never-functional module removed), and **Octus/HY-new-issue
 RESOLVED** (accepted, no replacement — the forwarded Stifel New Issue Flashes carry the color).
-Remaining: **Substack ownership/renewal** (the last jared item) — see **§11 / §13 / §14**.
+Remaining: **Substack ownership/renewal — 🚩 flagged, operator speaking to jared** — see
+**§11 / §13 / §14**.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -259,8 +270,7 @@ monitor unattended 24/7. The work happens in three stages:
 | `midday.py` | Intraday materiality alert (Sonnet). Imports from `digest.py`. |
 | `memory.py`, `alerts.py`, `archive.py` | Cross-digest memory, plain-English alerts, raw-content archiver. |
 | Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. *(`trace_data.py` removed 2026-07-13 — §13.)* |
-| `run_*.bat`, `setup_tasks.ps1` | Task Scheduler wiring: 4 wrappers (`%~dp0`-relative, dated logs + 30-day prune) + the PowerShell provisioning script (run-whether-logged-on, wake/catch-up/network settings, the 09:00 watchdog, `DIGEST_UNATTENDED`). Execute `setup_tasks.ps1` on the server at deploy. |
-| `grab_session.py` | Stale manual helper (writes Playwright session for Substack, which no longer uses it). |
+| `run_*.bat`, `setup_tasks.ps1` | Task Scheduler wiring: 4 wrappers (`%~dp0`-relative, dated logs + 30-day prune, clean `exit /b 0`) + the PowerShell provisioning script (run-whether-logged-on, wake/catch-up/network settings, the 09:00 watchdog, `DIGEST_UNATTENDED`). Execute `setup_tasks.ps1` on the server at deploy. |
 
 **Gitignored, account-bound secrets** (must exist on the machine; copy or regenerate):
 `credentials.json`, `token.json` (Gmail), `substack_cookie.txt`,
@@ -647,7 +657,8 @@ body extractor (substack's divergent ones left alone); pinned by `tests/test_htm
 
 - **Done (cleanup phases — see §9):** Phase 0 (0.1–0.6), 1.1, 1.2, 2.2, 2.3, 2.4, 3.1, 3.2, 3.4 —
   plus the §7.1 de-hardcoding, A1 cost accounting, the Opus 4.8 upgrade + model/UA centralization +
-  dead-code cleanup.
+  dead-code cleanup. **Plus the 2026-07-10 cleanup/refactor track (`CLEANUP_REFACTOR_SPEC.md`,
+  9 stages incl. the pypdf bump + eval re-baseline — see §1).**
 - **Flagged / deferred (fine for now — see §14):** 3.3 (PDF review), 3.5 (conditional). **Cost work
   done 2026-07-01:** Group B A/B (kept all Opus), the 13D summary cache, memory→Sonnet, and **Group C
   (2-pass prompt caching)**. **A2 structured outputs — done + live-confirmed 2026-06-30.** The low-value
@@ -916,10 +927,13 @@ all sources flowed, Octus-free). Each item below is a real gap in what the diges
   OAS, 2Y/10Y + derived 2s10s, breakevens, jobless claims, CPI, SOFR, dollar) and the **Fed Balance
   Sheet (H.4.1)** (6 series) are now active. ⚠️ See the `fed_balance_sheet` series-label bug under
   "Data bugs" below — audit before trusting that section.
-- [ ] **`SUBSTACK_EMAIL` blank** → Substack runs on the saved cookie today, but **auto-renewal will fail
-  when the cookie expires** (the magic link is delivered to the account that owns the subs — jared's —
-  not the bot). Decide the Substack ownership/renewal path before the cookie dies, or Substack silently
-  goes empty.
+- [ ] **`SUBSTACK_EMAIL` blank — 🚩 FLAGGED 2026-07-13: operator is speaking to jared.** Substack
+  runs on the saved cookie today, but **auto-renewal will fail when the cookie expires** (the magic
+  link is delivered to the account that owns the subs — jared's — not the bot). Decide the
+  ownership/renewal path before the cookie dies, or Substack silently goes empty (O3 would flag the
+  zero-streak after 3 runs, but the fix needs the account owner). Sub-item for the same
+  conversation: the lapsed/blocked **polymathinvestor.com** sub (403). **This is the LAST open
+  §13 item** (forwarding, TRACE, Octus all resolved 2026-07-13).
 
 ### Data bugs
 - [x] **`fed_balance_sheet.py` mislabeled FRED series — FIXED 2026-06-30** (verified against the FRED
