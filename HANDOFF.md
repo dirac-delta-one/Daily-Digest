@@ -25,7 +25,7 @@ low-risk improvements.
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), run daily
 through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**, and the whole
 2026-07-09 batch **live-validated by the 2026-07-10 run (GREEN, $1.58, checklist 9/9)**; `ruff`
-clean, `pytest` **277** green (2026-07-13). The **cost refactor is complete** (2026-07-01; see
+clean, `pytest` **307** green (2026-07-14). The **cost refactor is complete** (2026-07-01; see
 §11 / §14 + `WORKLOG`).
 **✅ The CLEANUP/REFACTOR TRACK is COMPLETE (2026-07-10; `CLEANUP_REFACTOR_SPEC.md`, all 9
 stages, $0 Claude spend, tests 180 → 227).** Highlights: dead code out (write-only FRED
@@ -82,8 +82,8 @@ cleared: app published as the bot, old Testing token backed up, durable producti
 `token.json` minted + verified — `getProfile` = the bot; `run_alert`'s refresh-only path OK.
 **This token.json is the one the server gets at deploy.** Detail in WORKLOG 2026-07-10).
 **NEXT: the §7.2 server deploy** (F1 checklist + `setup_tasks.ps1` as admin on the box) — the
-project's definition of "done." Sequenced in **`NEXT_STEPS_SPEC.md`**. Other open items: the
-**§13** coverage gaps — narrowed 2026-07-13: **forwarding completeness RESOLVED** (inbox audit —
+project's definition of "done." Sequenced in **`NEXT_STEPS_SPEC.md`**. The
+**§13** coverage gaps are all CLOSED (2026-07-13/14): **forwarding completeness RESOLVED** (inbox audit —
 everything expected flows; Grant's not in the flow, operator accepted), **TRACE RESOLVED**
 (operator decided not to use it; the never-functional module removed), and **Octus/HY-new-issue
 RESOLVED** (accepted, no replacement — the forwarded Stifel New Issue Flashes carry the color).
@@ -112,11 +112,24 @@ reply bot answers the asker only with substack-free retrieval/context for
 non-`FULL_ACCESS_SENDERS` (acohen is deliberately team-tier), and Fridays produce a team
 weekly wrap. Sent-email comparison verified delivery fidelity + zero team leakage; eval
 re-baselined **0.846/0.962/0.897** (the one slip is a stale relative-time golden question).
-Suite now **277** tests. **Three cosmetic watch items** from the first dual run (WORKLOG
-2026-07-13 comparison entry): "(…memory)" wording leaking into source tags / an alert
-detail; one team-variant ticker-expansion slip ($TCBK ≠ TrustCo); a §14.B-family section-
-numbering collision in the full digest. **Deploy note: the server's env.bat must carry
+Suite now **277** tests. The three cosmetic watch items from the first dual run (memory-tag
+wording, the $TCBK ticker-expansion slip, the section-numbering collision) were **all FIXED
+2026-07-14** — see §14.B and the paragraph below. **Deploy note: the server's env.bat must carry
 `DIGEST_TO_TEAM`** or post-activation full digests would be indexed and leak to team askers.
+**✅ 2026-07-14 — FORWARDING-VISIBILITY FIX SHIPPED (3 stages, live-validated) + cosmetic
+fixes + F3 refresh.** Forwarded emails are now READ and ATTRIBUTED by the morning digest:
+`html_utils.parse_forwarded_from` → `effective_from` recovers the original sender
+(Bloomberg/Stifel/KBW…); the prompt carries a capped body extract (4k chars/text email,
+40k/run budget) instead of the ~200-char snippet; and the real sender is propagated into the
+search index (full `--rebuild`; reply-bot citations name Bloomberg/FT, not "an internal
+email"). Same session: the three §14.B cosmetic nits fixed (never-append-"memory" +
+bare-ticker SYSTEM_PROMPT rules), the section-numbering collision fixed (appended sections
+UNNUMBERED; Opus numbers only its own sections — live-validated zero duplicate numbers in
+either variant), and jared's variant now carries a **`[FULL] ` subject marker** (the
+reply-bot Gmail query was reworked to two separate `subject:` terms so reply matching
+survives it). **F3 golden-set refresh:** 26 → **29** questions (the stale relative-time item
+date-anchored); eval re-baselined **hit@1 0.862 / hit@3 0.966 / hit@5 1.0 / MRR 0.917, zero
+misses** (snapshot `2026-07-14_f3_refresh`). Detail in §13 + WORKLOG 2026-07-14.
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -293,7 +306,7 @@ monitor unattended 24/7. The work happens in three stages:
 | File | Role |
 |---|---|
 | `digest.py` | Main orchestrator: Gmail, prompt build, 2-pass Claude, assembly, send, weekly. Config at top (lines ~48–64): `HOURS_LOOKBACK`, `MAX_EMAILS`, `MAX_PDF_SIZE_MB`, `DIGEST_RECIPIENTS`, `CLAUDE_MODEL`. |
-| `substack.py` | API/cookie-based Substack scraper (magic-link auto-login via Gmail). Uses `substack_cookie.txt`. |
+| `substack.py` | API/cookie-based Substack scraper (OTP-code auto-login via Gmail — reworked 2026-07-14). Uses `substack_cookie.txt`. |
 | `search.py` | FAISS index + chunking + embeddings + hybrid search. CLI: `--rebuild`, `--index <date>`. |
 | `reply_monitor.py` | Email-reply RAG bot. Hardcoded recipient + `from:` allow-list. |
 | `midday.py` | Intraday materiality alert (Sonnet). Imports from `digest.py`. |
@@ -307,7 +320,7 @@ monitor unattended 24/7. The work happens in three stages:
 `memory.json`, `substack_memory.json`).
 
 **Env vars used:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),
-`SUBSTACK_EMAIL` (Substack magic-link renewal — set 2026-07-13), `DIGEST_TO` (full-digest
+`SUBSTACK_EMAIL` (Substack OTP-code renewal — set 2026-07-13), `DIGEST_TO` (full-digest
 recipient override), `DIGEST_TO_TEAM` (the Substack-free TEAM digest's recipients —
 TEAM_DIGEST_SPEC; empty = team generation skipped; **must be set on the server at deploy**).
 Note: `SUBSTACK_PASSWORD` appears in the README but is **not used** by current code (Substack
@@ -378,7 +391,7 @@ The project is wired to jared's machine. Required to run here:
    `SUBSTACK_EMAIL`.
 5. **Secret files** — copy `credentials.json`, `token.json`, `substack_cookie.txt`,
    `thirteen_d_session.json` from jared's machine, OR re-provision (Gmail
-   OAuth re-consent, Substack magic-link, 13D manual login). These bind to *accounts*, not the
+   OAuth re-consent, Substack OTP-code login, 13D manual login). These bind to *accounts*, not the
    machine. *(`octus_session.json` is gone — Octus removed 2026-06-29.)*
 6. **`EDGAR_USER_AGENT` / `USER_AGENT` contact string** (`sec_filings.py:27`, `pacer.py:29`,
    `trace_data.py:17`, `fund_tracking.py:19`) — SEC/PACER want a real contact. ~~Decision
@@ -413,7 +426,13 @@ The project is wired to jared's machine. Required to run here:
    - Switched the scraping User-Agent contact to the bot in `sec_filings.py`, `pacer.py`,
      `trace_data.py`, `fund_tracking.py` (behavior-neutral courtesy contact).
 
-   **NOT done — the sender/mailbox flip is deferred (operator; plan-only).** The authenticated Gmail
+   **✅ SUPERSEDED — the flip EXECUTED 2026-06-30** (see §1): jared's rule-based forwards flow
+   into the bot inbox, `token.json` is the bot (sender + read inbox), and Substack renewal now
+   reads the forwarded OTP code from the bot inbox (live-validated 2026-07-14). The Substack
+   *account* itself stays jared's — that optional end-state flip is his call (§13). The
+   original plan-only block is retained below as written.
+
+   ~~**NOT done — the sender/mailbox flip is deferred (operator; plan-only).**~~ The authenticated Gmail
    account is both the *sender* and the *inbox that gets summarized*. Flipping it to the bot makes the
    digest read the **bot's (empty) inbox**. Of all ~17 sources, only these are tied to the
    authenticated account and **must be migrated to the bot first**:
@@ -485,8 +504,8 @@ and `config.py`), then provision the server:
    the "source empty N runs" content check (O3, 2026-07-09: `content_monitor.py` → digest alert
    box); and hung-run detection (O2, 2026-07-09: `run_alert.py --check-completed digest` — **its
    ~9 AM weekday task still registers at deploy**, the F1a-#2 way). Still operational at deploy:
-   verify sessions auto-renew (Substack magic-link via Gmail; 13D will eventually need a manual
-   re-login — document that).
+   verify sessions auto-renew (Substack OTP-code via Gmail — live-validated 2026-07-14; 13D will
+   eventually need a manual re-login — document that).
 5. **Time zone & schedule:** set the server TZ correctly (digest ~8 AM ET, midday ~1 PM ET, weekly
    summary keys off Friday in `digest.py`).
 6. **Resources:** the embedding stack (`sentence-transformers` + `faiss-cpu` + torch, ~GB) plus a
@@ -1097,23 +1116,27 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
 ### B. Conditional — do only if a real problem appears (no evidence yet)
 - **3.5a — `_assemble_digest_html` placeholder approach** — sections are injected by string-matching
   the Opus HTML. Only revisit **if** archived digests show real section misplacement; the fix risks
-  the tuned `SYSTEM_PROMPT` (§6).
+  the tuned `SYSTEM_PROMPT` (§6). *(The numbering-collision member of this family was fixed
+  2026-07-14 — appended sections are now unnumbered; the string-matching insertion mechanism
+  itself is unchanged and stays wait-and-see.)*
 - **3.5b — PACER company-sizing search (`pacer._search_company_size`)** — Google scraping is fragile
   but degrades gracefully. Options: a free-tier search API (e.g. Brave) or dropping the web step. Low
   priority, low volume.
-- **Three cosmetic nits from the first dual-variant run (2026-07-13; WORKLOG comparison
-  entry).** Watch, fix only on recurrence:
-  (1) **"…memory" in source tags** — the team digest cited "(Greenmantle memory)" /
-  "(13D memory)" and a full-digest alert detail opened "Substack memory references…";
-  attribution itself was correct, only the wording violates the never-cite-the-memory-system
-  spirit. Candidate fix: a one-line tightening of the SYSTEM_PROMPT rule and/or the memory
-  context headers (touches the load-bearing prompt — §6 caution applies).
-  (2) **Variant-independent hallucination draws** — the team variant expanded `$TCBK` as
-  "TrustCo Bancorp" (it's TriCo Bancshares; the full digest and WSJ were correct). Each
-  variant is its own generation; a fact can be right in one email and wrong in the other.
-  (3) **Section-numbering collision** — the full digest wrote its own "9. Bankruptcy
-  Activity" and numbered Rating Actions "10", colliding with the appended "10. WSJ/FT"
-  (and duplicating the appended PACER section). Same family as 3.5a; renders fine.
+- ✅ **Three cosmetic nits from the first dual-variant run — FIXED 2026-07-14** (were
+  watch-items; WORKLOG 2026-07-13 comparison entry + the 2026-07-14 fix entry):
+  (1) **"…memory" in source tags** ("(Greenmantle memory)", "Substack memory references…") —
+  fixed with an explicit SYSTEM_PROMPT rule: NEVER append "memory" (or any system-layer word)
+  to a source tag.
+  (2) **Variant-independent hallucination draws** (the team variant expanded `$TCBK` as
+  "TrustCo Bancorp"; it's TriCo Bancshares) — mitigated with a SYSTEM_PROMPT rule: never
+  expand a ticker into a company name unless that name appears in the source material (cite
+  the bare ticker when unsure). The underlying reality stands: each variant is an independent
+  generation with independent error draws.
+  (3) **Section-numbering collision** (Opus wrote its own "9. Bankruptcy Activity" and its
+  numbering collided with the appended sections) — fixed: the appended sections (WSJ/FT,
+  Funds, PACER) are now UNNUMBERED, SYSTEM_PROMPT tells Opus to number only its own sections,
+  and a carve-out stops Opus writing a standalone bankruptcy section (the PACER duplication).
+  Live-validated 2026-07-14: zero duplicate numbers in either variant.
 
 ### C. Low-value cleanup
 ✅ **Done 2026-06-30** — three "nice-to-have" dedups consolidated, behavior-neutral (`ruff` clean,
@@ -1169,7 +1192,8 @@ record of everything the spec mentioned that was deliberately NOT implemented.
 **`MEMORY_REFACTOR_SPEC.md` was retired/deleted 2026-07-09** (recoverable from git history) — a
 future session can act on any item below from this section alone (full history stays in
 `WORKLOG.md`; eval snapshots in `tools/eval_results/`). The re-test kit is `tools/eval_retrieval.py` + `tools/eval_golden.json`
-(26 questions; grow it per §F3 of `NEXT_STEPS_SPEC.md` whenever new archive days accrue).
+(29 questions after the 2026-07-14 F3 refresh; grow it per §F3 of `NEXT_STEPS_SPEC.md`
+whenever new archive days accrue).
 
 **F1. Not implemented — testing proved them unnecessary** (measured on the 6-day / 3,554-chunk /
 26-question eval; the losing mechanisms are BUILT and stay **param-gated** in `search.py`, so

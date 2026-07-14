@@ -5,6 +5,38 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Docs sync before cleanup (2026-07-14)
+
+Docs-only pass by a fresh session after a full project read (every module/test/tool/wrapper/
+spec); no code changes. Re-verified before asserting: `ruff` clean, `pytest` **307** green,
+golden set = 29 questions, current eval baseline **hit@1 0.862 / hit@3 0.966 / hit@5 1.0 /
+MRR 0.917, zero misses** (`2026-07-14_2026-07-14_f3_refresh.json`). The 11 outstanding
+commits were pushed by the operator before this pass. Reconciled:
+
+- **HANDOFF §1:** status line 277 → **307** tests (2026-07-14); the three §14.B cosmetic
+  watch items marked FIXED; new 2026-07-14 paragraph added (forwarding-visibility fix,
+  numbering fix + `[FULL]` marker, F3 refresh 26 → 29 questions + the re-baseline above);
+  the §13 gaps wording now reads CLOSED.
+- **HANDOFF §7.1.8:** the stale "sender/mailbox flip NOT done / plan-only" block marked
+  ✅ SUPERSEDED (the flip executed 2026-06-30; only the optional Substack *account*-email
+  flip remains open, jared's call).
+- **HANDOFF §4/§7.1/§7.2 + README:** "magic-link" wording → OTP-code / one-time login code
+  (matches the 2026-07-14 renewal rework).
+- **HANDOFF §14.B:** the three cosmetic nits closed with what fixed each; 3.5a notes the
+  numbering family is fixed while the string-matching mechanism stays wait-and-see.
+  **§14.F:** golden-set count 26 → 29.
+- **NEXT_STEPS_SPEC:** Abnormal allowlist 🔄 submitted → ✅ CONFIRMED 2026-07-13 in the F1
+  track row (+ the F1a runbook line); the F1 row's "Remaining" list now carries the full
+  on-box install items (fresh cookie, substack_memory.json, `DIGEST_TO_TEAM`/`SUBSTACK_EMAIL`
+  env, 13D skip drill).
+
+Two live observations recorded for the next session (no action taken): the 2026-07-14 run's
+`market_data` count was **1 of the usual 6** (likely a one-off Yahoo flake — nonzero, so O3
+can't flag it; eyeball the next run's Market Snapshot), and O3 is one run from arming
+(5 of ~6 recorded).
+
+---
+
 ## Substack auto-renewal FIXED (OTP-code flow) — the "automated" claim was false (2026-07-14)
 
 Operator asked to run the expired-cookie renewal drill (spec option (a): capture the browser

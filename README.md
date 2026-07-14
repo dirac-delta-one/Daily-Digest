@@ -31,7 +31,7 @@ Create `env.bat` in the project root (gitignored). The `run_*.bat` wrappers `cal
 ```bat
 set ANTHROPIC_API_KEY=sk-ant-...
 set FRED_API_KEY=...                  REM optional: Macro Dashboard + Fed balance sheet
-set SUBSTACK_EMAIL=your@email.com     REM Substack auto-logs in via magic link (no password)
+set SUBSTACK_EMAIL=your@email.com     REM Substack auto-logs in via emailed one-time code (no password)
 REM On a test machine, route ALL digest/alert/reply email to yourself instead of the
 REM production recipients (defaults to the production list if unset):
 set DIGEST_TO=you@example.com
@@ -52,7 +52,7 @@ python digest.py
 
 The first run:
 - Opens a browser for Google OAuth — log in and authorize
-- Authenticates Substack via magic link (delivered to your Gmail) and saves `substack_cookie.txt`
+- Authenticates Substack via an emailed one-time code (read from your Gmail) and saves `substack_cookie.txt`
 - Sends you a test digest email
 
 ## Scheduling

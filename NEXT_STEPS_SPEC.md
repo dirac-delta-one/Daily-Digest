@@ -18,7 +18,7 @@
 | §2.1 Memory layer (Stages 4–5 + flips) | ✅ **DONE 2026-07-09** — all stages complete (Stage 4 live-validated $0.12; Stage 5 delta-replay-validated $0.098: 64% cheaper than v1's same-day $0.274, zero story loss; **rerank + hybrid parked permanently** after the failed retest). Residuals/watch-items → **HANDOFF §14.F** (spec retired/deleted 2026-07-09) |
 | §2.2 General efficiency (E/S/O items) | ✅ **CLOSED 2026-07-10** — 7/10 live run validated the batch (S1+E1 fetch phase 44s/14 sources, coherent per-source blocks, all sections populated; O1 dated log + prune live; O3 counts file started), and **the E3 gate ruled SKIP** (Gmail = seconds of a ~7-min run; wall-clock lives in the Claude calls). E2 (208.8s→0.01s retained-side) was validated offline 7/09. Interim O4 CANCELLED (server available — backups land on the box) |
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
-| §3.F1 Server-deploy readiness (§7.2) | 🔄 **all F1a CODE fixes DONE 2026-07-09**; ✅ **OAuth publish + durable production token DONE 2026-07-10** (7/14 deadline cleared); ✅ **acohen's Abnormal allowlist request submitted to IT 2026-07-10** (confirmation pending); the server EXISTS. Remaining: allowlisting for the OTHER production recipients (jared) at recipient-switch time, then the on-box install (secrets incl. the new token.json, `setup_tasks.ps1` as admin, headless Playwright check, O4 backups) |
+| §3.F1 Server-deploy readiness (§7.2) | 🔄 **all F1a CODE fixes DONE 2026-07-09**; ✅ **OAuth publish + durable production token DONE 2026-07-10** (7/14 deadline cleared); ✅ **Abnormal allowlist CONFIRMED by IT 2026-07-13** (the bot is allowed for Outlook inboxes org-wide — covers acohen + jtramontano; re-verify only if a non-Outlook recipient is ever added); the server EXISTS. Remaining: the on-box install (secrets incl. the new token.json + fresh substack_cookie.txt + substack_memory.json; env.bat must carry `DIGEST_TO_TEAM` + `SUBSTACK_EMAIL`; `setup_tasks.ps1` as admin; headless Playwright check; the 13D skip drill; O4 backups) |
 | §3.F2 PDF-extraction review (3.3) | ✅ **DONE 2026-07-09** — the aggressive rules were the damage (96% of 5,852 fires glued real words; 99% of PDF chunks corrupted), not the rescue (0 fragmentation in the corpus); `_clean_pdf_text` trimmed, index rebuilt clean, eval identical; pypdf bump ungated but deferred |
 
 ---
@@ -245,8 +245,8 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
   — ✅ **DONE 2026-07-10** (published + durable token minted/verified; 7/14 deadline cleared);
   **recipient-side allowlisting of `acorn.research.bot@gmail.com`** at every production
   recipient (Abnormal AI flagged the 7/2 digest as malicious — quarantine silences digests AND
-  alerts) — 🔄 **acohen's IT request submitted 2026-07-10** (confirmation pending); jared's
-  addresses still need it at recipient-switch time. Known behavior, no fix: WILTW posts after
+  alerts) — ✅ **CONFIRMED 2026-07-13**: IT allows the bot for Outlook inboxes org-wide
+  (covers acohen + jtramontano; re-verify only if a non-Outlook recipient is ever added). Known behavior, no fix: WILTW posts after
   8 AM Thursdays → picked up next scheduled run.
 - ✅ **F2 — 3.3 PDF-extraction review — DONE 2026-07-09** on the 10-unique-PDF corpus. Verdict
   inverted the HANDOFF §6 assumption: PyPDF2 3.0.1 extracts this corpus **cleanly** (zero
