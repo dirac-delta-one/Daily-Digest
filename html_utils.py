@@ -102,6 +102,41 @@ def parse_forwarded_from(body_text, window=3000):
     return (display, email)
 
 
+_FWD_HEADER_LINE_RE = re.compile(
+    r"^\s*(?:From|Sent|Date|To|Cc|Bcc|Reply-To|Subject|Importance):",
+    re.IGNORECASE,
+)
+
+
+def strip_forward_header(text):
+    """Drop the leading forwarded-header block from a body (FORWARDING_FIX_SPEC
+    Stage 2), so a capped body extract spends its budget on real content rather
+    than routing boilerplate.
+
+    Removes the Gmail "---------- Forwarded message ----------" marker and the run
+    of header lines (From/Sent/Date/To/Cc/Bcc/Reply-To/Subject/Importance) at the
+    top, stopping at the first real content line. Returns the original text if
+    stripping would leave nothing (e.g. space-collapsed HTML with no line breaks).
+    """
+    if not text:
+        return ""
+    out = []
+    skipping = True
+    for ln in text.splitlines():
+        if skipping:
+            s = ln.strip()
+            if not s:
+                continue
+            if s.startswith("---") and "forward" in s.lower():
+                continue
+            if _FWD_HEADER_LINE_RE.match(ln):
+                continue
+            skipping = False
+        out.append(ln)
+    result = "\n".join(out).strip()
+    return result or text.strip()
+
+
 def extract_gmail_body(payload, cap=None):
     """Recursively extract plain-text body from a Gmail message payload.
 

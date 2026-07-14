@@ -31,7 +31,7 @@ from config import (
 )
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
-from html_utils import extract_gmail_body, parse_forwarded_from
+from html_utils import extract_gmail_body, parse_forwarded_from, strip_forward_header
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
@@ -70,6 +70,15 @@ for _arg in sys.argv[1:]:
             pass
 MAX_EMAILS = 50  # max emails to include in digest
 MAX_PDF_SIZE_MB = 5  # skip PDFs larger than this (to control token usage)
+
+# Email body extract fed to Opus (FORWARDING_FIX_SPEC Stage 2). Replaces the
+# ~200-char snippet so forwarded content (Bloomberg roundups, text broker notes)
+# is actually readable at digest time. Text-bearing emails get the full slice;
+# PDF-carried emails stay lean (their content is the attached document); a
+# per-run total budget bounds heavy inbox days (forwarded text emails funded first).
+EMAIL_BODY_PROMPT_CHARS = 4000
+EMAIL_BODY_PDF_CHARS = 500
+EMAIL_BODY_TOTAL_CHARS = 40000
 def _recipients_from_env(var, default):
     """Comma-split, whitespace-stripped recipient list from an env var."""
     return [r.strip() for r in os.environ.get(var, default).split(",") if r.strip()]
@@ -381,6 +390,35 @@ Follow this template exactly. Same fonts, same sizes, same spacing every single 
 """
 
 
+def _looks_like_promo(e):
+    """Very conservative 'clearly spam/promo' guard (FORWARDING_FIX_SPEC decision
+    4). Trips only on obvious marketing junk (>=3 promo markers), so a real
+    forwarded note or subscribed newsletter is never demoted. A promo email is
+    NOT dropped — it just keeps its short snippet instead of a full body extract."""
+    text = f"{e.get('subject', '')} {e.get('snippet', '')}".lower()
+    markers = (
+        "unsubscribe", "view in browser", "view this email in your browser",
+        "manage preferences", "manage your subscription", "special offer",
+        "limited time", "shop now", "% off", "promo code",
+    )
+    return sum(m in text for m in markers) >= 3
+
+
+def _email_body_for_prompt(e, cap):
+    """Body slice shown to Opus for one email (FORWARDING_FIX_SPEC Stage 2):
+    forwarded-header stripped, capped at `cap` chars. Falls back to the snippet
+    when there is no body or no budget (cap <= 0)."""
+    if cap <= 0:
+        return e.get("snippet", "")
+    body = (e.get("body") or "").strip()
+    if not body:
+        return e.get("snippet", "")
+    body = strip_forward_header(body)
+    if len(body) > cap:
+        body = body[:cap].rstrip() + " […]"
+    return body
+
+
 def _build_source_prompt(*, emails, sec_filings, market_data,
                          macro_data, memory_context, earnings, pacer_entries,
                          rating_actions=None, fund_results=None,
@@ -397,11 +435,32 @@ def _build_source_prompt(*, emails, sec_filings, market_data,
     full variant only — which also makes this prompt a strict prefix of the
     full prompt, so the two variants share the prompt cache.
     """
+    # Email body-extract budget (Stage 2): text-bearing emails get the full
+    # slice, PDF-carried emails stay lean (content is the attachment), promo
+    # keeps only its snippet. When the total budget is tight, forwarded text
+    # emails are funded first.
+    def _cap_for(e):
+        if _looks_like_promo(e):
+            return 0
+        return EMAIL_BODY_PDF_CHARS if e.get("pdfs") else EMAIL_BODY_PROMPT_CHARS
+
+    def _priority(k):
+        e = emails[k]
+        is_fwd = e.get("effective_from", e.get("from")) != e.get("from")
+        return (bool(e.get("pdfs")), not is_fwd)  # non-PDF forwards first
+
+    remaining = EMAIL_BODY_TOTAL_CHARS
+    budget = {}
+    for k in sorted(range(len(emails)), key=_priority):
+        give = max(0, min(_cap_for(emails[k]), remaining))
+        budget[k] = give
+        remaining -= give
+
     # Email metadata
     email_lines = []
     for i, e in enumerate(emails):
         pdf_note = ""
-        if e["pdfs"]:
+        if e.get("pdfs"):
             names = ", ".join(p["filename"] for p in e["pdfs"])
             pdf_note = f"\n📎 PDF attachments (included below): {names}"
 
@@ -411,13 +470,14 @@ def _build_source_prompt(*, emails, sec_filings, market_data,
             f"From: {eff}  (forwarded by {outer})" if eff and eff != outer
             else f"From: {outer}"
         )
+        content = _email_body_for_prompt(e, budget[i])
 
         email_lines.append(
             f"--- Email {i+1} ---\n"
             f"{from_line}\n"
             f"Subject: {e['subject']}\n"
             f"Date: {e['date']}\n"
-            f"Preview: {e['snippet']}"
+            f"Content: {content}"
             f"{pdf_note}"
         )
 
