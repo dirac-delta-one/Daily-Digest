@@ -152,62 +152,86 @@ def _check_session(session):
 
 
 # ======================================================================
-# AUTOMATED LOGIN VIA MAGIC LINK
+# AUTOMATED LOGIN VIA EMAIL OTP CODE
 # ======================================================================
+# Substack's passwordless flow (verified 2026-07-14): POST /api/v1/email-login
+# emails a 6-digit verification CODE — the old /api/v1/login is password-only
+# and now 400s "Please enter a longer password" — and the code is completed at
+# /api/v1/email-otp-login/complete, which sets a fresh substack.sid. The code
+# email goes to SUBSTACK_EMAIL (jared) and is auto-forwarded to the bot inbox;
+# the forward preserves the original From, so the sender query still matches.
+# All API + Gmail-read, no browser — so it self-heals unattended on the server.
 
-def _request_magic_link(session):
-    """Ask Substack to send a magic link email."""
-    print("  Requesting magic link from Substack...")
+_CODE_RE = re.compile(r"\b(\d{6})\b")
 
+
+def _request_login_code(session):
+    """Ask Substack to email a one-time login code (passwordless OTP)."""
+    print("  Requesting Substack login code...")
     try:
         r = session.post(
-            "https://substack.com/api/v1/login",
-            json={"email": SUBSTACK_EMAIL, "for_pub": "", "redirect": "/"},
+            "https://substack.com/api/v1/email-login",
+            json={"email": SUBSTACK_EMAIL, "captcha_response": None,
+                  "for_pub": "", "redirect": "/"},
             timeout=15,
         )
         if r.status_code == 200:
-            print("  Magic link email sent.")
+            print("  Login code email sent.")
             return True
-        else:
-            print(f"  Magic link request failed (HTTP {r.status_code})")
-            return False
+        print(f"  Login code request failed (HTTP {r.status_code}): {r.text[:120]}")
+        return False
     except Exception as e:
-        print(f"  Magic link request error: {e}")
+        print(f"  Login code request error: {e}")
         return False
 
 
-def _find_magic_link_in_gmail(gmail_service, max_wait=60):
-    """Search Gmail for the Substack magic link."""
+def _extract_otp_code(subject, body=""):
+    """Return the 6-digit Substack OTP from a code email, or None.
 
+    Trusts only genuine code emails (subject is 'NNNNNN is your Substack
+    verification code'), so a stray 6-digit number in some other Substack email
+    can't be mistaken for a login code. Prefers the subject, falls back to body.
+    """
+    subject = subject or ""
+    if "verification code" not in subject.lower():
+        return None
+    m = _CODE_RE.search(subject) or _CODE_RE.search(body or "")
+    return m.group(1) if m else None
+
+
+def _find_login_code_in_gmail(gmail_service, since_epoch=0, max_wait=90):
+    """Poll the bot inbox for Substack's OTP code email and return the code.
+
+    Searches by SENDER only (the subject carries the code and has no 'sign'
+    word, and the body has no link — so the old subject:sign + URL-follow
+    approach never matched). Only accepts an email that arrived AFTER
+    `since_epoch`: the inbox can hold several code emails within the hour (from
+    earlier attempts), and handing /complete a STALE code returns "Invalid
+    Code" — so freshness is required, not just newest-first.
+    """
     start = time.time()
-
     while time.time() - start < max_wait:
         results = gmail_service.users().messages().list(
             userId="me",
-            q="from:no-reply@substack.com subject:sign newer_than:1h",
-            maxResults=3,
+            q="from:no-reply@substack.com newer_than:1h",
+            maxResults=5,
         ).execute()
 
         for msg_meta in results.get("messages", []):
             msg = gmail_service.users().messages().get(
                 userId="me", id=msg_meta["id"], format="full"
             ).execute()
+            if int(msg.get("internalDate", 0)) / 1000 < since_epoch:
+                continue  # stale — arrived before this login request
+            headers = {h["name"].lower(): h["value"]
+                       for h in msg["payload"].get("headers", [])}
+            code = _extract_otp_code(headers.get("subject", ""),
+                                     _extract_gmail_body(msg["payload"]))
+            if code:
+                print("  Found Substack login code in Gmail.")
+                return code
 
-            body = _extract_gmail_body(msg["payload"])
-
-            # Find magic link URLs
-            urls = re.findall(
-                r'https://(?:email\.)?substack\.com/[^\s"<>\)]+',
-                body
-            )
-            # Filter to login/redirect links
-            login_urls = [u for u in urls if any(k in u for k in ("login", "token", "redirect", "/c/"))]
-
-            if login_urls:
-                print("  Found magic link in Gmail.")
-                return login_urls[0]
-
-        print(f"  Waiting for magic link... ({int(time.time() - start)}s)")
+        print(f"  Waiting for login code... ({int(time.time() - start)}s)")
         time.sleep(5)
 
     return None
@@ -227,41 +251,58 @@ def _extract_gmail_body(payload):
     return body
 
 
-def _login_via_magic_link(session, gmail_service):
-    """Full magic link login: request → find in Gmail → follow → save cookie."""
-    if not SUBSTACK_EMAIL:
-        print("  SUBSTACK_EMAIL not set — cannot auto-login.")
-        return False
+def _complete_login(session, code):
+    """Complete the OTP login and save the cookie ONLY if it genuinely
+    authenticates.
 
-    if not gmail_service:
-        print("  No Gmail service — cannot auto-login.")
-        return False
-
-    if not _request_magic_link(session):
-        return False
-
-    link = _find_magic_link_in_gmail(gmail_service)
-    if not link:
-        print("  Could not find magic link in Gmail.")
-        return False
-
-    print("  Following magic link...")
+    Substack sets an anonymous substack.sid on every session, so the mere
+    presence of a cookie proves nothing (that false positive masked a broken
+    flow). We require /complete to return 200 AND the session to pass the real
+    /profile/self auth probe before saving — otherwise renewal fails loudly.
+    """
     try:
-        session.get(link, allow_redirects=True, timeout=30)
-
-        # Extract the new substack.sid cookie
+        r = session.post(
+            "https://substack.com/api/v1/email-otp-login/complete",
+            json={"code": code, "email": SUBSTACK_EMAIL,
+                  "redirect": "https://substack.com/"},
+            timeout=30, allow_redirects=True,
+        )
+        if r.status_code != 200:
+            print(f"  Login completion failed (HTTP {r.status_code}): {r.text[:120]}")
+            return False
+        if not _check_session(session):
+            print("  Login completed but the session is not authenticated — not saving.")
+            return False
         for cookie in session.cookies:
             if cookie.name == "substack.sid":
                 _save_cookie(cookie.value)
-                print("  Logged in via magic link!")
+                print("  Logged in via one-time code!")
                 return True
-
-        print("  Magic link didn't set a session cookie.")
+        print("  Authenticated but no session cookie present.")
         return False
-
     except Exception as e:
-        print(f"  Error following magic link: {e}")
+        print(f"  Error completing login: {e}")
         return False
+
+
+def _login_via_email_code(session, gmail_service):
+    """Full passwordless renewal: request an OTP code → read it from the bot
+    inbox (forwarded from jared) → complete the login → save the fresh cookie.
+    All API + Gmail-read (no browser), so it self-heals unattended on the server."""
+    if not SUBSTACK_EMAIL:
+        print("  SUBSTACK_EMAIL not set — cannot auto-login.")
+        return False
+    if not gmail_service:
+        print("  No Gmail service — cannot auto-login.")
+        return False
+    since = time.time() - 15  # only accept a code email newer than this request
+    if not _request_login_code(session):
+        return False
+    code = _find_login_code_in_gmail(gmail_service, since_epoch=since)
+    if not code:
+        print("  Could not find a fresh Substack login code in Gmail.")
+        return False
+    return _complete_login(session, code)
 
 
 # ======================================================================
@@ -377,13 +418,13 @@ def fetch_substack_articles(gmail_service=None):
     # Check if we're authenticated
     if not _load_cookie():
         print("  No Substack cookie found.")
-        if not _login_via_magic_link(session, gmail_service):
+        if not _login_via_email_code(session, gmail_service):
             print("  Cannot authenticate. Set cookie manually or provide Gmail service.")
             print("  Manual: save your substack.sid cookie value to substack_cookie.txt")
             return []
     elif not _check_session(session):
         print("  Substack session expired — renewing...")
-        if not _login_via_magic_link(session, gmail_service):
+        if not _login_via_email_code(session, gmail_service):
             print("  Auto-renewal failed. Update substack_cookie.txt manually.")
             return []
 

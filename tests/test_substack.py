@@ -98,3 +98,31 @@ def test_get_article_text_flags_archive_branch_preview():
             "wordcount": 3000}
     out = substack._get_article_text(_FakeSession(200), post, "https://x.substack.com/")
     assert out.endswith(PREVIEW_MARK)
+
+
+# --- _extract_otp_code: the passwordless-renewal code parser (2026-07-14) ---
+# Substack's flow now emails a 6-digit CODE ("NNNNNN is your Substack
+# verification code"), not a magic LINK — so renewal reads the code, not a URL.
+
+def test_extract_otp_from_subject():
+    assert substack._extract_otp_code("850582 is your Substack verification code") == "850582"
+
+
+def test_extract_otp_body_fallback():
+    # Subject confirms it's a code email but carries no digits; code is in body.
+    code = substack._extract_otp_code(
+        "Your Substack verification code", "Enter this code: 123456 to sign in.")
+    assert code == "123456"
+
+
+def test_extract_otp_rejects_non_code_email():
+    # A 6-digit number in an unrelated Substack email must NOT be taken as a code.
+    assert substack._extract_otp_code("Weekly recap: 500000 subscribers milestone") is None
+
+
+def test_extract_otp_none_when_no_digits():
+    assert substack._extract_otp_code("Your Substack verification code", "no digits here") is None
+
+
+def test_extract_otp_empty():
+    assert substack._extract_otp_code("", "") is None
