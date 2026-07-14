@@ -318,12 +318,13 @@ One line each: entity (with ticker if known), the action (upgrade/downgrade/outl
 and specifics (new rating, notches, rationale). Lead with downgrades and fallen angels — \
 they carry the most credit signal. Tag the source at the end of each line.
 
-Sections 10 (WSJ/FT Articles) and 11 (Fund Position Changes), plus the appended \
-"Bankruptcy Court Activity" section (built from the PACER dockets), are appended \
-separately — do NOT generate those yourself. The PACER docket entries below are \
-provided only so you can cross-reference them where relevant (e.g. Takeaways/Themes); \
-do NOT write a standalone bankruptcy or court-activity section, and do NOT renumber \
-your sections around one.
+The "WSJ/FT Articles", "Fund Position Changes", and "Bankruptcy Court Activity" \
+sections are appended separately AFTER your digest as UNNUMBERED sections — do NOT \
+generate, number, or reserve numbers for them. Number ONLY your own sections above, \
+sequentially (1, 2, 3, …), omitting any that are empty — however many you produce, \
+there is nothing to collide with below. The PACER docket entries below are provided \
+only so you can cross-reference them where relevant (e.g. Takeaways/Themes); do NOT \
+write a standalone bankruptcy or court-activity section.
 
 Rules:
 - Be specific. Include numbers, tickers, dates, and names — not vague summaries.
@@ -900,7 +901,7 @@ def build_news_html(articles):
 
     html = (
         '<h2 style="font-size: 18px; border-bottom: 1px solid #ccc; '
-        'padding-bottom: 6px; margin: 28px 0 12px;">10. WSJ/FT Articles</h2>\n'
+        'padding-bottom: 6px; margin: 28px 0 12px;">WSJ/FT Articles</h2>\n'
         '<ul style="padding-left: 20px; margin: 0;">\n'
     )
 

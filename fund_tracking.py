@@ -395,7 +395,7 @@ def build_funds_html(results):
 
     html = (
         '<h2 style="font-size: 18px; border-bottom: 1px solid #ccc; '
-        'padding-bottom: 6px; margin: 28px 0 12px;">11. Fund Position Changes (13F)</h2>\n'
+        'padding-bottom: 6px; margin: 28px 0 12px;">Fund Position Changes (13F)</h2>\n'
     )
 
     for r in results:
