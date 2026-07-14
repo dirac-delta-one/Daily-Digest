@@ -5,6 +5,30 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Cleanup Stage 1 — test pins first (CLEANUP_SPEC 1.1 + 1.2) (2026-07-14)
+
+Additive pins landed BEFORE Stage 2 touches `main()`. `ruff` clean, `pytest`
+**314** green (+7: two new test files; one mechanical extraction in midday).
+
+- **1.1 — `tests/test_digest_main.py` (+2):** the real `main()` driven with every
+  external effect stubbed + recorded, pinning the unattended-critical wiring for
+  both configurations (team-active and full-only): `commit_seen` strictly AFTER
+  the last send (F1a-4); the O2 completion marker absent at every send/commit
+  moment and present by run end; the team variant generated FIRST (cache
+  prefix); shared memory fed the TEAM assembled html when the team variant
+  exists, the FULL one otherwise; per-variant alert evals (full source first);
+  O3 counts recorded exactly once. Two pin corrections made during writing —
+  the tests originally assumed `update_memory` receives the raw model html (it
+  receives the ASSEMBLED html) and that midday strips leftover separator chars
+  without a `<div` anchor (it doesn't; pinned as-is).
+- **1.2 — midday parse extraction + `tests/test_midday.py` (+5):** the
+  result-parsing block moved verbatim from `main()` into a pure
+  `_parse_alert_result(result)` (subject from last pre-separator line;
+  no-separator 60-char fallback; strip-to-`<div`); behavior byte-identical, now
+  pinned incl. the leftover-`=` quirk.
+
+---
+
 ## Docs sync before cleanup (2026-07-14)
 
 Docs-only pass by a fresh session after a full project read (every module/test/tool/wrapper/

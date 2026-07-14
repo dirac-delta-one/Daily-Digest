@@ -163,6 +163,33 @@ def evaluate_materiality(emails, articles, filings, rating_actions):
     return result
 
 
+def _parse_alert_result(result):
+    """Split Sonnet's materiality output into (subject_desc, alert_html).
+
+    Expected shape (MATERIALITY_PROMPT): a subject line, a run of '=' as a
+    separator, then the HTML body. Extracted from main() so the brittle string
+    handling is unit-testable (Cleanup Stage 1.2); behavior unchanged:
+    - subject = last non-separator line before the '=' run;
+    - with no separator, subject = first 60 chars (newlines flattened);
+    - any preamble (incl. leftover '=' from a >10-char separator) before the
+      first '<div' is stripped from the HTML.
+    """
+    if "=" * 10 in result:
+        parts = result.split("=" * 10, 1)
+        subject_desc = parts[0].strip().split("\n")[-1].strip()
+        alert_html = parts[1].strip() if len(parts) > 1 else result
+    else:
+        subject_desc = result[:60].replace("\n", " ")
+        alert_html = result
+
+    # Strip any preamble before HTML
+    html_start = alert_html.find("<div")
+    if html_start > 0:
+        alert_html = alert_html[html_start:]
+
+    return subject_desc, alert_html
+
+
 def send_alert_email(service, subject_desc, alert_html):
     """Send the midday alert email.
 
@@ -241,18 +268,7 @@ def main():
         return
 
     # Parse the result: first line = subject, rest = HTML (after separator)
-    if "=" * 10 in result:
-        parts = result.split("=" * 10, 1)
-        subject_desc = parts[0].strip().split("\n")[-1].strip()
-        alert_html = parts[1].strip() if len(parts) > 1 else result
-    else:
-        subject_desc = result[:60].replace("\n", " ")
-        alert_html = result
-
-    # Strip any preamble before HTML
-    html_start = alert_html.find("<div")
-    if html_start > 0:
-        alert_html = alert_html[html_start:]
+    subject_desc, alert_html = _parse_alert_result(result)
 
     print(f"  ALERT: {subject_desc}")
     send_alert_email(service, subject_desc, alert_html)
