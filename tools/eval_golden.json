@@ -153,11 +153,14 @@
     },
     {
       "id": "mstr-week-evolution",
-      "question": "How did the Strategy MSTR story evolve this week — filings, Bitcoin sales, credit rating?",
+      "question": "How did the Strategy (MSTR) story evolve the week of July 6, 2026 — filings, Bitcoin sales, credit rating?",
+      "date_from": "2026-07-06",
+      "date_to": "2026-07-10",
       "expect": [
         {"source_type": "filing", "text_contains_any": ["Strategy", "MSTR"]},
         {"source_type": "rating", "text_contains_any": ["Strategy", "Bitcoin"]},
         {"source_type": "substack", "text_contains_any": ["MSTR"]},
+        {"source_type": "email", "text_contains_any": ["MSTR", "MicroStrategy", "Strategy"]},
         {"source_type": "digest", "text_contains_any": ["MSTR", "Strategy"]}
       ]
     },
@@ -235,6 +238,31 @@
         {"source_type": "email", "text_contains_any": ["Brazil"]},
         {"source_type": "pdf", "source_name_contains": "brazil", "text_contains_any": ["Brazil", "election"]},
         {"source_type": "digest", "text_contains_any": ["Brazil"]}
+      ]
+    },
+    {
+      "id": "oracle-downgrade",
+      "question": "What was S&P's rating action on Oracle and the debt concern behind it?",
+      "expect": [
+        {"source_type": "rating", "text_contains_any": ["Oracle", "BBB-"]},
+        {"source_type": "digest", "text_contains_any": ["Oracle", "ORCL"]}
+      ]
+    },
+    {
+      "id": "bloomberg-fed-cpi",
+      "question": "What did Bloomberg report about Fed rate-hike bets and the CPI print?",
+      "expect": [
+        {"source_type": "email", "source_name_contains": "bloomberg", "text_contains_any": ["Fed", "CPI", "rate hike"]},
+        {"source_type": "digest", "text_contains_any": ["Fed", "CPI"]}
+      ]
+    },
+    {
+      "id": "blue-owl-otic",
+      "question": "What is happening with Blue Owl OTIC direct-lending fund redemptions?",
+      "expect": [
+        {"source_type": "news", "text_contains_any": ["Blue Owl", "redemption"]},
+        {"source_type": "substack", "text_contains_any": ["Blue Owl", "OTIC", "redemption"]},
+        {"source_type": "digest", "text_contains_any": ["Blue Owl", "OTIC"]}
       ]
     }
   ]
