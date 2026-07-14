@@ -5,6 +5,54 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Substack auto-renewal FIXED (OTP-code flow) — the "automated" claim was false (2026-07-14)
+
+Operator asked to run the expired-cookie renewal drill (spec option (a): capture the browser
+code-login, then fix). The drill proved Substack auto-renewal **never worked** — the docs'
+"renewal AUTOMATED 2026-07-13" claim was aspirational (wired, never exercised against the live
+API). Diagnosed → reworked → live-validated end-to-end. `ruff` clean, `pytest` **307** green.
+
+**What was broken (found by the drill, invisible to inspection):**
+- `_request_magic_link` POSTed `/api/v1/login` — Substack's PASSWORD endpoint, which now 400s
+  "Please enter a longer password".
+- Substack's passwordless flow no longer sends a clickable magic LINK; it emails a **6-digit
+  verification CODE** ("NNNNNN is your Substack verification code", no URL in the body), so the
+  URL-regex `_find_magic_link_in_gmail` (filtered on `subject:sign`) could never match.
+- `_complete_login` was a **FALSE POSITIVE**: it saved whatever `substack.sid` sat on the session,
+  but Substack sets an ANONYMOUS substack.sid on every request — so it "succeeded" while saving a
+  dead cookie (the same masking that hid the 2026-07-13 outage; the first drill fetched 6 articles
+  yet `/profile/self` on the saved cookie was 401).
+- The finder could grab a **STALE code** (the inbox holds several within the hour) → `/complete`
+  returned 400 "Invalid Code".
+
+**The fix (`substack.py`, live-validated):**
+- `_request_login_code` → `POST /api/v1/email-login` (confirmed 200; sends the code).
+- `_find_login_code_in_gmail(since_epoch=)` → searches `from:no-reply@substack.com` (dropped
+  `subject:sign`), pulls the 6-digit code from the subject via new `_extract_otp_code`, and only
+  accepts an email NEWER than the request (kills the stale-code bug).
+- `_complete_login` → `POST /api/v1/email-otp-login/complete` {code,email,redirect}; saves the
+  cookie ONLY if `/complete` returns 200 AND the session then passes the real `/profile/self`
+  probe (kills the false positive — fails loudly otherwise).
+- Endpoints confirmed from jared's browser Network capture (`/email-otp-login/complete` + payload)
+  and probes (`/email-login` 200; `/email-otp-login` 404; `/api/v1/login` 400 password).
+- `tests/test_substack.py` +5 (`_extract_otp_code`: subject, body-fallback, non-code-email
+  rejection, no-digits, empty).
+
+**Live proof:** expired-cookie drill (garbage cookie planted) → "Login code email sent" → fresh
+code read from the bot inbox (jared's auto-forward preserves the original From, verified) →
+`/complete` → a **fresh cookie that authenticates via `/profile/self` from a clean session**
+(True; the first false-positive drill returned False here). Confirms `/email-login` is the correct
+request endpoint — the earlier 400 was purely a stale code.
+
+**Notes:** jared's `no-reply@substack.com` → bot auto-forward is set up + operator-confirmed
+(2026-07-14). A 429 "too many login emails" was hit mid-testing from ~6 probe requests in an hour
+— NOT a production risk (real renewal fires ~once per cookie expiry, weeks/months apart; ≤1/day
+even if failing). Manual `substack.sid` paste stays the documented fallback; O3 flags a zero-streak
+if renewal ever fails. HANDOFF §1/§13 corrected. Left the machine on a freshly-renewed, verified
+cookie; scratchpad holds pre-drill backups.
+
+---
+
 ## Forwarding-visibility fix (3 stages) + numbering-collision fix — SHIPPED (2026-07-14)
 
 Built the 3-stage forwarding fix (spec drafted, code-reviewed against the codebase —

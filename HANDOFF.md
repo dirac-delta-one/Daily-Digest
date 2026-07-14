@@ -87,13 +87,14 @@ project's definition of "done." Sequenced in **`NEXT_STEPS_SPEC.md`**. Other ope
 everything expected flows; Grant's not in the flow, operator accepted), **TRACE RESOLVED**
 (operator decided not to use it; the never-functional module removed), and **Octus/HY-new-issue
 RESOLVED** (accepted, no replacement — the forwarded Stifel New Issue Flashes carry the color).
-**Substack ownership/renewal — ~RESOLVED 2026-07-13 (renewal AUTOMATED)**: full account audit
-(browser + API) run, 7 unfetched paid pubs added (11 → 17 configured), a silently-dead cookie
-found + replaced, `_check_session` fixed to a real auth probe, and the magic-link renewal chain
-wired end-to-end (jared auto-forward + `SUBSTACK_EMAIL` in env.bat) — pending only jared's
-one-time Gmail forward confirmation (watch the bot inbox for Google's confirmation email).
-The account-email flip to the bot remains an optional end-state. Detail in §13 + WORKLOG
-2026-07-13. Also 2026-07-13: **IT confirmed the Abnormal allowlist** for
+**Substack ownership/renewal — RESOLVED; auto-renewal LIVE-VALIDATED 2026-07-14**: full account
+audit (browser + API) run, 7 unfetched paid pubs added (11 → 17 configured), a silently-dead
+cookie found + replaced, `_check_session` fixed to a real auth probe. Jared's auto-forward is
+set up + confirmed, and the renewal chain was **reworked to Substack's OTP-code flow and
+live-validated end-to-end** (an expired-cookie drill proved the original "magic-link" chain never
+worked — wrong endpoint + Substack now emails a 6-digit code, not a link; detail in §13 + WORKLOG
+2026-07-14). The account-email flip to the bot remains an optional end-state. Detail in §13 +
+WORKLOG 2026-07-13/14. Also 2026-07-13: **IT confirmed the Abnormal allowlist** for
 `acorn.research.bot@gmail.com` on Outlook inboxes (§7.2 item 7 satisfied for acorn.com
 recipients), and the **first weekly wrap passed its template review** (fetched from the bot's
 Sent mail; §11 checklist item 5 closed).
@@ -963,17 +964,24 @@ all sources flowed, Octus-free). Each item below is a real gap in what the diges
   OAS, 2Y/10Y + derived 2s10s, breakevens, jobless claims, CPI, SOFR, dollar) and the **Fed Balance
   Sheet (H.4.1)** (6 series) are now active. ⚠️ See the `fed_balance_sheet` series-label bug under
   "Data bugs" below — audit before trusting that section.
-- [x] **Substack renewal — ~RESOLVED 2026-07-13 (automated; one confirmation pending).** The
+- [x] **Substack renewal — RESOLVED; auto-renewal LIVE-VALIDATED 2026-07-14.** The
   cookie had in fact ALREADY died silently — undetected because `_check_session` probed
   `/reader/feed`, which returns 200 even logged-out, and because Substack's per-post API serves
   many pubs' full paid bodies unauthenticated (the leak masked the outage). Fixed the same day:
   (a) operator installed a fresh cookie from the logged-in browser (verified: auth probe 200,
   gated paid pubs now full-text); (b) `_check_session` now probes `/api/v1/user/profile/self`
   (401 when dead — pinned by `tests/test_substack.py`); (c) `SUBSTACK_EMAIL=jared's gmail` set
-  in env.bat; (d) jared asked to auto-forward `no-reply@substack.com` to the bot — once his
-  one-time Gmail forward confirmation is clicked (watch the bot inbox), a dead cookie
-  self-heals in-run via the existing magic-link flow (failure path: Substack `[]` → O3 flags
-  after 3 runs). **Full account audit** (operator's browser session + API, 2026-07-13):
+  in env.bat; (d) jared set up the `no-reply@substack.com` → bot auto-forward and the operator
+  confirmed it from the bot account (2026-07-14). **Renewal reworked + live-validated 2026-07-14
+  (WORKLOG 2026-07-14):** an expired-cookie drill proved the original "magic-link" chain NEVER
+  worked — it POSTed the password endpoint `/api/v1/login` (now 400s), and Substack's passwordless
+  flow emails a **6-digit CODE, not a link**. Now: request the code at `/api/v1/email-login` → read
+  it from the bot inbox (the forward preserves the original From) → complete at
+  `/api/v1/email-otp-login/complete`, saving the cookie ONLY if it then passes the real
+  `/profile/self` probe (the drill also exposed — and fixed — a false-positive that saved the
+  anonymous session cookie, plus a stale-code grab). Drill went dead-cookie → fresh authenticated
+  cookie in ONE unattended run. Failure path unchanged: Substack `[]` → O3 flags after 3 runs;
+  manual paste stays the fallback. **Full account audit** (operator's browser session + API, 2026-07-13):
   account = jaredtramontano@gmail.com, 43 subs (12 paid / 31 free); the 7 unfetched paid pubs
   were ADDED to `SUBSCRIPTIONS` (Damnang, Fixed Income Beacon, Pari Passu*, PauloMacro,
   SemiAnalysis, Tech Investments, Unicus — *Pari Passu's custom domain bot-blocks like
@@ -1043,9 +1051,9 @@ rule-based forwards; detail in WORKLOG 2026-07-13):
 ### Latent maintenance (works now, will need a human later)
 - [ ] **13D session** will expire and need a manual re-login (interactive; unattended runs skip
   gracefully via the R8 guard and O3 flags the zero-streak).
-- [x] ~~**Substack cookie** manual renewal~~ — auto-renews since 2026-07-13 (see the renewal item
-  above; pending jared's one-time forward confirmation). Manual fallback: paste a fresh
-  `substack.sid` from a logged-in browser into `substack_cookie.txt`.
+- [x] ~~**Substack cookie** manual renewal~~ — auto-renews via the OTP-code flow, live-validated
+  2026-07-14 (see the renewal item above). Manual fallback stays: paste a fresh `substack.sid`
+  from a logged-in browser into `substack_cookie.txt`.
 - [x] ~~**polymathinvestor.com** 403~~ — removed from `SUBSCRIPTIONS` 2026-07-13 (operator: sub
   lapsed, not renewing).
 
