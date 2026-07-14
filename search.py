@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from html_utils import strip_html
+from html_utils import strip_html, parse_forwarded_from
 
 SCRIPT_DIR = Path(__file__).parent
 ARCHIVE_DIR = SCRIPT_DIR / "archive"
@@ -551,9 +551,21 @@ def _chunks_for_date(date_str):
                 subject = e.get("subject", "")
                 # Use full body if available, fall back to snippet
                 body = e.get("body", "") or e.get("snippet", "")
-                source_name = sender.split("<")[0].strip() or sender
+                # FORWARDING_FIX_SPEC Stage 3: attribute forwarded emails to the
+                # ORIGINAL sender so citations/retrieval name the real source
+                # (Bloomberg etc.), not the forwarder. Prefer the stored
+                # effective_from (new days); fall back to parsing the body so a
+                # --rebuild backfills days archived before Stage 1.
+                effective = e.get("effective_from")
+                if not effective:
+                    parsed = parse_forwarded_from(body)
+                    if parsed:
+                        display, email = parsed
+                        effective = f"{display} <{email}>" if display != email else email
+                effective = effective or sender
+                source_name = effective.split("<")[0].strip() or effective
 
-                header = f"From: {sender}\nSubject: {subject}\n\n"
+                header = f"From: {effective}\nSubject: {subject}\n\n"
                 text = header + body
 
                 if len(text.strip()) < 50:
