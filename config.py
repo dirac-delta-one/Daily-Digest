@@ -51,6 +51,17 @@ FULL_ACCESS_SENDERS = {
 # indexed and leak to team askers.
 TEAM_ACTIVATION_DATE = "2026-07-13"
 
+# --- Forwarding (FORWARDING_FIX_SPEC) ---
+# Addresses that forward research into the bot inbox. When the outer sender is
+# one of these (or the subject is a FW:/Fwd:), digest.fetch_recent_emails parses
+# the forwarded body for the ORIGINAL sender so the digest can attribute/group
+# by the real source (Bloomberg etc.). Distinct from FULL_ACCESS_SENDERS (which
+# includes the bot and governs reply-bot tiers) — this is only about forwards.
+FORWARDER_ADDRESSES = {
+    "jtramontano@acorninv.com",
+    "jaredtramontano@gmail.com",
+}
+
 # --- Pricing ($ per million tokens) ---
 OPUS_PRICE_IN = 5.0
 OPUS_PRICE_OUT = 25.0

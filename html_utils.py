@@ -58,6 +58,50 @@ def strip_html(text):
         return re.sub(r'<[^>]+>', ' ', text)
 
 
+def parse_forwarded_from(body_text, window=3000):
+    """Best-effort: pull the ORIGINAL sender out of a forwarded email's body.
+
+    Forwarded emails (Outlook "FW:", Gmail "Fwd:") embed the original message's
+    header block — `From: … / Sent:|Date: / To: / Subject:` — inside the body.
+    The outer Gmail `From:` header is just the forwarder (jared), so this recovers
+    the real source (e.g. Bloomberg) for attribution/grouping in the digest and
+    the search index.
+
+    Returns `(display_name, email)` for the first plausible forward-header
+    `From:` in the first `window` chars, or `None` when nothing forward-shaped is
+    found (callers fall back to the outer sender — never worse than before).
+
+    Conservative by design: the matched `From:` must sit next to at least one
+    other header label (Sent/Date/To/Cc/Subject) so a stray "From:" in prose or a
+    quoted signature doesn't get mistaken for a forward header. Works whether the
+    body is newline-separated (text/plain) or space-collapsed (stripped HTML).
+    """
+    if not body_text:
+        return None
+    head = body_text[:window]
+    # Capture the From: value up to a newline OR the next header label (handles
+    # the space-collapsed HTML case where there are no line breaks).
+    m = re.search(
+        r"From:\s*(.+?)(?:\r?\n|(?=\b(?:Sent|Date|To|Cc|Subject):))",
+        head, re.IGNORECASE,
+    )
+    if not m:
+        return None
+    raw = m.group(1).strip()
+    em = re.search(r"[\w.+-]+@[\w.-]+\.\w{2,}", raw)
+    if not em:
+        return None
+    # Confirm a real forward-header block: another header label near the From:.
+    ctx = head[m.start():m.start() + 500]
+    if not re.search(r"\b(?:Sent|Date|To|Cc|Subject):", ctx, re.IGNORECASE):
+        return None
+    email = em.group(0)
+    display = re.sub(r"<[^>]*>", "", raw).replace('"', "").strip().strip(",").strip()
+    if not display or "@" in display:
+        display = email
+    return (display, email)
+
+
 def extract_gmail_body(payload, cap=None):
     """Recursively extract plain-text body from a Gmail message payload.
 

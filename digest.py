@@ -27,11 +27,11 @@ from googleapiclient.discovery import build
 
 from config import (
     OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, TEAM_ACTIVATION_DATE,
-    esc, safe_href, unattended,
+    FORWARDER_ADDRESSES, esc, safe_href, unattended,
 )
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
-from html_utils import extract_gmail_body
+from html_utils import extract_gmail_body, parse_forwarded_from
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
@@ -227,9 +227,28 @@ def fetch_recent_emails(service, hours=HOURS_LOOKBACK, max_results=MAX_EMAILS):
         # Extract full body text for archiving/RAG (not sent to Opus — too large)
         body_text = extract_gmail_body(msg["payload"], cap=50000)
 
+        outer_from = headers.get("From", "Unknown")
+        subject = headers.get("Subject", "(no subject)")
+
+        # Forwarding (FORWARDING_FIX_SPEC Stage 1): when jared forwards research
+        # in, the outer From is jared — recover the ORIGINAL sender from the
+        # forwarded body so the digest can attribute/group by the real source.
+        # Only attempt on likely forwards (known forwarder OR FW:/Fwd: subject);
+        # a miss falls back to the outer sender.
+        effective_from = outer_from
+        is_forward = subject.lower().startswith(("fw:", "fwd:")) or any(
+            addr in outer_from.lower() for addr in FORWARDER_ADDRESSES
+        )
+        if is_forward:
+            parsed = parse_forwarded_from(body_text)
+            if parsed:
+                display, email = parsed
+                effective_from = f"{display} <{email}>" if display != email else email
+
         emails.append({
-            "from": headers.get("From", "Unknown"),
-            "subject": headers.get("Subject", "(no subject)"),
+            "from": outer_from,
+            "effective_from": effective_from,
+            "subject": subject,
             "date": headers.get("Date", ""),
             "snippet": snippet,
             "body": body_text,
@@ -386,9 +405,16 @@ def _build_source_prompt(*, emails, sec_filings, market_data,
             names = ", ".join(p["filename"] for p in e["pdfs"])
             pdf_note = f"\n📎 PDF attachments (included below): {names}"
 
+        outer = e.get("from", "Unknown")
+        eff = e.get("effective_from", outer)
+        from_line = (
+            f"From: {eff}  (forwarded by {outer})" if eff and eff != outer
+            else f"From: {outer}"
+        )
+
         email_lines.append(
             f"--- Email {i+1} ---\n"
-            f"From: {e['from']}\n"
+            f"{from_line}\n"
             f"Subject: {e['subject']}\n"
             f"Date: {e['date']}\n"
             f"Preview: {e['snippet']}"
