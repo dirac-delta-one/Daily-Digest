@@ -1005,12 +1005,15 @@ rule-based forwards; detail in WORKLOG 2026-07-13):
 - [x] **Research PDFs** — flowing and surviving forwarding (the Greenmantle country-update
   series, ~daily; identified by embedded branding — header-level probes can't see it).
 - [x] **Bloomberg** — flowing DAILY (the subject-less "FW:" emails = Bloomberg "Today's News",
-  13:30 UTC via an Outlook rule; present in the archive every run day). ⚠️ **Known product
-  limits, accepted for now:** the §7 section's `bloomberg.net` sender-match can never fire on
-  a forward (outer sender = jared), and the digest prompt carries only each email's ~200-char
-  snippet (bodies go to archive/RAG only) — so Bloomberg content is searchable via the reply
-  bot but effectively unread by the morning digest. A body-extract + detection change is a
-  future spec item (touches prompt-adjacent code; needs sign-off + token-cost decision).
+  13:30 UTC via an Outlook rule; present in the archive every run day). ✅ **Both prior "known
+  limits" RESOLVED 2026-07-14 by the forwarding-visibility fix** (spec retired; see WORKLOG
+  2026-07-14): (1) **embedded-sender detection** (`html_utils.parse_forwarded_from` →
+  `effective_from`) recovers the original sender from the forwarded body, so the §7 Bloomberg
+  section now populates and forwarded content is attributed to Bloomberg — live-proven in the
+  digest AND the reply bot; (2) the digest prompt now carries a **capped body extract**
+  (4k chars/text email, 40k/run budget) instead of the ~200-char snippet, so forwarded content
+  is read by the morning digest, not just the reply bot; (3) the real sender is propagated into
+  the **search index** (reply-bot citations name Bloomberg/FT, not "an internal email").
 - [x] **Non-Substack newsletters** — Greenmantle confirmed flowing; **Grant's is genuinely
   absent** (0 full-text hits in 30 days) and the operator accepted the flow as complete
   without it (the prompt's "(Grant's)" strings remain as harmless format examples).

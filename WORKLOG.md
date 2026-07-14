@@ -5,6 +5,51 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Forwarding-visibility fix (3 stages) + numbering-collision fix — SHIPPED (2026-07-14)
+
+Built the 3-stage forwarding fix (spec drafted, code-reviewed against the codebase —
+caught a circular-import blocker + two overstatements before building — operator-approved)
+so forwarded emails are SEEN and ATTRIBUTED by the morning digest, closing the two §13
+"known limits." `ruff` clean, `pytest` **302** green. The standalone spec
+(`FORWARDING_FIX_SPEC.md`) is **retired/deleted** per the completion convention (recoverable
+from git; full record here).
+
+- **Stage 1 — embedded-sender detection** (`fwd email spec stage 1`): `html_utils.parse_forwarded_from`
+  recovers the original sender from a forwarded body (Outlook/Gmail, newline- or space-collapsed;
+  conservative guard); `digest.fetch_recent_emails` adds `effective_from` (triggers on FW:/Fwd: or
+  `config.FORWARDER_ADDRESSES`); `_build_source_prompt` renders "From: <real> (forwarded by jared)".
+  Spot-checked on the real archive: Bloomberg→bloomberg.net, KBW/Stifel/Barclays/Greenmantle/
+  Guggenheim resolve; direct emails (WSJ/Economist) keep their own sender. +9 tests.
+- **Stage 2 — capped body extract** (`fwd email spec stage 2`): the prompt now carries a capped body
+  slice (4k chars/text email; PDF-carried emails stay lean; 40k/run budget, forwarded-text funded
+  first; forwarded-header stripped; conservative `_looks_like_promo` snippet-demotion) instead of the
+  ~200-char snippet. +14 tests. Live-validated (both variants → acohen, $2.13, 29-email day): the
+  Bloomberg section now POPULATES and content is attributed (Bloomberg/CoinDesk/Benzinga); the budget
+  held; cross-variant cache still engages.
+- **Stage 3 — index attribution** (`fwd email spec stage 3`): `search._chunks_for_date` uses the
+  effective sender for the email chunk header + `source_name` (reads stored `effective_from`, else
+  re-parses the body so `--rebuild` backfills old days; `archive.py` unchanged — it already passes the
+  field through). Full `--rebuild` → **5997 chunks / 9 days**; 177 email chunks re-attributed to
+  "Today's News (BLOOMBERG)". Eval re-baselined **0.846 / hit@3 0.923 / hit@10 1.0 / MRR 0.894**; an
+  ISOLATION eval vs the pre-Stage-3 index was IDENTICAL → Stage 3 is metric-neutral (the dip vs 07-13
+  is corpus growth, the known F3 relative-time staleness). Live reply-bot check ($0.12): the answer
+  cites (Bloomberg/CoinDesk), (Bloomberg / The Block), (FT) — forwarded sources named correctly, no
+  longer "an internal email."
+
+**Numbering-collision fix (§14.B-3.5a, separate commit):** the appended sections used hard-coded
+numbers ("10. WSJ/FT Articles", "11. Fund Position Changes") that collided with Opus's dynamic 1..N
+count (Stage 2's richer content made Opus add a "New Issues" section, pushing Rating Actions to "10").
+Fix: dropped the hard-coded numbers so the appended sections are UNNUMBERED (matching the existing
+"Bankruptcy Court Activity"), and SYSTEM_PROMPT now tells Opus to number only its own sections.
+Live-validated 2026-07-14: FULL produced 10 numbered sections, TEAM 11 — **ZERO duplicate numbers in
+either variant**. Also fixed same session (pre-forwarding): the three cosmetic nits (memory-tag leak,
+bare-ticker rule, bankruptcy carve-out) and the `[FULL]` subject marker on jared's variant (reply
+query reworked to survive it).
+
+Live-run spend this session: cosmetic-run $1.47 + stage-2 $2.13 + reply $0.12 + final $2.22.
+
+---
+
 ## Current state (2026-07-13, end of session — all session work committed)
 
 **Every code track is done AND live-validated — including the NEW `TEAM_DIGEST_SPEC`
