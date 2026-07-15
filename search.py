@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from config import TEAM_ACTIVATION_DATE
+from config import TEAM_ACTIVATION_DATE, is_self_artifact
 from html_utils import strip_html, parse_forwarded_from
 
 SCRIPT_DIR = Path(__file__).parent
@@ -577,6 +577,16 @@ def _chunks_for_date(date_str):
             for j, e in enumerate(emails):
                 sender = e.get("from", "")
                 subject = e.get("subject", "")
+                # Index-side self-artifact filter (2026-07-15): the fetch-side
+                # guard (CLEANUP_SPEC 2.5) keeps NEW self-mail out of the
+                # archive; this keeps the INDEX clean for days archived before
+                # that guard existed (two replies-to-digests were ingested
+                # 2026-07-14 — one quoting the FULL digest's Substack prose as
+                # email-type chunks the team-asker exclusions don't filter).
+                # The archive file itself stays untouched: raw record intact,
+                # system exhaust just never becomes searchable.
+                if is_self_artifact(sender, subject):
+                    continue
                 # Use full body if available, fall back to snippet
                 body = e.get("body", "") or e.get("snippet", "")
                 # FORWARDING_FIX_SPEC Stage 3: attribute forwarded emails to the

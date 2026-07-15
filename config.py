@@ -30,6 +30,26 @@ FEED_USER_AGENT = "DailyDigest/1.0"
 # edit in only one place can no longer silently break reply matching.
 DIGEST_SUBJECT_PREFIX = "\U0001f4ec Daily Inbox Digest"
 
+# The system's own Gmail identity (sender of digests, alerts, replies).
+BOT_ADDRESS = "acorn.research.bot@gmail.com"
+
+
+def is_self_artifact(sender, subject):
+    """True for mail the system itself produced — or replies to it (CLEANUP_SPEC
+    2.5 + the 2026-07-15 index-side follow-up). Two consumers: digest/midday
+    skip such mail at FETCH time (the bot's own inbox is the digest's source),
+    and search._chunks_for_date skips it at INDEX time — defense in depth that
+    also cleans days archived before the fetch guard existed (the observed
+    case: two replies-to-digests ingested 2026-07-14, one quoting the FULL
+    digest's Substack prose into team-visible email-type chunks). The ARCHIVE
+    keeps the raw record either way; only fetching and indexing skip.
+
+    Lives here (not digest.py) because search.py needs it and digest imports
+    search — the reverse import would be circular."""
+    if BOT_ADDRESS in (sender or "").lower():
+        return True
+    return DIGEST_SUBJECT_PREFIX in (subject or "")
+
 # --- Reply-bot access tiers (TEAM_DIGEST_SPEC Stage 2) ---
 # Substack content is personal to jared: full-access askers get Substack in
 # reply answers (raw substack chunks, substack-memory storylines, the FULL

@@ -397,6 +397,36 @@ def test_chunks_guard_inactive_when_no_activation_date(tmp_path, monkeypatch):
     assert any(m["source_type"] == "digest" for _c, m in chunks)
 
 
+# --- index-side self-artifact filter (2026-07-15 follow-up to 2.5) ---
+
+def test_email_self_artifacts_not_indexed(tmp_path, monkeypatch):
+    # Replies-to-digests / bot-sent mail sitting in an archived emails.json
+    # (days archived before the fetch guard) must never become chunks; real
+    # mail in the same file still indexes. The archive file is not modified.
+    day = _day_dir(tmp_path, monkeypatch, date="2026-07-10")
+    body = "quoted digest content with substack analysis inside it. " * 20
+    raw = json.dumps([
+        {"from": "Ava Cohen <acohen@acorninv.com>",
+         "subject": "RE: [FULL] \U0001f4ec Daily Inbox Digest — Monday, July 13",
+         "body": body},
+        {"from": "Acorn Research Bot <acorn.research.bot@gmail.com>",
+         "subject": "\U0001f6a8 Midday Alert — something", "body": body},
+        {"from": "Broker Desk <desk@stifel.com>",
+         "subject": "FW: New Issue Flash", "body": body},
+    ])
+    (day / "emails.json").write_text(raw, encoding="utf-8")
+
+    chunks = search._chunks_for_date("2026-07-10")
+
+    email_chunks = [m for _c, m in chunks if m["source_type"] == "email"]
+    assert email_chunks, "the real broker email must still index"
+    assert all("Broker Desk" in m["source_name"] for m in email_chunks)
+    # positional ids stay aligned with the archive file (enumerate, not compact)
+    assert all("_email_02_" in m["chunk_id"] for m in email_chunks)
+    # and the archive file itself was not rewritten
+    assert (day / "emails.json").read_text(encoding="utf-8") == raw
+
+
 # --- chunk_id uniqueness (CLEANUP_SPEC 2.2 — 79 dup ids live before the fix) ---
 
 def test_chunk_ids_unique_same_author_and_ticker(tmp_path, monkeypatch):

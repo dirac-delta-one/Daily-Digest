@@ -27,8 +27,9 @@ from googleapiclient.discovery import build
 
 from config import (
     OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, TEAM_ACTIVATION_DATE,
-    FORWARDER_ADDRESSES, esc, safe_href, unattended,
+    FORWARDER_ADDRESSES, esc, safe_href, unattended, is_self_artifact,
 )
+from config import BOT_ADDRESS  # noqa: F401  (re-exported for tests/callers)
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body, parse_forwarded_from, strip_forward_header
@@ -110,20 +111,10 @@ TEAM_RECIPIENTS = _recipients_from_env("DIGEST_TO_TEAM", "")
 FULL_SUBJECT_MARKER = "[FULL] "
 CLAUDE_MODEL = OPUS_MODEL
 
-# The system's own Gmail identity (sender of digests, alerts, replies).
-BOT_ADDRESS = "acorn.research.bot@gmail.com"
-
-
-def _is_self_artifact(sender, subject):
-    """True for inbox mail the system itself produced — or replies to it
-    (CLEANUP_SPEC 2.5). The digest reads the bot's OWN inbox as its source, so
-    without this check a self-sent digest/midday alert, or a recipient's reply
-    to one (observed ingested 2026-07-14), becomes tomorrow's "source email":
-    recursive self-summarization, plus the FULL digest re-entering the index
-    as source_type="email" chunks that team-asker exclusions don't filter."""
-    if BOT_ADDRESS in (sender or "").lower():
-        return True
-    return DIGEST_SUBJECT_PREFIX in (subject or "")
+# BOT_ADDRESS + the self-mail detector moved to config.py (2026-07-15) so the
+# INDEXER can share them (search.py can't import digest — circular). The
+# private alias keeps the existing callers (midday) and tests unchanged.
+_is_self_artifact = is_self_artifact
 
 # Paths (relative to this script)
 SCRIPT_DIR = Path(__file__).parent

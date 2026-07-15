@@ -5,6 +5,32 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Index-side self-artifact filter — the Stage-2 residual RESOLVED, archive untouched (2026-07-15)
+
+Operator-approved follow-up (chosen over scrubbing the archive, for fidelity:
+the raw record must keep showing exactly what the 7/14 runs ingested). `ruff`
+clean, `pytest` **336** green (+1).
+
+- **`config.is_self_artifact`** — the 2.5 predicate moved from digest.py to
+  config so the INDEXER can share it (search can't import digest — circular);
+  `digest._is_self_artifact` + `digest.BOT_ADDRESS` re-exported, all existing
+  callers/tests unchanged.
+- **`search._chunks_for_date` skips self-artifact emails at index time** —
+  defense in depth behind the fetch guard, and the retroactive clean for days
+  archived before the guard existed. Positional email ids preserved
+  (enumerate-and-skip, so untouched emails keep archive-aligned chunk_ids);
+  pinned incl. archive-file-not-rewritten.
+- **Re-indexed 2026-07-14:** 1,484 → **1,372** chunks (112 artifact chunks
+  gone; index 6,067 → 5,955; verified 0 artifact chunks remain). **Eval
+  IMPROVED — new baseline: hit@1 0.897 / hit@3 1.0 / hit@5 1.0 / MRR 0.937,
+  zero misses** (snapshot `2026-07-15_post_index_filter.json`; was
+  .862/.966/.917). The artifacts were measurably polluting retrieval:
+  blue-owl-otic now finds the FT redemption story at rank 1 instead of the
+  reply quote. The scratchpad `emails_2026-07-14_prescrub.json` backup is now
+  moot (nothing was modified) and can be discarded.
+
+---
+
 ## Cleanup Stage 5 — docs & deploy readiness (CLEANUP_SPEC 5.1–5.3) — TRACK COMPLETE (2026-07-15)
 
 Docs only (no code); `ruff` clean, `pytest` **334** green re-verified. **The

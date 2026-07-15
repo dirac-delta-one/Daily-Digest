@@ -142,9 +142,11 @@ gains partial-degradation floors + a `substack_fulltext` count; the memory conte
 budget-bounded (byte-identical today, verified) with resolved→ids-only in the Sonnet index
 (**ride-along watch on the next natural run**) and a per-run size log; lazy BM25;
 vectorized subset scan; daily substack-memory snapshot; `check.bat`; the **deploy+cutover
-checklist (NEXT_STEPS §5)** and **OPERATIONS.md** (the jared-facing runbook). Residual
-awaiting operator approval: scrub the two self-ingested reply artifacts from
-`archive/2026-07-14/emails.json` + re-index (backup ready; detail in WORKLOG Stage 2).
+checklist (NEXT_STEPS §5)** and **OPERATIONS.md** (the jared-facing runbook). The two
+self-ingested 7/14 reply artifacts were resolved 2026-07-15 the archive-preserving way
+(operator-chosen over a scrub): `search._chunks_for_date` now skips self-artifact emails
+at INDEX time (`config.is_self_artifact`, shared with the fetch guard), the day was
+re-indexed, and the archive file stays byte-untouched as the raw record.
 Per-stage detail in WORKLOG 2026-07-14/15. **The operator's last work day is 2026-07-31 —
 pick the §7.2 deploy date now** (checklist ready; soak time is the scarce resource).
 

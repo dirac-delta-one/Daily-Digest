@@ -6,10 +6,11 @@
 > (0.862/0.966/1.0/0.917, dup ids 208 → 0); memory contexts verified byte-identical on
 > the live stores; $0 Claude spend. **Two residuals:** (1) the 3.1 ride-along
 > observation (watch the next natural run's memory delta for resolved-story
-> re-creation); (2) the two self-ingested reply artifacts already in
-> `archive/2026-07-14/emails.json` were NOT scrubbed — archive mutation was outside
-> this spec's approved scope (backup + recipe ready; operator decision pending, see
-> WORKLOG Stage 2). This document is retained as the record of what was specced.
+> re-creation); (2) ✅ the two self-ingested reply artifacts already in
+> `archive/2026-07-14/emails.json` — RESOLVED 2026-07-15 by an operator-approved
+> follow-up: an INDEX-side `is_self_artifact` filter (archive untouched — raw record
+> preserved) + a re-index of the day; the scrub option was considered and declined
+> for archive fidelity. This document is retained as the record of what was specced.
 
 > Output of the 2026-07-14 second-pass architecture/code review (full codebase re-read;
 > findings verified empirically offline — 79 duplicate chunk_ids confirmed in the live
