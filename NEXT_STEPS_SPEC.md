@@ -291,6 +291,10 @@ where marked permissioned.
 
 ## 5. F1 — Server deploy + cutover checklist (added 2026-07-15, CLEANUP_SPEC 5.1)
 
+> **DEPLOY IN PROGRESS (started 2026-07-15) — see `DEPLOY_PROGRESS.md` for the LIVE status, the
+> interim dev-laptop runs, and the exact Monday-cutover resume steps. This section is the generic
+> checklist; `DEPLOY_PROGRESS.md` is the current state and supersedes it where they differ.**
+
 The F1 "deliverable: a checklist section appended to this spec when the work starts."
 Execute top to bottom on deploy day(s). Receiving-side policy (operator, 2026-07-14):
 recipients are **@acorninv.com addresses only**. Context: the operator's last work day is

@@ -6,8 +6,9 @@
 >
 > **Companion docs:** `WORKLOG.md` = the full dated narrative of every change ever made and why
 > (the archive — start here for the *why* behind anything below). `NEXT_STEPS_SPEC.md` = the
-> forward roadmap + the server-deploy/cutover checklist (§5). `OPERATIONS.md` = the jared-facing
-> runbook. Completed-track specs (`CLEANUP_SPEC.md`, `CLEANUP_REFACTOR_SPEC.md`,
+> forward roadmap + the server-deploy/cutover checklist (§5). **`DEPLOY_PROGRESS.md` = the LIVE
+> server-deploy status + resume steps — read it first while the deploy is mid-flight.**
+> `OPERATIONS.md` = the jared-facing runbook. Completed-track specs (`CLEANUP_SPEC.md`, `CLEANUP_REFACTOR_SPEC.md`,
 > `TEAM_DIGEST_SPEC.md`) remain for reference. This file was condensed 2026-07-15 (F22 pass);
 > the pre-condensation version with all superseded/DONE narrative is in git history.
 
@@ -24,23 +25,22 @@ Research Digest," archives all raw content to disk, and indexes it into a local 
 that powers an **email-reply Q&A bot**. Since 2026-07-13 each run produces **two variants** — a
 FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 
-**Current state — CODE-COMPLETE; only the server deploy remains.** Working and in daily production
-on *jared's* machine; refactored on the current machine (operator `acohen@acorninv.com`, Windows
-user `KimCohen`, branch `ava-updates`). `ruff` clean, `pytest` **336 green** (2026-07-15),
-retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
-(`tools/eval_results/2026-07-15_post_index_filter.json`). Every refactor/cleanup track is closed
-(see the table below). Daily runs are **stopped** on the dev laptop (scheduled task disabled);
-**~$4.50 API credit** remained at the last check (top up at deploy — console.anthropic.com is
-authoritative).
+**Current state — CODE-COMPLETE; the server deploy is IN PROGRESS (started 2026-07-15).** Code was
+refactored on the dev machine (operator `acohen@acorninv.com`, Windows user `KimCohen`, branch
+`ava-updates`); `ruff` clean, `pytest` **349 green**, retrieval eval baseline **hit@1 0.897 /
+hit@3 1.0 / MRR 0.937, zero misses** (`tools/eval_results/2026-07-15_post_index_filter.json`). Every
+refactor/cleanup track is closed (see the table below). **Jared's instance is decommissioned — the
+dedicated server will be the ONLY instance.**
 
-**The one remaining task = the §7.2 server deploy** — the project's definition of "done." Execute
-the checklist in **`NEXT_STEPS_SPEC.md §5`** (pre-deploy file copy → on-box validation → cutover
-with jared → post-deploy backups + `OPERATIONS.md` handoff). **The operator's last work day is
-2026-07-31 — pick the deploy date early so the unattended soak happens while a fixer still exists.**
-Also apply the **first-run watch list (`NEXT_STEPS_SPEC.md §5`)** to the next natural run (the
-2026-07-15 cleanup changed run behavior in ways only a live run exercises — chiefly the
-resolved-story re-creation ride-along and the memory size log; watches run through ~mid-August,
-aging starts ~7/30).
+**The deploy is mid-flight → read `DEPLOY_PROGRESS.md` for the LIVE status and the exact resume
+steps.** In brief (2026-07-15): the server (Windows, user `ShawnArmstrong`) is staged on Python 3.12
+with deps, the transferred state, a new-OAuth-client `credentials.json`, and `env.bat` — but is
+**blocked ~48h** on a Google MFA-lockout before `token.json` can be minted. The **dev laptop covers
+interim runs Thu 7/16 + Fri 7/17**, then **Monday 7/20 cutover** (re-sync state → mint token →
+manual run → `setup_tasks.ps1`) and **Tue 7/21 first automation**. The **operator's last work day is
+2026-07-31**, so soak time is tight — resume promptly. Apply the **first-run watch list
+(`NEXT_STEPS_SPEC.md §5`)** to the first real server run (esp. the resolved-story re-creation
+ride-along, the memory size log, and the Substack-via-email boundary, watch-item #7).
 
 **Closed tracks (detail is in `WORKLOG.md` under the dated entry):**
 

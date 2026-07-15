@@ -67,6 +67,22 @@ The single highest-risk credential. Two rules:
 metadata call) to trigger consent as `acorn.research.bot@gmail.com`, verify `getProfile` returns the
 bot, copy the new `token.json` to the server. Never re-consent in Testing mode.
 
+### 2b. The bot Google account has MFA — keep it TEAM-OWNED
+
+The bot account (`acorn.research.bot@gmail.com`) has 2-Step Verification enabled (set up during the
+2026-07 server deploy). **The MFA method must be owned by the team, not one person** — a shared TOTP
+secret in a password manager, passkeys/security keys held by 2+ admins, or a shared phone number. If
+it's tied to a departing person's device, the team loses the ability to re-authenticate the bot
+account (e.g. to mint a new `token.json`). Note: enabling/changing MFA can trigger a ~48h Google
+lockout of *interactive* sign-in — existing OAuth refresh tokens keep working through it (a running
+instance is unaffected), but you can't mint a fresh token until it clears.
+
+**The server uses its own OAuth client.** Google no longer allows re-downloading an existing OAuth
+client's secret, so the server got a *new* Desktop client (its own `credentials.json`) and mints its
+own `token.json`. The dev laptop's original client + token are independent. **Deleting an OAuth
+client revokes every token issued under it** — don't delete the old client while any instance still
+uses it.
+
 ---
 
 ## 3. Environment variables

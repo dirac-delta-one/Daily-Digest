@@ -24,10 +24,11 @@ run and now catches partial failures + substack full-text collapse; deploy +
 cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
 
 **REMAINING (in order):**
-1. **Pick the §7.2 deploy date and execute the NEXT_STEPS §5 checklist** — the
-   operator's LAST WORK DAY is 2026-07-31; every earlier day of unattended soak
-   counts (the accrual-week precedent: live operation surfaced ~8 failure modes
-   nothing else did).
+1. **Finish the §7.2 server deploy — IN PROGRESS (started 2026-07-15; see
+   `DEPLOY_PROGRESS.md`).** Staged on the box; blocked ~48h on a Google MFA lockout.
+   Dev laptop covers interim runs (Thu/Fri), Monday 7/20 cutover, Tue 7/21 first
+   automation. Operator's LAST WORK DAY is 2026-07-31 — resume promptly (the
+   accrual-week precedent: live operation surfaced ~8 failure modes nothing else did).
 2. **Apply the first-run watch list (NEXT_STEPS §5 subsection)** to the next
    natural run — especially the resolved-story re-creation ride-along (memory
    3.1) and the memory size log; both stay live watches through ~mid-August
@@ -38,6 +39,37 @@ cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
 4. Optional, parked in HANDOFF §14.G: the F7 weekly-diet `count_tokens`
    quantification (standing $0-call permission); the F22 HANDOFF consolidation
    as its own later docs pass.
+
+---
+
+## Server deployment STARTED — staged on the box, blocked on a 48h Google lockout (2026-07-15)
+
+Began the §7.2 deploy on the dedicated Windows server (user `ShawnArmstrong`,
+`C:\Users\ShawnArmstrong\code\Daily-Digest`, cloned from `main` @ `1a64778`). **Full live status +
+resume steps live in `DEPLOY_PROGRESS.md`** — this is the narrative.
+
+**Staged on the server:** Python **3.12.7** venv (the box shipped with 3.13; installed 3.12 to match
+the pinned env) + deps + Playwright; the ~9-day state transferred via a bot-Gmail zip and verified
+(`search.py` returns ranked hits → torch/faiss/embedder + the index all work on-box); a **new OAuth
+Desktop client**'s `credentials.json` (Google no longer allows re-downloading an existing client's
+secret); `env.bat` (Anthropic + FRED + `DIGEST_TO_TEAM=apain,acohen`; `DIGEST_TO` unset →
+jtramontano). Free smokes (news.py, search.py) pass.
+
+**Blocked:** enabling **MFA** on the bot Google account triggered a ~48h interactive-login lockout →
+can't mint the server `token.json` yet. Refresh tokens survive it (the dev laptop still reads/sends —
+probe-confirmed). The substack cookie waits on the token (OTP reads the inbox; self-renews first run).
+
+**Decisions:** Jared decommissioned (server = sole instance); recipients FULL→jtramontano /
+TEAM→apain+acohen (drop acohen at 7/31); secrets **regenerated on-box, never emailed** (a safety
+guardrail blocked bundling secrets for email — correctly); FRED key reused as a static value; 13D
+logged in on both server + dev (possible single-session collision → recheck Monday; needs Jared's
+paid creds). ⚠️ **MFA must be team-owned, not on acohen's device** (acohen leaves 7/31) or the team
+loses bot-account re-auth.
+
+**Plan:** dev laptop runs manually Thu 7/16 + Fri 7/17 (fully staged — token/13D/substack all valid);
+**Monday 7/20 cutover** (stop dev → re-sync state dev→server → mint token → manual run →
+`setup_tasks.ps1`); **Tue 7/21 first automation**. Dev is the authoritative state during the interim;
+the cutover re-sync makes the server continue from Friday's state, not the stale 7/15 snapshot.
 
 ---
 
