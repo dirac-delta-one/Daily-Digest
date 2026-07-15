@@ -323,7 +323,9 @@ or where two sources disagree with each other.
 Hyperlink the title to the source URL. No paragraph descriptions.
 
 7. **Bloomberg** — If any emails are from bloomberg.net, group them here. \
-Summarize each with headline and key data points. Keep tight.
+Summarize each with headline and key data points. Keep tight. Only items NOT already \
+covered in sections 1-6 — if a Bloomberg item earned a spot in an earlier section, it \
+lives there and must not be restated here. Omit this section if nothing is left.
 
 8. **Recent SEC Filings** — Filing content is included for each filing. \
 For 8-Ks, summarize the material event (what happened, key numbers, implications). \
@@ -351,6 +353,11 @@ material. If you are unsure of the issuer, cite the bare ticker (e.g. "$TCBK") r
 than guessing the company name.
 - If multiple sources discuss the same topic, synthesize them and note where they agree \
 or disagree.
+- NO REPETITION ACROSS SECTIONS. Each story or data point appears ONCE with full detail, \
+in its single best-fit section. If a later section has a genuinely NEW angle on a story \
+covered earlier (e.g. a contrarian take on a Top Takeaways item), give ONLY the new angle \
+in one line — do not restate the numbers or re-tell the story. The TL;DR is exempt \
+(compressing the day's top items is its job).
 - Tag each claim with its source in parentheses at the end, e.g. "(Grant's)" or "(Greenmantle)". \
 Be consistent — always at the end of the bullet, never woven into the sentence. \
 Only cite real sources: publication names (Grant's, FT, Bloomberg), SEC filing types, \
@@ -807,9 +814,14 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "have been included but weren't.\n"
             "2. Check for any ERRORS — wrong numbers, misattributed sources, or mischaracterized "
             "arguments.\n"
-            "3. Check that every bullet has a source tag.\n"
-            "4. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
-            "and fixes any errors. Keep the exact same HTML template and formatting.\n\n"
+            "3. Check for REPETITION — the same story or data point restated in more than one "
+            "section. Keep the full detail in its single best-fit section; elsewhere keep at most "
+            "a one-line genuinely-new-angle reference (the TL;DR is exempt — compression is its "
+            "job).\n"
+            "4. Check that every bullet has a source tag.\n"
+            "5. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
+            "and fixes any errors and repetition. Keep the exact same HTML template and "
+            "formatting.\n\n"
             "If the draft was already comprehensive, return it mostly unchanged — don't pad it "
             "with filler.\n\n"
             "DRAFT DIGEST:\n"
