@@ -12,9 +12,10 @@ import re
 import datetime
 import time
 import urllib.request
-import urllib.error
-from html.parser import HTMLParser
 import html as html_module
+from html_utils import HTMLStripper
+from net_utils import edgar_get
+from config import USER_AGENT as EDGAR_USER_AGENT
 
 # --- Configuration ---
 HOURS_LOOKBACK = 24
@@ -23,8 +24,8 @@ HOURS_LOOKBACK = 24
 CONTENT_CHARS_8K = 5000     # 8-Ks are the most important — grab more
 CONTENT_CHARS_DEFAULT = 3000  # everything else
 
-# Your contact info (SEC requires this in the User-Agent header)
-EDGAR_USER_AGENT = "DailyDigest/1.0 (jtramontano@acorninv.com)"
+# EDGAR_USER_AGENT (SEC requires a contact in the User-Agent) is imported from
+# config above as the shared scraper contact.
 
 # ======================================================================
 # LIST YOUR TICKERS TO MONITOR HERE
@@ -61,51 +62,15 @@ _cik_map = None
 
 
 def _make_request(url):
-    """Make an HTTP request to EDGAR with required headers."""
-    req = urllib.request.Request(url)
-    req.add_header("User-Agent", EDGAR_USER_AGENT)
-    req.add_header("Accept", "application/json")
-
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        print(f"    EDGAR HTTP error {e.code} for {url}")
+    """Fetch an EDGAR JSON endpoint (via the shared edgar_get) and parse it."""
+    raw = edgar_get(url)
+    if raw is None:
         return None
+    try:
+        return json.loads(raw)
     except Exception as e:
         print(f"    EDGAR request error: {e}")
         return None
-
-
-class _HTMLStripper(HTMLParser):
-    """Strip HTML tags and extract readable text."""
-    def __init__(self):
-        super().__init__()
-        self.result = []
-        self._skip = False
-
-    def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style", "noscript", "head"):
-            self._skip = True
-        if tag in ("p", "br", "div", "tr", "h1", "h2", "h3", "h4", "li", "td"):
-            self.result.append("\n")
-
-    def handle_endtag(self, tag):
-        if tag in ("script", "style", "noscript", "head"):
-            self._skip = False
-        if tag in ("p", "tr", "table"):
-            self.result.append("\n")
-
-    def handle_data(self, data):
-        if not self._skip:
-            self.result.append(data)
-
-    def get_text(self):
-        text = html_module.unescape("".join(self.result))
-        # Collapse whitespace
-        text = re.sub(r'[ \t]+', ' ', text)
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        return text.strip()
 
 
 def _fetch_filing_content(filing_url, form_type):
@@ -135,7 +100,7 @@ def _fetch_filing_content(filing_url, form_type):
         return f"[Could not fetch filing: {e}]"
 
     # Strip HTML to get readable text
-    stripper = _HTMLStripper()
+    stripper = HTMLStripper()
     try:
         stripper.feed(html_text)
         text = stripper.get_text()
@@ -255,7 +220,6 @@ def _fetch_filings_for_cik(cik_info, ticker, since_override=None):
 
         filing_url = ""
         if accession and doc:
-            accession_dashed = accession_numbers[i] if i < len(accession_numbers) else ""
             filing_url = f"https://www.sec.gov/Archives/edgar/data/{cik.lstrip('0')}/{accession}/{doc}"
 
         filings.append({

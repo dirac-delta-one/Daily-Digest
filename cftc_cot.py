@@ -7,10 +7,12 @@ Best shown on Mondays in the digest.
 """
 
 import json
-import ssl
 import datetime
 import urllib.request
 from pathlib import Path
+
+from net_utils import unverified_ssl_context
+from config import FEED_USER_AGENT
 
 SCRIPT_DIR = Path(__file__).parent
 CACHE_DIR = SCRIPT_DIR / "archive" / "cot_cache"
@@ -19,10 +21,8 @@ CACHE_DIR = SCRIPT_DIR / "archive" / "cot_cache"
 COT_FUTURES_URL = "https://www.cftc.gov/dea/newcot/deafut.txt"
 COT_FINANCIAL_URL = "https://www.cftc.gov/dea/newcot/FinFutWk.txt"
 
-# SSL context for CFTC
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+# SSL context for CFTC (cert chain doesn't validate against the default store)
+_SSL_CTX = unverified_ssl_context()
 
 # Contracts to track: (name, cftc_code, source_file)
 # "futures" = deafut.txt, "financial" = FinFutWk.txt
@@ -43,7 +43,7 @@ TRACKED_CONTRACTS = [
 def _fetch_cot(url):
     """Fetch a CFTC text file."""
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", "DailyDigest/1.0")
+    req.add_header("User-Agent", FEED_USER_AGENT)
     try:
         with urllib.request.urlopen(req, timeout=30, context=_SSL_CTX) as resp:
             return resp.read().decode("utf-8", errors="replace")
@@ -107,23 +107,39 @@ def _parse_cot_line(line):
 
 
 def _find_contract(raw_text, cftc_code):
-    """Find a specific contract in the CFTC text by code."""
+    """Find a specific contract in the CFTC text by code.
+
+    An exact parsed-code match anywhere in the file wins; a loose (substring)
+    hit is kept only as a fallback when NO line parses to the exact code. The
+    old version returned the first substring hit immediately — the code
+    appearing inside another line's numeric field could hand back the wrong
+    contract's row — which also made its exact-match check unreachable.
+    """
+    fallback = None
     for line in raw_text.split("\n"):
         if cftc_code in line:
             parsed = _parse_cot_line(line)
-            if parsed and parsed["cftc_code"].strip() == cftc_code.strip():
+            if parsed is None:
+                continue
+            if parsed["cftc_code"].strip() == cftc_code.strip():
                 return parsed
-            # Some codes appear in the line but not as the primary code
-            # Accept if the code is in the line at all
-            if parsed:
-                return parsed
-    return None
+            if fallback is None:
+                fallback = parsed
+    return fallback
 
 
-def _load_prior_week():
-    """Load cached prior week data for WoW changes."""
+def _load_prior_week(current_report_date=None):
+    """Load the newest cached week STRICTLY OLDER than the current report.
+
+    Cache files are named <report_date>.json. The old version took the newest
+    file regardless — on the 2nd/3rd run within the same report week that file
+    IS the current report, so every WoW change computed as 0 instead of the
+    true week-over-week move. A cache holding only the same date returns {}
+    (WoW renders honestly as n/a)."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_files = sorted(CACHE_DIR.glob("*.json"), reverse=True)
+    if current_report_date:
+        cache_files = [f for f in cache_files if f.stem < current_report_date]
     if cache_files:
         try:
             return json.loads(cache_files[0].read_text(encoding="utf-8"))
@@ -159,18 +175,23 @@ def fetch_cot_data():
         print("    Could not fetch CFTC data.")
         return []
 
-    prior = _load_prior_week()
-    positions = []
-
+    rows = []
     for contract_name, cftc_code, source in TRACKED_CONTRACTS:
         raw = futures_raw if source == "futures" else financial_raw
         if not raw:
             continue
-
         row = _find_contract(raw, cftc_code)
         if not row:
             continue
+        rows.append((contract_name, row))
 
+    # WoW baseline: the newest cached report OLDER than this one (a same-week
+    # rerun otherwise compares the report to itself -> all-zero changes).
+    current_report_date = rows[0][1]["report_date"] if rows else None
+    prior = _load_prior_week(current_report_date)
+    positions = []
+
+    for contract_name, row in rows:
         spec_net = row["noncomm_long"] - row["noncomm_short"]
 
         # Prior week comparison

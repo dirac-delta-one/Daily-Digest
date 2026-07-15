@@ -6,14 +6,9 @@ Real-time prices (equities, commodities, crypto) live in market_data.py.
 """
 
 import os
-import json
 import datetime
-from pathlib import Path
 
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
-
-SCRIPT_DIR = Path(__file__).parent
-CACHE_FILE = SCRIPT_DIR / "fred_cache.json"
 
 # FRED series -> (label, unit_type)
 # "spread"    -> FRED returns percentage, x100 for bps; change in bps
@@ -37,19 +32,6 @@ FRED_SERIES = {
 }
 
 
-def _load_cache():
-    if CACHE_FILE.exists():
-        try:
-            return json.loads(CACHE_FILE.read_text())
-        except Exception:
-            pass
-    return {}
-
-
-def _save_cache(data):
-    CACHE_FILE.write_text(json.dumps(data, indent=2))
-
-
 def fetch_macro_data():
     """Fetch all FRED series with current, 1D, 1W, and 1M values."""
     if not FRED_API_KEY:
@@ -68,7 +50,6 @@ def fetch_macro_data():
     start = today - datetime.timedelta(days=45)
 
     results = []
-    cache = _load_cache()
     raw_rates = {}
 
     for series_id, (label, unit) in FRED_SERIES.items():
@@ -137,8 +118,6 @@ def fetch_macro_data():
                 "chg_1m": chg_1m,
             })
 
-            cache[series_id] = {"label": label, "value": current, "date": current_date}
-
         except Exception as e:
             print(f"    FRED {series_id} ({label}) error: {e}")
 
@@ -171,7 +150,6 @@ def fetch_macro_data():
             "chg_1m": round(spread_now - spread_1m, 1) if spread_1m is not None else None,
         })
 
-    _save_cache(cache)
     print(f"  Got {len(results)} FRED series (incl. derived).")
     return results
 
@@ -185,8 +163,6 @@ def _fmt_val(label, value, unit):
         return f"{value:.0f} bps"
     elif unit in ("rate", "breakeven"):
         return f"{value:.2f}%"
-    elif unit == "dollar":
-        return f"${value:,.2f}"
     elif unit == "count":
         return f"{value:,.0f}"
     elif unit == "cpi":
@@ -216,8 +192,6 @@ def _fmt_change_cell(chg, unit, label):
     elif unit in ("rate", "breakeven"):
         bps = chg * 100
         text = f"{bps:+.0f} bps"
-    elif unit == "dollar":
-        text = f"+${chg:,.2f}" if chg >= 0 else f"-${abs(chg):,.2f}"
     elif unit == "count":
         text = f"{chg:+,.0f}"
     elif unit == "cpi":

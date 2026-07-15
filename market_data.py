@@ -5,13 +5,6 @@ Pulls real-time prices with 1D, 1W, 1M changes.
 FRED data lives exclusively in macro_data.py.
 """
 
-import json
-import datetime
-from pathlib import Path
-
-SCRIPT_DIR = Path(__file__).parent
-CACHE_FILE = SCRIPT_DIR / "market_data_cache.json"
-
 # Yahoo Finance tickers -> (label, unit_type)
 YAHOO_TICKERS = {
     "^GSPC":    ("S&P 500",   "dollar"),
@@ -21,19 +14,6 @@ YAHOO_TICKERS = {
     "GC=F":     ("Gold",      "dollar"),
     "BTC-USD":  ("BTC",       "dollar"),
 }
-
-
-def _load_cache():
-    if CACHE_FILE.exists():
-        try:
-            return json.loads(CACHE_FILE.read_text())
-        except Exception:
-            pass
-    return {}
-
-
-def _save_cache(data):
-    CACHE_FILE.write_text(json.dumps(data, indent=2))
 
 
 def fetch_market_data():
@@ -46,7 +26,6 @@ def fetch_market_data():
 
     print("  Fetching market data...")
 
-    prior_cache = _load_cache()
     results = []
 
     tickers_str = " ".join(YAHOO_TICKERS.keys())
@@ -76,8 +55,6 @@ def fetch_market_data():
             prev_1w = None
             if len(series) >= 6:
                 prev_1w = float(series.iloc[-6])
-            elif label in prior_cache and "value_1w" in prior_cache[label]:
-                prev_1w = prior_cache[label]["value_1w"]
 
             # 1M change: ~21 trading days ago (or earliest in the series)
             prev_1m = None
@@ -108,15 +85,6 @@ def fetch_market_data():
 
         except Exception:
             continue
-
-    # Cache current + 1w-ago value for next run
-    today_cache = {}
-    for r in results:
-        today_cache[r["label"]] = {
-            "value": r["value"],
-            "date": str(datetime.date.today()),
-        }
-    _save_cache(today_cache)
 
     print(f"  Got {len(results)} market data points.")
     return results

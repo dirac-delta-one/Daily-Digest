@@ -5,14 +5,14 @@ Fetches recent posts from NY Fed, FRED Blog, Brookings, and BIS (via Google News
 Filters by relevance keywords for credit/macro analysis.
 """
 
-import datetime
 import re
 import xml.etree.ElementTree as ET
 import urllib.request
-from email.utils import parsedate_to_datetime
+
+from feeds import is_recent
+from config import FEED_USER_AGENT
 
 HOURS_LOOKBACK = 24
-USER_AGENT = "DailyDigest/1.0"
 
 RESEARCH_FEEDS = [
     ("https://libertystreeteconomics.newyorkfed.org/feed/", "NY Fed (Liberty Street)"),
@@ -47,7 +47,7 @@ RELEVANCE_KEYWORDS = [
 
 def _fetch_feed(url):
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", USER_AGENT)
+    req.add_header("User-Agent", FEED_USER_AGENT)
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
@@ -57,31 +57,6 @@ def _fetch_feed(url):
     except Exception as e:
         print(f"    Feed error: {e}")
         return None
-
-
-def _parse_date(date_str):
-    if not date_str:
-        return None
-    try:
-        return parsedate_to_datetime(date_str)
-    except Exception:
-        pass
-    try:
-        return datetime.datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-    except Exception:
-        pass
-    return None
-
-
-def _is_recent(date_str, hours=HOURS_LOOKBACK):
-    parsed = _parse_date(date_str)
-    if not parsed:
-        return True
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cutoff = now - datetime.timedelta(hours=hours)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
-    return parsed >= cutoff
 
 
 def _is_relevant(title, description):
@@ -133,7 +108,7 @@ def fetch_research_articles():
                 continue
             seen.add(key)
 
-            if not _is_recent(pub_date):
+            if not is_recent(pub_date, HOURS_LOOKBACK):
                 continue
 
             # Strip Google News source suffix

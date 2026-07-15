@@ -7,11 +7,11 @@ Uses yfinance Ticker.calendar for upcoming earnings dates.
 
 import datetime
 
-# Tickers to check — combines SEC watchlist + additional coverage
-EARNINGS_WATCHLIST = [
-    "PGY", "CRWV", "WOLF", "MSTR", "TRTX", "LADR", "OSG",
-    "FSK", "OBDC", "RWT", "ABR", "GBDC", "MAIN", "TSLX", "ARCC", "APLD",
-]
+# Tickers to check: the SEC watchlist is the single source of truth (a ticker
+# added there gets earnings coverage automatically — this was a byte-identical
+# copy that could silently drift); callers can still add coverage via
+# fetch_earnings_calendar(extra_tickers=...).
+from sec_filings import WATCHLIST as EARNINGS_WATCHLIST
 
 
 def fetch_earnings_calendar(extra_tickers=None):
@@ -95,7 +95,7 @@ def fetch_earnings_calendar(extra_tickers=None):
                 })
                 print(f"    {ticker_str} ({company_name}): earnings {ed}")
 
-        except Exception as e:
+        except Exception:
             # Silently skip — many tickers won't have calendar data
             continue
 

@@ -20,18 +20,79 @@ from pathlib import Path
 
 import anthropic
 
+from config import OPUS_MODEL, unattended
+import cost
+
 SCRIPT_DIR = Path(__file__).parent
 SESSION_FILE = SCRIPT_DIR / "thirteen_d_session.json"
 
 WILTW_BASE = "https://client.13d.com/report.php?id=WILTW_"
 LOGIN_URL = "https://client.13d.com/login.php"
-CLAUDE_MODEL = "claude-opus-4-6"
+CLAUDE_MODEL = OPUS_MODEL
+
+# WILTW publishes weekly (Thursdays) but the digest runs daily, so the same
+# report is otherwise fetched Thursday->Wednesday. Cache each summary by report
+# date to avoid re-downloading and re-summarizing (a ~$0.65 Opus call) every run.
+WILTW_CACHE_FILE = SCRIPT_DIR / "wiltw_cache.json"
+
+
+def _load_summary_cache():
+    """Load the {report_date: result_dict} WILTW summary cache."""
+    if WILTW_CACHE_FILE.exists():
+        try:
+            return json.loads(WILTW_CACHE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def _save_summary_cache(key, result):
+    """Store one report's summary in the cache, keyed by report date (ISO)."""
+    cache = _load_summary_cache()
+    cache[key] = result
+    WILTW_CACHE_FILE.write_text(
+        json.dumps(cache, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+# 13D's authenticated-session cookie. An anonymous visitor (login page only) gets
+# just the "visitrack" tracking cookie; a logged-in session also carries "user".
+# Saving an anonymous state OVER a valid one is what destroyed the session on
+# 2026-07-15 (a stray ENTER at the login prompt with no credentials), so every
+# save is gated on this. If 13D ever renames the auth cookie, logins simply stop
+# persisting — a SAFE failure (it never clobbers a good session) that surfaces via
+# the warning below; update this set when that happens.
+_AUTH_COOKIE_NAMES = {"user"}
+
+
+def _looks_authenticated(state):
+    """True iff a Playwright storage_state carries a 13D auth cookie with a value."""
+    for c in (state or {}).get("cookies", []):
+        if c.get("name") in _AUTH_COOKIE_NAMES and (c.get("value") or "").strip():
+            return True
+    return False
 
 
 def _save_session(context):
-    state = context.storage_state()
+    """Persist the browser session — but ONLY if it is actually authenticated.
+    Refuses to overwrite an existing session file with an unauthenticated one
+    (the 2026-07-15 clobber). Returns True iff a session was written."""
+    try:
+        state = context.storage_state()
+    except Exception as e:
+        print(f"  Warning: could not read session state: {e}")
+        return False
+    if not _looks_authenticated(state):
+        if SESSION_FILE.exists():
+            print("  WARNING: 13D login not detected (no auth cookie) — keeping the "
+                  "EXISTING session file untouched (refusing to overwrite a "
+                  "possibly-valid session with an unauthenticated one).")
+        else:
+            print("  WARNING: 13D login not detected (no auth cookie) — no session saved.")
+        return False
     SESSION_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
     print("  Session saved.")
+    return True
 
 
 def _has_session():
@@ -50,15 +111,16 @@ def _do_manual_login(playwright):
 
     input("\n  >>> Press ENTER after logging in (keep browser open)... ")
 
-    try:
-        _save_session(context)
-    except Exception as e:
-        print(f"  Warning: could not save session: {e}")
+    saved = _save_session(context)
     try:
         browser.close()
     except Exception:
         pass
-    print("  Login complete.")
+    if saved:
+        print("  Login complete.")
+    else:
+        print("  Login NOT saved (see the warning above) — existing session, if "
+              "any, is unchanged. Re-run once you can actually log in.")
 
 
 def _find_latest_thursday():
@@ -76,13 +138,30 @@ def _get_report_url(report_date=None):
     return f"{WILTW_BASE}{report_date.isoformat()}"
 
 
+def _persist_pdf(pdf_bytes, report_date=None):
+    """Save a downloaded WILTW PDF into today's archive (archive/<date>/pdfs/,
+    where the RAG indexer looks). All download paths persist through here so
+    none can litter the repo root (the button-click path used to leave an
+    unarchived wiltw_<date>.pdf behind in SCRIPT_DIR)."""
+    report_date = report_date or _find_latest_thursday()
+    pdf_dir = SCRIPT_DIR / "archive" / datetime.date.today().isoformat() / "pdfs"
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    path = pdf_dir / f"WILTW_{report_date.isoformat()}.pdf"
+    path.write_bytes(pdf_bytes)
+    return path
+
+
 def _download_pdf(playwright, report_url, force_login=False):
     """Navigate to the report page and download the PDF. Returns PDF bytes or None."""
 
     if force_login or not _has_session():
+        if unattended():
+            print("  13D session missing — manual re-login required "
+                  "(run `python thirteen_d.py --login` on this machine). Skipping WILTW.")
+            return None
         _do_manual_login(playwright)
 
-    print(f"  Loading session...")
+    print("  Loading session...")
     session_state = json.loads(SESSION_FILE.read_text(encoding="utf-8"))
 
     browser = playwright.chromium.launch(headless=True)
@@ -95,6 +174,11 @@ def _download_pdf(playwright, report_url, force_login=False):
 
     # Check if we got redirected to login
     if "login" in page.url.lower():
+        if unattended():
+            print("  13D session expired mid-run — manual re-login required "
+                  "(skipping WILTW).")
+            browser.close()
+            return None
         print("  Session expired — re-login required.")
         browser.close()
         _do_manual_login(playwright)
@@ -142,10 +226,12 @@ def _download_pdf(playwright, report_url, force_login=False):
                 with page.expect_download(timeout=15000) as download_info:
                     el.click()
                 download = download_info.value
-                pdf_path = SCRIPT_DIR / f"wiltw_{_find_latest_thursday().isoformat()}.pdf"
-                download.save_as(str(pdf_path))
-                print(f"  Downloaded PDF via button click: {pdf_path}")
-                pdf_bytes = pdf_path.read_bytes()
+                tmp_path = SCRIPT_DIR / "wiltw_temp.pdf"
+                download.save_as(str(tmp_path))
+                pdf_bytes = tmp_path.read_bytes()
+                tmp_path.unlink()  # clean up temp
+                saved = _persist_pdf(pdf_bytes)
+                print(f"  Downloaded PDF via button click: {saved}")
                 browser.close()
                 return pdf_bytes
         except Exception:
@@ -159,12 +245,7 @@ def _download_pdf(playwright, report_url, force_login=False):
             if resp.ok:
                 pdf_bytes = resp.body()
                 print(f"  Downloaded PDF: {len(pdf_bytes):,} bytes")
-
-                # Save a copy
-                pdf_path = SCRIPT_DIR / "archive" / datetime.date.today().isoformat() / "pdfs"
-                pdf_path.mkdir(parents=True, exist_ok=True)
-                (pdf_path / f"WILTW_{_find_latest_thursday().isoformat()}.pdf").write_bytes(pdf_bytes)
-
+                _persist_pdf(pdf_bytes)
                 _save_session(context)
                 browser.close()
                 return pdf_bytes
@@ -185,10 +266,11 @@ def _download_pdf(playwright, report_url, force_login=False):
                 with page.expect_download(timeout=15000) as download_info:
                     el.click()
                 download = download_info.value
-                pdf_path = SCRIPT_DIR / f"wiltw_temp.pdf"
+                pdf_path = SCRIPT_DIR / "wiltw_temp.pdf"
                 download.save_as(str(pdf_path))
                 pdf_bytes = pdf_path.read_bytes()
                 pdf_path.unlink()  # clean up temp
+                _persist_pdf(pdf_bytes)
                 print(f"  Downloaded PDF via click: {len(pdf_bytes):,} bytes")
 
                 _save_session(context)
@@ -255,6 +337,7 @@ def _summarize_pdf(pdf_bytes):
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  WILTW summary: {tokens_in:,} in + {tokens_out:,} out")
+    cost.record("13D WILTW summary", CLAUDE_MODEL, response.usage)
     print(f"  Summary length: {len(summary):,} chars")
 
     return summary
@@ -262,17 +345,16 @@ def _summarize_pdf(pdf_bytes):
 
 def fetch_wiltw():
     """
-    Main entry point. Downloads the latest WILTW PDF and returns an Opus summary.
+    Main entry point. Returns an Opus summary of the latest WILTW report.
+
+    The summary is cached by report date (wiltw_cache.json). WILTW drops on
+    Thursdays but the digest runs daily, so without the cache the same weekly PDF
+    would be re-downloaded and re-summarized (a ~$0.65 Opus call) every run
+    Thursday->Wednesday. On a cache hit we skip both the download and the Opus call.
 
     Returns:
         dict with {"title", "date", "summary", "url"} or None if unavailable.
     """
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("  Playwright not installed — skipping 13D WILTW.")
-        return None
-
     report_date = _find_latest_thursday()
     report_url = _get_report_url(report_date)
 
@@ -282,7 +364,33 @@ def fetch_wiltw():
         print(f"  Latest WILTW ({report_date}) is over 6 days old — skipping.")
         return None
 
+    # Cache hit: reuse the already-generated summary for this report date and
+    # skip the Playwright download + the Opus summarization entirely.
+    key = report_date.isoformat()
+    cache = _load_summary_cache()
+    if key in cache:
+        print(f"  WILTW {key} already summarized — using cached summary "
+              f"(skipping download + Opus call).")
+        return cache[key]
+
     print(f"  Latest WILTW date: {report_date} ({days_since} days ago)")
+
+    # R8 unattended guard (same failure family as F1a-1): without a saved
+    # session, the download path would open a HEADED browser and block on
+    # input() — on the headless server that can hang the whole digest run
+    # until the 3h task limit kills it. Fail soft before any Playwright work;
+    # the O3 content monitor flags the resulting wiltw zero-streak.
+    if unattended() and not _has_session():
+        print("  13D session missing and DIGEST_UNATTENDED is set — manual "
+              "re-login required (run `python thirteen_d.py --login` on this "
+              "machine). Skipping WILTW.")
+        return None
+
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("  Playwright not installed — skipping 13D WILTW.")
+        return None
 
     with sync_playwright() as pw:
         pdf_bytes = _download_pdf(pw, report_url)
@@ -294,12 +402,14 @@ def fetch_wiltw():
     if not summary:
         return None
 
-    return {
+    result = {
         "title": f"What I Learned This Week — {report_date.strftime('%B %d, %Y')}",
-        "date": report_date.isoformat(),
+        "date": key,
         "summary": summary,
         "url": report_url,
     }
+    _save_summary_cache(key, result)
+    return result
 
 
 if __name__ == "__main__":

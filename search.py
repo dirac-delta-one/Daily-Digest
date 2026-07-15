@@ -15,12 +15,12 @@ Usage:
 import json
 import re
 import sys
-import os
-import html as html_module
-from html.parser import HTMLParser
 from pathlib import Path
 
 import numpy as np
+
+from config import TEAM_ACTIVATION_DATE, is_self_artifact, is_substack_email
+from html_utils import strip_html, parse_forwarded_from
 
 SCRIPT_DIR = Path(__file__).parent
 ARCHIVE_DIR = SCRIPT_DIR / "archive"
@@ -30,52 +30,14 @@ METADATA_FILE = ARCHIVE_DIR / "chunk_metadata.json"
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 EMBEDDING_DIM = 384
 
+# Stage-1 reranker (memory refactor): cross-encoder that re-scores
+# (query, chunk) pairs from the dense candidate pool. ~90MB one-time download,
+# CPU-fine. Param-gated via search(rerank=True); PARKED after losing the eval
+# twice — re-test gates in HANDOFF §14.F.
+RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
 CHUNK_SIZE = 800       # chars (~150-200 tokens) — larger for better context
 CHUNK_OVERLAP = 150    # more overlap to avoid splitting key details across chunks
-
-
-# ======================================================================
-# HTML STRIPPING
-# ======================================================================
-
-class _HTMLStripper(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.result = []
-        self._skip = False
-
-    def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style", "noscript", "head"):
-            self._skip = True
-        if tag in ("p", "br", "div", "tr", "h1", "h2", "h3", "h4", "li", "td"):
-            self.result.append("\n")
-
-    def handle_endtag(self, tag):
-        if tag in ("script", "style", "noscript", "head"):
-            self._skip = False
-        if tag in ("p", "tr", "table"):
-            self.result.append("\n")
-
-    def handle_data(self, data):
-        if not self._skip:
-            self.result.append(data)
-
-    def get_text(self):
-        text = html_module.unescape("".join(self.result))
-        text = re.sub(r'[ \t]+', ' ', text)
-        text = re.sub(r'\n{3,}', '\n\n', text)
-        return text.strip()
-
-
-def _strip_html(text):
-    if not text:
-        return ""
-    stripper = _HTMLStripper()
-    try:
-        stripper.feed(text)
-        return stripper.get_text()
-    except Exception:
-        return re.sub(r'<[^>]+>', ' ', text)
 
 
 # ======================================================================
@@ -115,7 +77,20 @@ def _chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
 
 
 def _clean_pdf_text(text):
-    """Clean up PDF extraction artifacts for better indexing."""
+    """Clean up PDF extraction artifacts for better indexing.
+
+    Deliberately conservative (3.3 review, 2026-07-09): the original version
+    also carried aggressive "rescue" rules for character-fragmented PDFs
+    (ligature glue, mid-word space rejoin, single-char-run rejoin). Measured
+    against the real 10-PDF corpus they NEVER rescued anything — the
+    fragmentation pathology doesn't occur with PyPDF2 3.0.1 here — while the
+    mid-word rule fired 5,852 times, 96% of them gluing a real word onto a
+    following "of/to/in/is…" ("the wifeof oneof our colleagues"), corrupting
+    99% of indexed PDF chunks. If a genuinely fragmented PDF ever shows up,
+    reintroduce rescue rules GATED behind a fragmentation heuristic (e.g.
+    only when single-char-token density is high), never unconditionally.
+    Details in WORKLOG 2026-07-09.
+    """
     # Rejoin hyphenated line breaks: "subscrip-\ntion" → "subscription"
     text = re.sub(r'(\w)-\s*\n\s*(\w)', r'\1\2', text)
     # Rejoin words split across lines (lowercase letter, newline, lowercase letter)
@@ -124,24 +99,17 @@ def _clean_pdf_text(text):
     text = re.sub(r'[ \t]+', ' ', text)
     # Collapse multiple newlines
     text = re.sub(r'\n{3,}', '\n\n', text)
-    # Fix common OCR/column artifacts
-    text = text.replace('fi ', 'fi').replace('fl ', 'fl')
+    # Tidy space-before-punctuation
     text = text.replace(' .', '.').replace(' ,', ',')
-    # Fix spaces inserted mid-word by column-layout PDFs (e.g. "m anagement" → "management")
-    # Pattern: lowercase letter, space, lowercase letter(s) that form a word continuation
-    text = re.sub(r'(\w) (\w{1,3}) (\w)', lambda m: m.group(0) if len(m.group(2)) > 2 else m.group(1) + m.group(2) + ' ' + m.group(3), text)
-    # Simpler: rejoin single space between single lowercase chars: "s o l d" → "sold"
-    text = re.sub(r'\b(\w) (\w) (\w) (\w)\b', r'\1\2\3\4', text)
-    text = re.sub(r'\b(\w) (\w) (\w)\b', r'\1\2\3', text)
     return text.strip()
 
 
 def _extract_pdf_text(pdf_path):
     """Extract text from a PDF file with cleanup for better RAG indexing."""
     try:
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
     except ImportError:
-        print(f"    PyPDF2 not installed — cannot index {pdf_path}")
+        print(f"    pypdf not installed — cannot index {pdf_path}")
         return ""
 
     try:
@@ -162,10 +130,30 @@ def _extract_pdf_text(pdf_path):
 # INDEXING
 # ======================================================================
 
+_model = None
+_reranker = None
+
+
 def _get_model():
-    """Load the sentence-transformer embedding model."""
-    from sentence_transformers import SentenceTransformer
-    return SentenceTransformer(EMBEDDING_MODEL_NAME)
+    """Load (once) and return the sentence-transformer embedding model.
+
+    Module-level singleton so the long-running reply_monitor loads the model
+    a single time per process instead of on every search() call (Phase 2.4).
+    """
+    global _model
+    if _model is None:
+        from sentence_transformers import SentenceTransformer
+        _model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+    return _model
+
+
+def _get_reranker():
+    """Load (once) and return the cross-encoder reranker (same singleton pattern)."""
+    global _reranker
+    if _reranker is None:
+        from sentence_transformers import CrossEncoder
+        _reranker = CrossEncoder(RERANKER_MODEL_NAME)
+    return _reranker
 
 
 def _load_index():
@@ -191,6 +179,250 @@ def _load_index():
     return index, []
 
 
+def _tokenize(text):
+    """Lowercased alphanumeric tokens for BM25 (Stage 2).
+
+    Deliberately keeps 1-2 char tokens — dropping short tickers (GM, X) is the
+    exact failure mode BM25 exists to fix. A leading '$' is not a token char,
+    so "$ABR" and "ABR" both normalize to "abr" and match each other.
+    """
+    return re.findall(r'[a-z0-9]+', (text or "").lower())
+
+
+# ======================================================================
+# ENTITY TAGGING (Stage 3a — metadata-only, no re-embedding)
+# ======================================================================
+
+# Fund first-words too generic to use as standalone aliases ("Avenue", "Canyon"
+# match street addresses / geography far more often than the fund).
+_GENERIC_FUND_WORDS = {"avenue", "canyon"}
+
+_entity_lexicon_cache = None
+
+
+def _entity_lexicon():
+    """(watchlist tickers, {alias_lower: canonical fund name}) — built once.
+
+    Lazy import so search.py stays importable standalone; coverage is
+    deliberately just the SEC watchlist + tracked funds + $TICK patterns
+    (full company NER is deferred — watch-item in HANDOFF §14.F).
+    """
+    global _entity_lexicon_cache
+    if _entity_lexicon_cache is None:
+        from sec_filings import WATCHLIST
+        from fund_tracking import TRACKED_FUNDS
+        aliases = {}
+        for _cik, name in TRACKED_FUNDS:
+            aliases[name.lower()] = name
+            first = name.split()[0]
+            if first.lower() not in _GENERIC_FUND_WORDS:
+                aliases[first.lower()] = name
+        _entity_lexicon_cache = (set(WATCHLIST), aliases)
+    return _entity_lexicon_cache
+
+
+def _extract_entities(text):
+    """Entity tags for one chunk: watchlist tickers, $TICK mentions, fund names.
+
+    Tickers match case-sensitively on word boundaries (lowercase "main" must not
+    tag MAIN; all-caps filing headers can still false-positive — accepted noise).
+    $-prefixed symbols are tagged even off-watchlist ($ALM, $AGI from 13D).
+    Fund aliases match case-insensitively. Returns a sorted, deduped list.
+    """
+    if not text:
+        return []
+    watchlist, fund_aliases = _entity_lexicon()
+
+    tags = set()
+    # Any $TICK-style mention (strong ticker signal, watchlist or not)
+    for sym in re.findall(r'\$([A-Za-z]{1,5})\b', text):
+        tags.add(sym.upper())
+    # Watchlist tickers as bare uppercase words
+    for ticker in watchlist:
+        if re.search(rf'\b{re.escape(ticker)}\b', text):
+            tags.add(ticker)
+    # Tracked-fund names / distinctive aliases
+    lowered = text.lower()
+    for alias, canonical in fund_aliases.items():
+        if re.search(rf'\b{re.escape(alias)}\b', lowered):
+            tags.add(canonical)
+
+    return sorted(tags)
+
+
+def _entity_key(s):
+    """Normalize an entity for matching: '$ABR' / 'abr' / 'ABR' all compare equal."""
+    return (s or "").lstrip("$").strip().lower()
+
+
+def extract_entities(text):
+    """Public alias for the Stage-3a entity tagger.
+
+    Used by the reply bot's Stage-4 query understanding so questions and index
+    tags share ONE lexicon — an entity detected in a question is guaranteed to
+    be a tag the index could carry (watchlist ticker, $TICK mention, tracked
+    fund), never a name that can't match anything.
+    """
+    return _extract_entities(text)
+
+
+def dedupe_near_duplicates(results, threshold=0.85):
+    """Drop near-duplicate chunks from a scored result list (Stage 4).
+
+    Walks results best-first and drops any chunk whose token-set Jaccard
+    similarity with an already-kept chunk is >= threshold. The real-archive
+    case: the same broker PDF forwarded on consecutive days (e.g. the 7/7 and
+    7/8 "Global Update") indexes twice, and its twin chunks otherwise fill
+    multiple context slots with identical text. The 0.85 bar sits far above
+    the ~0.2 token overlap that adjacent chunks share via CHUNK_OVERLAP, so
+    ordinary neighbors survive.
+
+    Args:
+        results: [(metadata_dict, score), ...] sorted best-first.
+    Returns:
+        The same shape, best-first, with near-duplicates removed.
+    """
+    kept = []
+    kept_tokens = []
+    for meta, score in results:
+        tokens = set(_tokenize(meta.get("text", "")))
+        is_dup = False
+        for seen in kept_tokens:
+            if tokens and seen:
+                if len(tokens & seen) / len(tokens | seen) >= threshold:
+                    is_dup = True
+                    break
+        if not is_dup:
+            kept.append((meta, score))
+            kept_tokens.append(tokens)
+    return kept
+
+
+def _filter_ids(metadata, date_filter=None, date_from=None, date_to=None,
+                entity_filter=None, exclude_digest_date=None,
+                exclude_source_types=None, exclude_digest_before=None):
+    """Chunk ids passing all supplied filters (Stage 1 date prefix + Stage 3a
+    range/entity + Stage 4 digest exclusion + the TEAM_DIGEST_SPEC access
+    exclusions). Returns None when no filter is active (= search everything).
+
+    exclude_digest_date drops digest-type chunks whose date starts with the
+    given prefix. The reply bot passes the day it is replying about — that
+    digest is already loaded verbatim into its context, so retrieving its
+    chunks only wastes result slots (the Stage-1/2 eval finding). "" excludes
+    EVERY digest chunk (the eval harness's rerank-retest condition). Being an
+    exclusion, it yields a nearly-full id list and sends search down the
+    brute-force subset path — exact and cheap at the current scale (~3.5k
+    vectors); revisit if the archive approaches the 100k-chunk FAISS ceiling.
+
+    exclude_source_types drops chunks of the given source_types entirely
+    (TEAM_DIGEST_SPEC: team askers pass {"substack"} so jared's paid research
+    never enters their answers). exclude_digest_before drops digest-type
+    chunks dated strictly before the given ISO date — digests archived before
+    the team activation date are FULL digests with Substack woven into their
+    prose (team askers pass the activation date, or "9999-12-31" when the
+    team has never been activated).
+    """
+    if not (date_filter or date_from or date_to or entity_filter
+            or exclude_digest_date is not None
+            or exclude_source_types or exclude_digest_before):
+        return None
+
+    ent = _entity_key(entity_filter) if entity_filter else None
+    excluded_types = set(exclude_source_types or ())
+    allowed = []
+    for i, m in enumerate(metadata):
+        d = m.get("date", "")
+        if date_filter and not d.startswith(date_filter):
+            continue
+        if date_from and d < date_from:
+            continue
+        if date_to and d > date_to:
+            continue
+        if ent and ent not in (_entity_key(t) for t in m.get("entities") or []):
+            continue
+        if (exclude_digest_date is not None
+                and m.get("source_type") == "digest"
+                and d.startswith(exclude_digest_date)):
+            continue
+        if excluded_types and m.get("source_type") in excluded_types:
+            continue
+        if (exclude_digest_before
+                and m.get("source_type") == "digest"
+                and d < exclude_digest_before):
+            continue
+        allowed.append(i)
+    return allowed
+
+
+def _rrf_fuse(rankings, k=60):
+    """Reciprocal Rank Fusion: {id: sum of 1/(k + rank)} across rankings (Stage 2).
+
+    Standard RRF with the conventional k=60 — ids ranked well by BOTH the dense
+    and lexical lists float to the top without needing score normalization.
+    """
+    scores = {}
+    for ranking in rankings:
+        for rank, id_ in enumerate(ranking, 1):
+            scores[id_] = scores.get(id_, 0.0) + 1.0 / (k + rank)
+    return scores
+
+
+def _bm25_top_ids(bm25, query, pool, allowed_ids=None):
+    """Best-first chunk ids by BM25 score (score > 0 only), optionally restricted."""
+    scores = bm25.get_scores(_tokenize(query))
+    ids = allowed_ids if allowed_ids is not None else range(len(scores))
+    scored = [(i, scores[i]) for i in ids if scores[i] > 0]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [i for i, _ in scored[:pool]]
+
+
+# In-process search-state cache (Stage 2): search() previously re-read the FAISS
+# index + full metadata JSON from disk on EVERY call — fine at 629 chunks, multi-
+# second at archive scale. One signature-checked cache covers the index, metadata,
+# and the BM25 corpus (which needs the same staleness logic), so the long-running
+# reply monitor picks up the day the morning digest appends without restarting.
+_search_state = None
+
+
+def _file_sig(path):
+    """(mtime_ns, size) staleness signature for a file, or None if missing."""
+    try:
+        s = path.stat()
+        return (s.st_mtime_ns, s.st_size)
+    except OSError:
+        return None
+
+
+def _get_search_state():
+    """Cached (index, metadata, bm25) for search(); reloads only when the
+    on-disk index/metadata files change."""
+    global _search_state
+    key = (_file_sig(INDEX_FILE), _file_sig(METADATA_FILE))
+    if _search_state is not None and _search_state["key"] == key:
+        return _search_state
+
+    index, metadata = _load_index()
+    _search_state = {"key": key, "index": index, "metadata": metadata, "bm25": None}
+    return _search_state
+
+
+def _get_bm25(state):
+    """Build (once per index state) and return the BM25 corpus.
+
+    Lazy since 2026-07-15 (CLEANUP_SPEC 4.1): hybrid retrieval is parked
+    permanently (§14.F), yet the corpus was tokenized + built on EVERY state
+    reload — a linearly-growing cost (time + RAM) for a path that never runs
+    in production. The param-gated mechanism stays fully intact per §14.F: a
+    hybrid=True call still works, paying the build on first use and reusing
+    it until the index state changes.
+    """
+    if state["bm25"] is None and state["metadata"]:
+        from rank_bm25 import BM25Okapi
+        state["bm25"] = BM25Okapi(
+            [_tokenize(m.get("text", "")) for m in state["metadata"]])
+    return state["bm25"]
+
+
 def _save_index(index, metadata):
     """Save FAISS index and metadata to disk."""
     import faiss
@@ -213,9 +445,25 @@ def _chunks_for_date(date_str):
     chunks = []  # list of (text, metadata_dict)
 
     # --- Digest HTML ---
-    digest_file = day_dir / "digest.html"
-    if digest_file.exists():
-        text = _strip_html(digest_file.read_text(encoding="utf-8"))
+    # TEAM_DIGEST_SPEC: once the team variant exists, IT is the indexed digest —
+    # the full digest's prose embeds Substack analysis, and digest-type chunks
+    # would leak it to team askers (jared still gets the raw substack chunks
+    # below, his substack memory, and the full digest as verbatim reply context).
+    digest_file = day_dir / "digest_team.html"
+    if not digest_file.exists():
+        digest_file = day_dir / "digest.html"
+        # Post-activation guard (CLEANUP_SPEC 2.1): a post-activation day with
+        # no team file means the run was misconfigured (DIGEST_TO_TEAM unset).
+        # The FULL digest embeds Substack prose, and digest-type chunks dated
+        # AFTER the activation date are not excluded for team askers — so skip
+        # that day's digest chunks entirely; the raw sources below still index.
+        if (TEAM_ACTIVATION_DATE and date_str >= TEAM_ACTIVATION_DATE
+                and digest_file.exists()):
+            print(f"    {date_str}: post-activation day without digest_team.html "
+                  "— skipping digest chunks (Substack-leak guard).")
+            digest_file = None
+    if digest_file is not None and digest_file.exists():
+        text = strip_html(digest_file.read_text(encoding="utf-8"))
         for i, chunk in enumerate(_chunk_text(text)):
             chunks.append((chunk, {
                 "chunk_id": f"{date_str}_digest_{i:04d}",
@@ -262,7 +510,10 @@ def _chunks_for_date(date_str):
     if substacks_file.exists():
         try:
             articles = json.loads(substacks_file.read_text(encoding="utf-8"))
-            for art in articles:
+            # a_i disambiguates same-author articles on one day — without it,
+            # chunk_ids collided and the reply bot's chunk_id dedup silently
+            # dropped distinct chunks (79 dup ids live before the 2026-07-14 fix)
+            for a_i, art in enumerate(articles):
                 text = art.get("text", "")
                 title = art.get("title", "")
                 author = art.get("author", "")
@@ -274,7 +525,7 @@ def _chunks_for_date(date_str):
 
                 for i, chunk in enumerate(_chunk_text(text)):
                     chunks.append((chunk, {
-                        "chunk_id": f"{date_str}_substack_{source_name.replace(' ', '_')}_{i:04d}",
+                        "chunk_id": f"{date_str}_substack_{source_name.replace(' ', '_')}_{a_i:02d}_{i:04d}",
                         "date": date_str,
                         "source_type": "substack",
                         "source_name": source_name,
@@ -290,7 +541,9 @@ def _chunks_for_date(date_str):
     if filings_file.exists():
         try:
             filings = json.loads(filings_file.read_text(encoding="utf-8"))
-            for f in filings:
+            # f_i disambiguates same-ticker/same-form filings on one day (same
+            # collision class as the substack ids above)
+            for f_i, f in enumerate(filings):
                 content = f.get("content", "")
                 if not content or content.startswith("["):
                     continue
@@ -305,7 +558,7 @@ def _chunks_for_date(date_str):
 
                 for i, chunk in enumerate(_chunk_text(text)):
                     chunks.append((chunk, {
-                        "chunk_id": f"{date_str}_filing_{ticker}_{form_type}_{i:04d}",
+                        "chunk_id": f"{date_str}_filing_{ticker}_{form_type}_{f_i:02d}_{i:04d}",
                         "date": date_str,
                         "source_type": "filing",
                         "source_name": source_name,
@@ -324,11 +577,39 @@ def _chunks_for_date(date_str):
             for j, e in enumerate(emails):
                 sender = e.get("from", "")
                 subject = e.get("subject", "")
+                # Index-side self-artifact filter (2026-07-15): the fetch-side
+                # guard (CLEANUP_SPEC 2.5) keeps NEW self-mail out of the
+                # archive; this keeps the INDEX clean for days archived before
+                # that guard existed (two replies-to-digests were ingested
+                # 2026-07-14 — one quoting the FULL digest's Substack prose as
+                # email-type chunks the team-asker exclusions don't filter).
+                # The archive file itself stays untouched: raw record intact,
+                # system exhaust just never becomes searchable.
+                if is_self_artifact(sender, subject):
+                    continue
                 # Use full body if available, fall back to snippet
                 body = e.get("body", "") or e.get("snippet", "")
-                source_name = sender.split("<")[0].strip() or sender
+                # FORWARDING_FIX_SPEC Stage 3: attribute forwarded emails to the
+                # ORIGINAL sender so citations/retrieval name the real source
+                # (Bloomberg etc.), not the forwarder. Prefer the stored
+                # effective_from (new days); fall back to parsing the body so a
+                # --rebuild backfills days archived before Stage 1.
+                effective = e.get("effective_from")
+                if not effective:
+                    parsed = parse_forwarded_from(body)
+                    if parsed:
+                        display, email = parsed
+                        effective = f"{display} <{email}>" if display != email else email
+                effective = effective or sender
+                source_name = effective.split("<")[0].strip() or effective
 
-                header = f"From: {sender}\nSubject: {subject}\n\n"
+                # Substack-via-email (2026-07-15): a newsletter delivered as inbox
+                # email (e.g. PETITION from petition@substack.com) is Substack
+                # content — tag it "substack" so the team-tier retrieval exclusion
+                # (exclude_source_types) drops it exactly like a scraped chunk.
+                is_sub = is_substack_email(sender, effective)
+
+                header = f"From: {effective}\nSubject: {subject}\n\n"
                 text = header + body
 
                 if len(text.strip()) < 50:
@@ -339,7 +620,7 @@ def _chunks_for_date(date_str):
                     chunks.append((chunk, {
                         "chunk_id": f"{date_str}_email_{j:02d}_{i:04d}",
                         "date": date_str,
-                        "source_type": "email",
+                        "source_type": "substack" if is_sub else "email",
                         "source_name": source_name,
                         "source_file": str(emails_file.relative_to(SCRIPT_DIR)),
                         "text": chunk,
@@ -368,31 +649,6 @@ def _chunks_for_date(date_str):
                         "source_name": f"{source}: {title[:50]}",
                         "source_file": str(news_file.relative_to(SCRIPT_DIR)),
                         "text": text,
-                        "url": url,
-                    }))
-        except Exception:
-            pass
-
-    # --- Octus articles ---
-    octus_file = day_dir / "octus_articles.json"
-    if octus_file.exists():
-        try:
-            articles = json.loads(octus_file.read_text(encoding="utf-8"))
-            for j, a in enumerate(articles):
-                title = a.get("title", "")
-                text = a.get("text", "")
-                company = a.get("company", "")
-                url = a.get("url", "")
-
-                full_text = f"{title}\n{company}\n\n{text}" if text else title
-                for i, chunk in enumerate(_chunk_text(full_text)):
-                    chunks.append((chunk, {
-                        "chunk_id": f"{date_str}_octus_{j:02d}_{i:04d}",
-                        "date": date_str,
-                        "source_type": "octus",
-                        "source_name": f"Octus: {company or title[:40]}",
-                        "source_file": str(octus_file.relative_to(SCRIPT_DIR)),
-                        "text": chunk,
                         "url": url,
                     }))
         except Exception:
@@ -471,35 +727,6 @@ def _chunks_for_date(date_str):
         except Exception:
             pass
 
-    # --- Octus deals ---
-    deals_file = day_dir / "octus_deals.json"
-    if deals_file.exists():
-        try:
-            deals = json.loads(deals_file.read_text(encoding="utf-8"))
-            if deals:
-                # Index all deals as a single block (they're structured data, not long text)
-                deal_lines = []
-                for d in deals:
-                    parts = [d.get("entity", "")]
-                    for k in ("coupon", "yield", "price_talk", "rating", "bookrunners", "size"):
-                        v = d.get(k, "")
-                        if v and v != "-":
-                            parts.append(f"{k}: {v}")
-                    deal_lines.append(" | ".join(parts))
-                deal_text = "Primary Market Deals:\n" + "\n".join(deal_lines)
-
-                chunks.append((deal_text, {
-                    "chunk_id": f"{date_str}_deals_0000",
-                    "date": date_str,
-                    "source_type": "deals",
-                    "source_name": "Octus Primary Deal Tracker",
-                    "source_file": str(deals_file.relative_to(SCRIPT_DIR)),
-                    "text": deal_text,
-                    "url": "",
-                }))
-        except Exception:
-            pass
-
     # --- 13F fund results ---
     funds_file = day_dir / "fund_results.json"
     if funds_file.exists():
@@ -532,7 +759,38 @@ def _chunks_for_date(date_str):
         except Exception:
             pass
 
+    # Entity tags (Stage 3a) — one place covers both index_daily_content and
+    # rebuild_index; existing metadata is backfilled via `python search.py --retag`.
+    for text, meta in chunks:
+        meta["entities"] = _extract_entities(text)
+
     return chunks
+
+
+def _rebuild_index_without_date(index, metadata, date_str):
+    """Drop one date from the index WITHOUT re-embedding (efficiency E2).
+
+    FAISS IndexFlat doesn't support removal, so a re-indexed date used to
+    trigger re-encoding every retained chunk — minutes of embedding work that
+    grows with the archive. The stored vectors are reconstructable byte-exact
+    from the flat index (`reconstruct_n`), so we copy the kept rows instead.
+    This is also more faithful than re-encoding: the retained chunks keep
+    their ORIGINAL vectors even across an embedding-library upgrade.
+
+    Assumes the position invariant (metadata[i] <-> vector i) holds — the
+    caller checks ntotal == len(metadata) and falls back to re-encoding if
+    the parallel arrays have diverged.
+
+    Returns (new_index, new_metadata).
+    """
+    import faiss
+
+    keep_ids = [i for i, m in enumerate(metadata) if m.get("date") != date_str]
+    new_index = faiss.IndexFlatIP(EMBEDDING_DIM)
+    if keep_ids:
+        all_vectors = index.reconstruct_n(0, index.ntotal)
+        new_index.add(np.array(all_vectors[keep_ids], dtype=np.float32))
+    return new_index, [metadata[i] for i in keep_ids]
 
 
 def index_daily_content(date_str):
@@ -553,21 +811,23 @@ def index_daily_content(date_str):
     existing_dates = _get_indexed_dates(metadata)
     if date_str in existing_dates:
         print(f"  {date_str} already indexed — removing old entries and re-indexing...")
-        # Must rebuild the full index since FAISS IndexFlatIP doesn't support removal
-        # Filter out old metadata for this date, then rebuild
-        old_metadata = [m for m in metadata if m.get("date") != date_str]
-        if old_metadata:
-            # Rebuild index from remaining metadata embeddings
-            model = _get_model()
-            old_texts = [m["text"] for m in old_metadata]
-            old_embeddings = model.encode(old_texts, show_progress_bar=False, normalize_embeddings=True)
-            old_embeddings = np.array(old_embeddings, dtype=np.float32)
-            index = faiss.IndexFlatIP(EMBEDDING_DIM)
-            index.add(old_embeddings)
-            metadata = old_metadata
+        if index.ntotal == len(metadata):
+            # E2: copy the kept vectors out of the flat index — exact, no
+            # re-embedding of prior days.
+            index, metadata = _rebuild_index_without_date(index, metadata, date_str)
         else:
+            # Parallel arrays diverged (corrupt state) — fall back to
+            # re-encoding the retained chunks from their stored text.
+            print(f"  WARNING: index/metadata mismatch ({index.ntotal} vectors vs "
+                  f"{len(metadata)} chunks) — re-encoding retained chunks.")
+            old_metadata = [m for m in metadata if m.get("date") != date_str]
             index = faiss.IndexFlatIP(EMBEDDING_DIM)
-            metadata = []
+            if old_metadata:
+                old_texts = [m["text"] for m in old_metadata]
+                old_embeddings = model.encode(old_texts, show_progress_bar=False,
+                                              normalize_embeddings=True)
+                index.add(np.array(old_embeddings, dtype=np.float32))
+            metadata = old_metadata
 
     # Embed all chunk texts
     texts = [c[0] for c in chunks]
@@ -585,6 +845,30 @@ def index_daily_content(date_str):
 
     print(f"  Indexed {len(chunks)} chunks. Total index: {index.ntotal} vectors.")
     return len(chunks)
+
+
+def retag_metadata():
+    """Backfill entity tags onto existing chunk metadata (Stage 3a).
+
+    Rewrites chunk_metadata.json ONLY — the FAISS vectors are untouched, so this
+    is safe to run anytime and takes seconds. New chunks are tagged at index
+    time; this exists for chunks indexed before tagging landed (or after a
+    lexicon change — new watchlist ticker, new tracked fund).
+    """
+    _index, metadata = _load_index()
+    if not metadata:
+        print("No metadata to retag.")
+        return 0
+
+    tagged = 0
+    for m in metadata:
+        m["entities"] = _extract_entities(m.get("text", ""))
+        if m["entities"]:
+            tagged += 1
+
+    METADATA_FILE.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+    print(f"Retagged {len(metadata)} chunks ({tagged} carry at least one entity tag).")
+    return len(metadata)
 
 
 def rebuild_index():
@@ -639,21 +923,99 @@ def rebuild_index():
 # SEARCH
 # ======================================================================
 
-def search(query, top_k=10, date_filter=None):
+def _search_vectors(index, query_vec, k, allowed_ids=None):
+    """FAISS top-k search, optionally restricted to a subset of vector ids.
+
+    The subset path is the Stage-1 date-filter fix: filtering *after* a global
+    top-k retrieval (the old approach) surfaces few/no matches once the index
+    spans many dates — the target day's chunks get crowded out of the global
+    candidate pool. Restricted searches instead brute-force score exactly the
+    allowed vectors (IndexFlat vectors are reconstructable; one day is only
+    ~hundreds of chunks), which is exact and cheap at this scale.
+
+    Returns (scores, ids) as parallel 1-D arrays, best-first.
     """
-    Hybrid search: vector similarity + keyword boost.
+    if allowed_ids is None:
+        k = min(k, index.ntotal)
+        scores, indices = index.search(query_vec, k)
+        return scores[0], indices[0]
+
+    # Batch reconstruction (CLEANUP_SPEC 4.5): one vectorized call instead of a
+    # per-id Python loop — the exclusion filters pass nearly-full id lists, so
+    # this path scales with the whole index (F13). Per-id fallback kept for
+    # older faiss builds; exactness pinned by the subset-search tests.
+    ids = np.asarray(allowed_ids, dtype=np.int64)
+    try:
+        vecs = index.reconstruct_batch(ids)
+    except AttributeError:
+        vecs = np.vstack([index.reconstruct(int(i)) for i in allowed_ids])
+    sims = vecs @ query_vec[0]
+    order = np.argsort(-sims)[:k]
+    return sims[order], np.array([allowed_ids[j] for j in order])
+
+
+def _rerank_candidates(query, candidates, top_k):
+    """Re-score (query, chunk-text) pairs with the cross-encoder (Stage 1).
+
+    Returns the top_k candidates by cross-encoder score. NOTE: the returned
+    scores are cross-encoder logits, not cosine similarities — don't compare
+    them against non-reranked scores.
+    """
+    if not candidates:
+        return []
+
+    reranker = _get_reranker()
+    pairs = [(query, meta.get("text", "")) for meta, _ in candidates]
+    scores = reranker.predict(pairs, show_progress_bar=False)
+
+    ranked = [(meta, float(s)) for (meta, _), s in zip(candidates, scores)]
+    ranked.sort(key=lambda x: x[1], reverse=True)
+    return ranked[:top_k]
+
+
+def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
+           entity_filter=None, date_from=None, date_to=None,
+           exclude_digest_date=None,
+           exclude_source_types=None, exclude_digest_before=None):
+    """
+    Search the archive: dense retrieval (optionally fused with BM25), then
+    keyword boost or cross-encoder rerank.
 
     Args:
         query: The search query string.
         top_k: Number of results to return.
         date_filter: Optional date prefix filter (e.g. "2026-04" or "2026-04-04").
+            Applied BEFORE retrieval (restricted vector search), so day-filtered
+            queries keep working as the archive grows.
+        rerank: If True, re-score the candidate pool with the cross-encoder and
+            rank by that (scores in the result are then logits, not cosine).
+            If False (default), rank by the retrieval scoring below.
+        hybrid: If True, fuse the dense ranking with a BM25 lexical ranking via
+            Reciprocal Rank Fusion (scores are then RRF sums, not cosine) —
+            fixes exact-token retrieval (tickers, CUSIPs) that embeddings miss.
+            If False (default), keep the original cosine + keyword-boost scoring.
+        entity_filter: Optional entity tag (Stage 3a) — restrict to chunks tagged
+            with this ticker/fund ("$ABR", "ABR", "Oaktree Capital Management";
+            case- and $-insensitive). Coverage = watchlist + $TICK + tracked funds.
+        date_from / date_to: Optional inclusive ISO date range (Stage 3a), e.g.
+            date_from="2026-06-01", date_to="2026-06-30". Combines with the others.
+        exclude_digest_date: Optional date prefix (Stage 4) — EXCLUDE digest-type
+            chunks from that date ("" = all digests). The reply bot passes the
+            digest day it is replying about, since that digest is already in its
+            context. Combines with the include-filters above.
+        exclude_source_types: Optional iterable of source_types to exclude
+            entirely (TEAM_DIGEST_SPEC — team askers pass {"substack"}).
+        exclude_digest_before: Optional ISO date — exclude digest-type chunks
+            dated strictly before it (pre-team-activation digests are FULL
+            digests with Substack woven in).
 
     Returns:
-        List of (metadata_dict, similarity_score) tuples, sorted by combined score.
+        List of (metadata_dict, score) tuples, best-first.
     """
-    import faiss
 
-    index, metadata = _load_index()
+    state = _get_search_state()
+    index, metadata = state["index"], state["metadata"]
+    bm25 = _get_bm25(state) if hybrid else None
     if index.ntotal == 0:
         print("Search index is empty. Run indexing first.")
         return []
@@ -664,37 +1026,52 @@ def search(query, top_k=10, date_filter=None):
     query_vec = model.encode([query], normalize_embeddings=True)
     query_vec = np.array(query_vec, dtype=np.float32)
 
-    # Retrieve more candidates than needed for hybrid re-ranking
-    search_k = min(top_k * 10, index.ntotal)
+    # Filters (Stage 1 + 3a): restrict the searched vectors up front instead
+    # of discarding non-matching chunks from a global top-k afterwards.
+    allowed_ids = _filter_ids(metadata, date_filter=date_filter,
+                              date_from=date_from, date_to=date_to,
+                              entity_filter=entity_filter,
+                              exclude_digest_date=exclude_digest_date,
+                              exclude_source_types=exclude_source_types,
+                              exclude_digest_before=exclude_digest_before)
+    if allowed_ids is not None and not allowed_ids:
+        return []
 
-    scores, indices = index.search(query_vec, search_k)
+    # Retrieve more candidates than needed for fuse/boost/rerank re-ordering
+    pool = top_k * 10
+    scores, indices = _search_vectors(index, query_vec, pool, allowed_ids)
 
-    # Extract keywords from query for boosting (words 3+ chars, lowered)
+    if hybrid and bm25 is not None:
+        # Stage 2: dense + BM25 -> RRF fuse -> candidate pool
+        dense_ids = [int(i) for i in indices if 0 <= i < len(metadata)]
+        lexical_ids = _bm25_top_ids(bm25, query, pool, allowed_ids)
+        fused = _rrf_fuse([dense_ids, lexical_ids])
+        ranked_ids = sorted(fused, key=fused.get, reverse=True)[:pool]
+        candidates = [(metadata[i], fused[i]) for i in ranked_ids]
+    else:
+        candidates = [(metadata[idx], float(score))
+                      for score, idx in zip(scores, indices)
+                      if 0 <= idx < len(metadata)]
+
+    if rerank:
+        return _rerank_candidates(query, candidates, top_k)
+
+    if hybrid and bm25 is not None:
+        return candidates[:top_k]
+
+    # Legacy scoring: keyword boost (words 3+ chars) over the cosine score
     query_words = [w.lower() for w in re.findall(r'\b\w{3,}\b', query)]
 
-    candidates = []
-    for score, idx in zip(scores[0], indices[0]):
-        if idx < 0 or idx >= len(metadata):
-            continue
-
-        meta = metadata[idx]
-
-        # Apply date filter
-        if date_filter and not meta.get("date", "").startswith(date_filter):
-            continue
-
-        # Keyword boost: add 0.05 per query keyword found in the chunk text
+    boosted = []
+    for meta, score in candidates:
         text_lower = meta.get("text", "").lower()
         keyword_hits = sum(1 for w in query_words if w in text_lower)
-        boost = keyword_hits * 0.05
-
-        combined_score = float(score) + boost
-        candidates.append((meta, combined_score))
+        boosted.append((meta, score + keyword_hits * 0.05))
 
     # Sort by combined score descending
-    candidates.sort(key=lambda x: x[1], reverse=True)
+    boosted.sort(key=lambda x: x[1], reverse=True)
 
-    return candidates[:top_k]
+    return boosted[:top_k]
 
 
 # ======================================================================
@@ -706,25 +1083,41 @@ if __name__ == "__main__":
         print("Usage:")
         print('  python search.py "your query here"')
         print('  python search.py "query" --date 2026-04')
+        print('  python search.py "query" --entity ABR')
+        print('  python search.py "query" --from 2026-06-01 --to 2026-06-30')
+        print('  python search.py "query" --rerank')
+        print('  python search.py "query" --hybrid')
         print("  python search.py --rebuild")
         print("  python search.py --index 2026-04-04")
+        print("  python search.py --retag   (backfill entity tags; metadata only)")
         sys.exit(1)
 
     if sys.argv[1] == "--rebuild":
         rebuild_index()
+
+    elif sys.argv[1] == "--retag":
+        retag_metadata()
 
     elif sys.argv[1] == "--index" and len(sys.argv) >= 3:
         index_daily_content(sys.argv[2])
 
     else:
         query = sys.argv[1]
-        date_filter = None
-        if "--date" in sys.argv:
-            di = sys.argv.index("--date")
-            if di + 1 < len(sys.argv):
-                date_filter = sys.argv[di + 1]
 
-        results = search(query, top_k=10, date_filter=date_filter)
+        def _flag_value(flag):
+            if flag in sys.argv:
+                fi = sys.argv.index(flag)
+                if fi + 1 < len(sys.argv):
+                    return sys.argv[fi + 1]
+            return None
+
+        results = search(query, top_k=10,
+                         date_filter=_flag_value("--date"),
+                         entity_filter=_flag_value("--entity"),
+                         date_from=_flag_value("--from"),
+                         date_to=_flag_value("--to"),
+                         rerank="--rerank" in sys.argv,
+                         hybrid="--hybrid" in sys.argv)
 
         if not results:
             print("No results found.")
@@ -738,6 +1131,6 @@ if __name__ == "__main__":
                     print(f"  URL: {meta['url']}")
                 if meta.get("page_number"):
                     print(f"  Page: {meta['page_number']}")
-                print(f"  ---")
+                print("  ---")
                 preview = meta["text"][:300].replace("\n", " ")
                 print(f"  {preview.encode('ascii', 'replace').decode()}...")

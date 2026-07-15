@@ -8,15 +8,14 @@ Detects new positions, exits, increases, and decreases.
 import json
 import time
 import datetime
-import urllib.request
-import urllib.error
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from config import esc, safe_href
+from net_utils import edgar_get
+
 SCRIPT_DIR = Path(__file__).parent
 CACHE_DIR = SCRIPT_DIR / "archive" / "13f_cache"
-
-EDGAR_USER_AGENT = "DailyDigest/1.0 (jtramontano@acorninv.com)"
 
 # Days to look back for new filings (check weekly for quarterly filings)
 DAYS_LOOKBACK = 7
@@ -40,17 +39,8 @@ TRACKED_FUNDS = [
 
 
 def _make_request(url):
-    """Make an HTTP request to EDGAR."""
-    req = urllib.request.Request(url)
-    req.add_header("User-Agent", EDGAR_USER_AGENT)
-    req.add_header("Accept", "application/json")
-
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            return resp.read().decode("utf-8")
-    except Exception as e:
-        print(f"    EDGAR request error: {e}")
-        return None
+    """Fetch an EDGAR endpoint as raw text (20s timeout for larger 13F payloads)."""
+    return edgar_get(url, timeout=20)
 
 
 def _get_latest_13f(cik):
@@ -69,7 +59,6 @@ def _get_latest_13f(cik):
     forms = recent.get("form", [])
     dates = recent.get("filingDate", [])
     accessions = recent.get("accessionNumber", [])
-    primary_docs = recent.get("primaryDocument", [])
 
     cutoff = (datetime.date.today() - datetime.timedelta(days=DAYS_LOOKBACK)).isoformat()
 
@@ -321,7 +310,7 @@ def fetch_fund_holdings():
         # Find and fetch the infotable
         infotable_url = _find_infotable_url(filing["index_url"])
         if not infotable_url:
-            print(f"      Could not find infotable XML")
+            print("      Could not find infotable XML")
             continue
 
         xml_text = _make_request(infotable_url)
@@ -330,7 +319,7 @@ def fetch_fund_holdings():
 
         holdings = _parse_infotable(xml_text)
         if not holdings:
-            print(f"      No holdings parsed from infotable")
+            print("      No holdings parsed from infotable")
             continue
 
         print(f"      {len(holdings)} positions, ${sum(h['value'] for h in holdings):,.0f} total")
@@ -406,7 +395,7 @@ def build_funds_html(results):
 
     html = (
         '<h2 style="font-size: 18px; border-bottom: 1px solid #ccc; '
-        'padding-bottom: 6px; margin: 28px 0 12px;">11. Fund Position Changes (13F)</h2>\n'
+        'padding-bottom: 6px; margin: 28px 0 12px;">Fund Position Changes (13F)</h2>\n'
     )
 
     for r in results:
@@ -420,8 +409,8 @@ def build_funds_html(results):
         html += (
             f'<div style="margin-bottom: 20px;">\n'
             f'<h3 style="font-size: 15px; margin: 0 0 6px;">'
-            f'<a href="{url}" style="color: #1a5276;">{fund}</a> '
-            f'<span style="color: #888; font-size: 12px;">(filed {date})</span></h3>\n'
+            f'<a href="{safe_href(url)}" style="color: #1a5276;">{esc(fund)}</a> '
+            f'<span style="color: #888; font-size: 12px;">(filed {esc(date)})</span></h3>\n'
             f'<p style="font-size: 13px; color: #555; margin: 0 0 8px;">'
             f'${total:,.0f} across {count} positions</p>\n'
         )
@@ -439,7 +428,7 @@ def build_funds_html(results):
                     chg_str = f" ({chg:+,} shares, {pct:+.0f}%)"
                 s += (
                     f'<li style="margin-bottom: 4px; font-size: 13px;">'
-                    f'{h["name"]}: {h["shares"]:,} shares, ${h["value"]:,.0f}{chg_str}</li>\n'
+                    f'{esc(h["name"])}: {h["shares"]:,} shares, ${h["value"]:,.0f}{chg_str}</li>\n'
                 )
             s += '</ul>\n'
             return s

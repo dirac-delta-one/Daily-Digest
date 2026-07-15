@@ -9,40 +9,55 @@ This handles scanned PDFs, image-heavy reports, etc.
 """
 
 import os
+import io
 import sys
 import base64
-import json
 import time
 import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.mime.text import MIMEText
 from pathlib import Path
 
 import anthropic
 from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+from config import (
+    OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, TEAM_ACTIVATION_DATE,
+    FORWARDER_ADDRESSES, esc, safe_href, unattended, is_self_artifact,
+    is_substack_email,
+)
+from config import BOT_ADDRESS  # noqa: F401  (re-exported for tests/callers)
+from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
+import cost
+from html_utils import extract_gmail_body, parse_forwarded_from, strip_forward_header
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
 from market_data import fetch_market_data, build_market_table_html, format_market_data_for_prompt
 from macro_data import fetch_macro_data, build_macro_table_html, format_macro_for_prompt
-from memory import get_memory_context, update_memory
+from memory import (
+    get_memory_context, update_memory,
+    get_substack_memory_context, update_substack_memory,
+)
 from alerts import evaluate_alerts, build_alerts_html
 from earnings import fetch_earnings_calendar, build_earnings_html, format_earnings_for_prompt
-from trace_data import fetch_trace_data, format_trace_for_prompt, build_trace_html
-from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html
+from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html, commit_seen
 from ratings import fetch_rating_actions, format_ratings_for_prompt
 from fund_tracking import fetch_fund_holdings, format_funds_for_prompt, build_funds_html
-from octus import fetch_octus_articles, fetch_octus_deals, format_octus_for_prompt, build_deals_table_html
 from thirteen_d import fetch_wiltw
 from fed_research import fetch_research_articles, format_research_for_prompt
 from treasury_auctions import fetch_treasury_auctions, format_auctions_for_prompt, build_auctions_table_html
 from cftc_cot import fetch_cot_data, format_cot_for_prompt
-from fed_balance_sheet import fetch_fed_balance_sheet, format_fed_bs_for_prompt, build_fed_bs_table_html, check_fed_stress
+from fed_balance_sheet import (
+    fetch_fed_balance_sheet, format_fed_bs_for_prompt, build_fed_bs_table_html, check_fed_stress,
+)
 from fdic_monitor import fetch_failed_banks, format_fdic_for_prompt
 from archive import archive_daily_content
+from content_monitor import record_and_check
 from search import index_daily_content
 
 # --- Configuration ---
@@ -57,11 +72,50 @@ for _arg in sys.argv[1:]:
             pass
 MAX_EMAILS = 50  # max emails to include in digest
 MAX_PDF_SIZE_MB = 5  # skip PDFs larger than this (to control token usage)
-DIGEST_RECIPIENTS = [
-    "jtramontano@acorninv.com",
-    "jaredtramontano@gmail.com",
-]
-CLAUDE_MODEL = "claude-opus-4-6"
+
+# Email body extract fed to Opus (FORWARDING_FIX_SPEC Stage 2). Replaces the
+# ~200-char snippet so forwarded content (Bloomberg roundups, text broker notes)
+# is actually readable at digest time. Text-bearing emails get the full slice;
+# PDF-carried emails stay lean (their content is the attached document); a
+# per-run total budget bounds heavy inbox days (forwarded text emails funded first).
+EMAIL_BODY_PROMPT_CHARS = 4000
+EMAIL_BODY_PDF_CHARS = 500
+EMAIL_BODY_TOTAL_CHARS = 40000
+def _recipients_from_env(var, default):
+    """Comma-split, whitespace-stripped recipient list from an env var."""
+    return [r.strip() for r in os.environ.get(var, default).split(",") if r.strip()]
+
+
+# Recipients default to production (jared); override with the DIGEST_TO env var
+# (e.g. set DIGEST_TO=acohen@acorninv.com on a test machine). midday.py and
+# reply_monitor.py import this, so the override applies there too. This is the
+# FULL variant's audience (Substack included) — TEAM_DIGEST_SPEC Stage 1.
+# Receiving-side policy (operator, 2026-07-14): recipients are @acorninv.com
+# addresses ONLY. The bot was removed as its own recipient (CLEANUP_SPEC 2.5):
+# the self-send put every digest/alert into the very inbox the digest READS as
+# a source (in:inbox, last 24h) — a latent ingestion loop that would have
+# first fired at server deploy. _is_self_artifact below is the code-side
+# backstop should a self-send ever be reintroduced.
+_DEFAULT_RECIPIENTS = "jtramontano@acorninv.com"
+DIGEST_RECIPIENTS = _recipients_from_env("DIGEST_TO", _DEFAULT_RECIPIENTS)
+
+# The Substack-free TEAM variant's audience (TEAM_DIGEST_SPEC). Default EMPTY:
+# team generation is skipped entirely until a recipient is added (the Stage-5
+# activation checklist), so the second 2-pass run costs nothing today.
+TEAM_RECIPIENTS = _recipients_from_env("DIGEST_TO_TEAM", "")
+
+# Prefixed onto the FULL variant's subjects (daily + weekly) so the Substack-
+# inclusive digest jared receives is visually distinguishable from the team
+# variant, which keeps the plain subject. The reply-bot Gmail query matches on
+# DIGEST_SUBJECT_PREFIX (a separate subject: term from the "Re:" anchor), so this
+# leading marker does NOT break reply matching — see reply_monitor.check_for_replies.
+FULL_SUBJECT_MARKER = "[FULL] "
+CLAUDE_MODEL = OPUS_MODEL
+
+# BOT_ADDRESS + the self-mail detector moved to config.py (2026-07-15) so the
+# INDEXER can share them (search.py can't import digest — circular). The
+# private alias keeps the existing callers (midday) and tests unchanged.
+_is_self_artifact = is_self_artifact
 
 # Paths (relative to this script)
 SCRIPT_DIR = Path(__file__).parent
@@ -70,8 +124,22 @@ TOKEN_FILE = SCRIPT_DIR / "token.json"  # auto-generated after first login
 DIGESTS_DIR = SCRIPT_DIR / "digests"  # saved daily digests for weekly summary
 
 
+def _unattended():
+    """True when running headless — delegates to config.unattended() (shared
+    with thirteen_d's login guard since Stage 2.5)."""
+    return unattended()
+
+
 def get_gmail_service():
-    """Authenticate and return a Gmail API service object."""
+    """Authenticate and return a Gmail API service object.
+
+    Unattended mode (F1a-1): with DIGEST_UNATTENDED set, a dead/expired token
+    FAILS FAST (SystemExit 3) instead of falling through to the interactive
+    browser consent — on a headless server `flow.run_local_server()` blocks
+    forever, so the run never exits and even the wrapper's nonzero-exit alert
+    can't fire (observed live 2026-07-07). The fast failure lets the wrapper
+    fire `run_alert` and leaves re-consent as a deliberate manual step.
+    """
     creds = None
 
     if TOKEN_FILE.exists():
@@ -79,8 +147,20 @@ def get_gmail_service():
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
+            try:
+                creds.refresh(Request())
+            except RefreshError as e:
+                # Refresh token expired/revoked (invalid_grant) — don't crash;
+                # fall through to a fresh browser consent below.
+                print(f"  Gmail refresh token rejected ({e}). Re-authorizing via browser consent...")
+                creds = None
+
+        if not creds or not creds.valid:
+            if _unattended():
+                print("ERROR: Gmail token invalid/expired and DIGEST_UNATTENDED is set — "
+                      "refusing to open an interactive browser consent (it would hang a "
+                      "headless run forever). Re-consent manually on this machine, then re-run.")
+                raise SystemExit(3)
             if not CREDENTIALS_FILE.exists():
                 print(f"ERROR: {CREDENTIALS_FILE} not found.")
                 print("Download it from Google Cloud Console → APIs & Services → Credentials.")
@@ -159,6 +239,15 @@ def fetch_recent_emails(service, hours=HOURS_LOOKBACK, max_results=MAX_EMAILS):
         headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
         snippet = msg.get("snippet", "")
 
+        outer_from = headers.get("From", "Unknown")
+        subject = headers.get("Subject", "(no subject)")
+
+        # Never ingest the system's own output (or replies to it) as source
+        # material — CLEANUP_SPEC 2.5.
+        if _is_self_artifact(outer_from, subject):
+            print(f"    Skipping self/digest artifact: {subject[:60]}")
+            continue
+
         # Check for PDF attachments
         pdfs = []
         parts = msg["payload"].get("parts", [])
@@ -166,11 +255,27 @@ def fetch_recent_emails(service, hours=HOURS_LOOKBACK, max_results=MAX_EMAILS):
             pdfs = get_pdf_attachments(service, msg_meta["id"], parts)
 
         # Extract full body text for archiving/RAG (not sent to Opus — too large)
-        body_text = _extract_email_body(msg["payload"])
+        body_text = extract_gmail_body(msg["payload"], cap=50000)
+
+        # Forwarding (FORWARDING_FIX_SPEC Stage 1): when jared forwards research
+        # in, the outer From is jared — recover the ORIGINAL sender from the
+        # forwarded body so the digest can attribute/group by the real source.
+        # Only attempt on likely forwards (known forwarder OR FW:/Fwd: subject);
+        # a miss falls back to the outer sender.
+        effective_from = outer_from
+        is_forward = subject.lower().startswith(("fw:", "fwd:")) or any(
+            addr in outer_from.lower() for addr in FORWARDER_ADDRESSES
+        )
+        if is_forward:
+            parsed = parse_forwarded_from(body_text)
+            if parsed:
+                display, email = parsed
+                effective_from = f"{display} <{email}>" if display != email else email
 
         emails.append({
-            "from": headers.get("From", "Unknown"),
-            "subject": headers.get("Subject", "(no subject)"),
+            "from": outer_from,
+            "effective_from": effective_from,
+            "subject": subject,
             "date": headers.get("Date", ""),
             "snippet": snippet,
             "body": body_text,
@@ -178,28 +283,6 @@ def fetch_recent_emails(service, hours=HOURS_LOOKBACK, max_results=MAX_EMAILS):
         })
 
     return emails
-
-
-def _extract_email_body(payload):
-    """Recursively extract plain text body from Gmail message payload."""
-    body = ""
-    mime_type = payload.get("mimeType", "")
-
-    if payload.get("body", {}).get("data"):
-        decoded = base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="replace")
-        if "plain" in mime_type:
-            body += decoded
-        elif "html" in mime_type and not body:
-            # Strip HTML tags as fallback
-            import re
-            body += re.sub(r'<[^>]+>', ' ', decoded)
-
-    for part in payload.get("parts", []):
-        part_body = _extract_email_body(part)
-        if part_body:
-            body += part_body
-
-    return body[:50000]  # cap at 50K chars per email
 
 
 SYSTEM_PROMPT = """\
@@ -248,17 +331,32 @@ For Form 4s, note who traded, how many shares, and at what price. \
 For other forms, highlight the most important details. \
 Organize by company. Include ticker, form type, date, and link to the filing.
 
-Sections 9 (Rating Actions), 10 (WSJ/FT Articles), and 11 (Fund Position Changes) \
-are appended separately — do NOT generate those yourself.
+9. **Rating Actions** — From the rating agency actions provided (Moody's, S&P, Fitch). \
+One line each: entity (with ticker if known), the action (upgrade/downgrade/outlook change) \
+and specifics (new rating, notches, rationale). Lead with downgrades and fallen angels — \
+they carry the most credit signal. Tag the source at the end of each line.
+
+The "WSJ/FT Articles", "Fund Position Changes", and "Bankruptcy Court Activity" \
+sections are appended separately AFTER your digest as UNNUMBERED sections — do NOT \
+generate, number, or reserve numbers for them. Number ONLY your own sections above, \
+sequentially (1, 2, 3, …), omitting any that are empty — however many you produce, \
+there is nothing to collide with below. The PACER docket entries below are provided \
+only so you can cross-reference them where relevant (e.g. Takeaways/Themes); do NOT \
+write a standalone bankruptcy or court-activity section.
 
 Rules:
 - Be specific. Include numbers, tickers, dates, and names — not vague summaries.
+- Do not expand a ticker into a company name unless that name appears in the source \
+material. If you are unsure of the issuer, cite the bare ticker (e.g. "$TCBK") rather \
+than guessing the company name.
 - If multiple sources discuss the same topic, synthesize them and note where they agree \
 or disagree.
 - Tag each claim with its source in parentheses at the end, e.g. "(Grant's)" or "(Greenmantle)". \
 Be consistent — always at the end of the bullet, never woven into the sentence. \
 Only cite real sources: publication names (Grant's, FT, Bloomberg), SEC filing types, \
-agency names. NEVER cite "Cross-Digest Memory" or any internal system component as a source.
+agency names. NEVER cite "Cross-Digest Memory" or any internal system component as a source, \
+and NEVER append "memory" (or any system-layer word) to a source tag — write "(Greenmantle)", \
+never "(Greenmantle memory)".
 - Skip promotional content, subscription upsells, and anything with no analytical substance.
 - Keep it scannable — short bullets, no filler.
 - If cross-digest memory is provided, use it to add context about evolving stories \
@@ -296,6 +394,7 @@ Use inline styles only (no <style> blocks). Every digest must look identical in 
   <!-- Section 6: Worth Reading in Full — hyperlink titles to source URLs -->
   <!-- Section 7: Bloomberg — only if bloomberg.net emails exist -->
   <!-- Section 8: Recent SEC Filings — only if filings exist -->
+  <!-- Section 9: Rating Actions — only if rating agency actions exist -->
 
   <!-- Styling rules for all sections: -->
   <!-- Section headers: h2, 18px, border-bottom, numbered as above -->
@@ -310,27 +409,94 @@ Follow this template exactly. Same fonts, same sizes, same spacing every single 
 """
 
 
-def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
-                         macro_data, memory_context, earnings, trace_data, pacer_entries,
+def _looks_like_promo(e):
+    """Very conservative 'clearly spam/promo' guard (FORWARDING_FIX_SPEC decision
+    4). Trips only on obvious marketing junk (>=3 promo markers), so a real
+    forwarded note or subscribed newsletter is never demoted. A promo email is
+    NOT dropped — it just keeps its short snippet instead of a full body extract."""
+    text = f"{e.get('subject', '')} {e.get('snippet', '')}".lower()
+    markers = (
+        "unsubscribe", "view in browser", "view this email in your browser",
+        "manage preferences", "manage your subscription", "special offer",
+        "limited time", "shop now", "% off", "promo code",
+    )
+    return sum(m in text for m in markers) >= 3
+
+
+def _email_body_for_prompt(e, cap):
+    """Body slice shown to Opus for one email (FORWARDING_FIX_SPEC Stage 2):
+    forwarded-header stripped, capped at `cap` chars. Falls back to the snippet
+    when there is no body or no budget (cap <= 0)."""
+    if cap <= 0:
+        return e.get("snippet", "")
+    body = (e.get("body") or "").strip()
+    if not body:
+        return e.get("snippet", "")
+    body = strip_forward_header(body)
+    if len(body) > cap:
+        body = body[:cap].rstrip() + " […]"
+    return body
+
+
+def _build_source_prompt(*, emails, sec_filings, market_data,
+                         macro_data, memory_context, earnings, pacer_entries,
                          rating_actions=None, fund_results=None,
-                         octus_articles=None, octus_deals=None, wiltw=None,
+                         wiltw=None,
                          research_articles=None, treasury_auctions=None,
                          cot_data=None, fed_bs=None, bank_failures=None):
-    """Build the full source material text for the Opus prompt."""
+    """Build the TEAM-shareable source material text for the Opus prompt.
+
+    Keyword-only (Phase 3.1): with 15 same-typed source arguments, positional
+    calls were a misroute footgun — `*` forces every caller to name each source.
+
+    Substack is NOT here (TEAM_DIGEST_SPEC): it is personal to jared, so it
+    lives in `_build_substack_block`, appended as a TRAILING block for the
+    full variant only — which also makes this prompt a strict prefix of the
+    full prompt, so the two variants share the prompt cache.
+    """
+    # Email body-extract budget (Stage 2): text-bearing emails get the full
+    # slice, PDF-carried emails stay lean (content is the attachment), promo
+    # keeps only its snippet. When the total budget is tight, forwarded text
+    # emails are funded first.
+    def _cap_for(e):
+        if _looks_like_promo(e):
+            return 0
+        return EMAIL_BODY_PDF_CHARS if e.get("pdfs") else EMAIL_BODY_PROMPT_CHARS
+
+    def _priority(k):
+        e = emails[k]
+        is_fwd = e.get("effective_from", e.get("from")) != e.get("from")
+        return (bool(e.get("pdfs")), not is_fwd)  # non-PDF forwards first
+
+    remaining = EMAIL_BODY_TOTAL_CHARS
+    budget = {}
+    for k in sorted(range(len(emails)), key=_priority):
+        give = max(0, min(_cap_for(emails[k]), remaining))
+        budget[k] = give
+        remaining -= give
+
     # Email metadata
     email_lines = []
     for i, e in enumerate(emails):
         pdf_note = ""
-        if e["pdfs"]:
+        if e.get("pdfs"):
             names = ", ".join(p["filename"] for p in e["pdfs"])
             pdf_note = f"\n📎 PDF attachments (included below): {names}"
 
+        outer = e.get("from", "Unknown")
+        eff = e.get("effective_from", outer)
+        from_line = (
+            f"From: {eff}  (forwarded by {outer})" if eff and eff != outer
+            else f"From: {outer}"
+        )
+        content = _email_body_for_prompt(e, budget[i])
+
         email_lines.append(
             f"--- Email {i+1} ---\n"
-            f"From: {e['from']}\n"
+            f"{from_line}\n"
             f"Subject: {e['subject']}\n"
             f"Date: {e['date']}\n"
-            f"Preview: {e['snippet']}"
+            f"Content: {content}"
             f"{pdf_note}"
         )
 
@@ -342,17 +508,9 @@ def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
             "extract and synthesize their key content."
         )
 
-    substack_note = ""
-    if substack_articles:
-        substack_note = (
-            f"\n\nAdditionally, {len(substack_articles)} paid Substack articles are included below. "
-            "Treat these as primary research sources — summarize their key arguments, "
-            "data points, and investment implications."
-        )
-
     prompt = (
         f"Here are {len(emails)} emails from my inbox in the last {HOURS_LOOKBACK} hours."
-        f"{pdf_note}{substack_note}\n\n"
+        f"{pdf_note}\n\n"
         + "\n\n".join(email_lines)
     )
 
@@ -374,25 +532,6 @@ def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
     # Cross-digest memory
     if memory_context:
         prompt += "\n\n" + "=" * 40 + "\n" + memory_context + "\n" + "=" * 40
-
-    # Substack articles
-    if substack_articles:
-        substack_lines = []
-        for i, a in enumerate(substack_articles):
-            substack_lines.append(
-                f"--- Substack Article {i+1} ---\n"
-                f"Title: {a['title']}\n"
-                f"Author: {a['author']}\n"
-                f"URL: {a['url']}\n\n"
-                f"{a['text']}"
-            )
-        prompt += "\n\n" + "=" * 40 + "\nSUBSTACK ARTICLES:\n" + "=" * 40 + "\n\n"
-        prompt += "\n\n".join(substack_lines)
-
-    # Octus Intelligence + Deals
-    octus_text = format_octus_for_prompt(octus_articles or [], octus_deals or [])
-    if octus_text:
-        prompt += "\n\n" + "=" * 40 + "\n" + octus_text + "\n" + "=" * 40
 
     # 13D Research WILTW (Opus-summarized PDF)
     if wiltw and wiltw.get("summary"):
@@ -421,11 +560,6 @@ def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
 
         prompt += "\n\n" + "=" * 40 + "\nSEC FILINGS:\n" + "=" * 40 + "\n\n"
         prompt += "\n\n".join(filing_lines)
-
-    # TRACE bond data
-    trace_text = format_trace_for_prompt(trace_data)
-    if trace_text:
-        prompt += "\n\n" + "=" * 40 + "\n" + trace_text + "\n" + "=" * 40
 
     # PACER docket entries
     pacer_text = format_pacer_for_prompt(pacer_entries)
@@ -477,49 +611,127 @@ def _build_source_prompt(emails, substack_articles, sec_filings, market_data,
     return prompt
 
 
-def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
+def _build_substack_block(substack_articles, substack_memory_context=None):
+    """Trailing prompt block for the FULL variant only (TEAM_DIGEST_SPEC §1):
+    the Substack articles + the substack-memory context.
+
+    Kept OUT of _build_source_prompt so the team prompt is a strict prefix of
+    the full prompt — both extras must sit here in the tail, after the shared
+    cache breakpoint, or the prefix diverges and the variants stop sharing
+    the prompt cache. Returns "" when there is nothing to add.
+    """
+    parts = []
+
+    if substack_memory_context:
+        parts.append("=" * 40 + "\n" + substack_memory_context + "\n" + "=" * 40)
+
+    if substack_articles:
+        substack_lines = []
+        for i, a in enumerate(substack_articles):
+            substack_lines.append(
+                f"--- Substack Article {i+1} ---\n"
+                f"Title: {a['title']}\n"
+                f"Author: {a['author']}\n"
+                f"URL: {a['url']}\n\n"
+                f"{a['text']}"
+            )
+        parts.append(
+            f"Additionally, {len(substack_articles)} paid Substack articles follow. "
+            "Treat these as primary research sources — summarize their key arguments, "
+            "data points, and investment implications.\n\n"
+            + "=" * 40 + "\nSUBSTACK ARTICLES:\n" + "=" * 40 + "\n\n"
+            + "\n\n".join(substack_lines)
+        )
+
+    return "\n\n".join(parts)
+
+
+def _strip_to_html(text):
+    """Drop any model preamble before the first <div — the emailed HTML must
+    start at the template (Opus occasionally prefixes a sentence of prose).
+    Used by digest pass 2 and the weekly summary; midday has its own copy."""
+    i = text.find("<div")
+    return text[i:] if i > 0 else text
+
+
+def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           market_data=None, macro_data=None, earnings=None,
-                          trace_data=None, pacer_entries=None,
+                          pacer_entries=None,
                           rating_actions=None, fund_results=None,
-                          octus_articles=None, octus_deals=None, wiltw=None,
+                          wiltw=None,
                           research_articles=None, treasury_auctions=None,
-                          cot_data=None, fed_bs=None, bank_failures=None):
-    """Send all sources to Claude for digest generation (2-pass)."""
+                          cot_data=None, fed_bs=None, bank_failures=None,
+                          substack_memory_context=None, cost_label=""):
+    """Send all sources to Claude for digest generation (2-pass).
+
+    Keyword-only (Phase 3.1) — see `_build_source_prompt` for the rationale.
+
+    TEAM_DIGEST_SPEC: the team variant passes substack_articles=[] (and no
+    substack_memory_context); the full variant passes both, which land in a
+    trailing content block AFTER the shared cache breakpoint — so when both
+    variants run (team first), the full run reads the team run's cached
+    prefix and pays only for the substack tail. `cost_label` distinguishes
+    the variants in the per-run cost summary (e.g. " (team)").
+    """
     client = anthropic.Anthropic()
     substack_articles = substack_articles or []
     sec_filings = sec_filings or []
     market_data = market_data or []
     macro_data = macro_data or []
     earnings = earnings or []
-    trace_data = trace_data or []
     pacer_entries = pacer_entries or []
     rating_actions = rating_actions or []
     fund_results = fund_results or []
-    octus_articles = octus_articles or []
-    octus_deals = octus_deals or []
     research_articles = research_articles or []
     treasury_auctions = treasury_auctions or []
     cot_data = cot_data or []
     fed_bs = fed_bs or []
     bank_failures = bank_failures or []
 
-    # Get cross-digest memory context
+    # Substack-via-email boundary (2026-07-15): paid Substack newsletters also
+    # arrive as inbox email (e.g. PETITION from petition@substack.com). They are
+    # Substack content — jared-personal — so they must NOT enter the shared/team
+    # prompt prefix. Drop them here; because BOTH variants filter identically the
+    # cached prefix stays byte-identical, and the FULL variant still gets Substack
+    # via the scraped substack_block. (Their index chunks are tagged "substack" in
+    # search._chunks_for_date; midday drops them too.)
+    shared_emails = [
+        e for e in emails
+        if not is_substack_email(e.get("effective_from"), e.get("from"))
+    ]
+    n_sub_email = len(emails) - len(shared_emails)
+    if n_sub_email:
+        print(f"  Excluded {n_sub_email} Substack-origin email(s) from the digest "
+              "prompt (jared-personal; FULL still gets Substack via the scraper).")
+
+    # Get cross-digest memory context (the shared/team store — both variants)
     memory_context = get_memory_context()
 
-    # Build full source prompt
+    # Build the team-shareable source prompt (no Substack — see the builder)
     prompt = _build_source_prompt(
-        emails, substack_articles, sec_filings,
-        market_data, macro_data, memory_context,
-        earnings, trace_data, pacer_entries,
-        rating_actions, fund_results, octus_articles, octus_deals, wiltw,
-        research_articles, treasury_auctions, cot_data, fed_bs, bank_failures,
+        emails=shared_emails,
+        sec_filings=sec_filings,
+        market_data=market_data,
+        macro_data=macro_data,
+        memory_context=memory_context,
+        earnings=earnings,
+        pacer_entries=pacer_entries,
+        rating_actions=rating_actions,
+        fund_results=fund_results,
+        wiltw=wiltw,
+        research_articles=research_articles,
+        treasury_auctions=treasury_auctions,
+        cot_data=cot_data,
+        fed_bs=fed_bs,
+        bank_failures=bank_failures,
     )
 
     # Build the content array for Claude's messages API
     content = [{"type": "text", "text": prompt}]
 
-    # Add each PDF as a document block
-    for e in emails:
+    # Add each PDF as a document block (shared_emails only — a Substack-origin
+    # email's attachments follow the same jared-personal boundary as its body)
+    for e in shared_emails:
         for pdf in e["pdfs"]:
             content.append({
                 "type": "text",
@@ -534,14 +746,41 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
                 },
             })
 
+    # Prompt caching (Step 3): the source material (text + PDFs) is identical across
+    # both passes, so mark the last shared block as a cache breakpoint. Both passes use
+    # the SAME system prompt and put their per-pass instruction AFTER this cached prefix,
+    # so pass 1 writes the cache and pass 2 reads it (~0.1x) instead of re-paying full
+    # price to re-send the sources+PDFs. The passes run seconds apart, well within the
+    # 5-minute cache TTL. Validated output-equivalent + cache-engaging 2026-07-01 (see
+    # WORKLOG) — caching is transparent to the model (identical tokens either way).
+    # TEAM_DIGEST_SPEC: this breakpoint also marks the team/full SHARED prefix.
+    content[-1] = {**content[-1], "cache_control": {"type": "ephemeral"}}
+
+    # Substack tail (full variant only): articles + substack-memory context,
+    # with its own breakpoint so the full run's two passes share it too.
+    substack_block = _build_substack_block(substack_articles, substack_memory_context)
+    if substack_block:
+        content.append({
+            "type": "text",
+            "text": "\n" + substack_block,
+            "cache_control": {"type": "ephemeral"},
+        })
+
     # ---- PASS 1: Generate initial digest ----
     print("  Pass 1: Generating initial digest...")
 
+    pass1_content = content + [{
+        "type": "text",
+        "text": (
+            "Using the source material above, generate today's daily research digest now, "
+            "following the template and rules in the system prompt exactly."
+        ),
+    }]
     response = client.messages.create(
         model=CLAUDE_MODEL,
         max_tokens=20000,
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": content}],
+        messages=[{"role": "user", "content": pass1_content}],
     )
 
     draft = response.content[0].text
@@ -550,71 +789,81 @@ def summarize_with_claude(emails, substack_articles=None, sec_filings=None,
     p1_input = response.usage.input_tokens
     p1_output = response.usage.output_tokens
     print(f"  Pass 1 tokens: {p1_input:,} in + {p1_output:,} out")
+    cost.record(f"digest pass 1{cost_label}", CLAUDE_MODEL, response.usage)
 
     # ---- PASS 2: Review and enhance ----
+    # Same system + same cached source prefix as pass 1; the review instruction (with the
+    # draft) goes in the trailing block so the cached prefix stays byte-identical.
     print("  Pass 2: Reviewing for missed content...")
 
-    review_prompt = [
-        {"type": "text", "text": (
-            "You are reviewing a draft daily research digest against the original source material.\n\n"
-            "Below is the DRAFT DIGEST, followed by ALL the original source material it was based on.\n\n"
-            "Your job:\n"
-            "1. Compare the draft against every source. Identify any important items that were MISSED — "
-            "specific data points, trade ideas, tickers, price targets, key arguments, or surprising findings "
-            "that should have been included but weren't.\n"
-            "2. Check for any ERRORS — wrong numbers, misattributed sources, or mischaracterized arguments.\n"
+    pass2_content = content + [{
+        "type": "text",
+        "text": (
+            "Above is all of today's original source material.\n\n"
+            "Below is a DRAFT DIGEST you produced from it. Review the draft against the "
+            "source material above:\n"
+            "1. Identify any important items that were MISSED — specific data points, trade "
+            "ideas, tickers, price targets, key arguments, or surprising findings that should "
+            "have been included but weren't.\n"
+            "2. Check for any ERRORS — wrong numbers, misattributed sources, or mischaracterized "
+            "arguments.\n"
             "3. Check that every bullet has a source tag.\n"
             "4. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
             "and fixes any errors. Keep the exact same HTML template and formatting.\n\n"
-            "If the draft was already comprehensive, return it mostly unchanged — don't pad it with filler.\n"
-            "If you found missed items, weave them into the appropriate sections.\n\n"
+            "If the draft was already comprehensive, return it mostly unchanged — don't pad it "
+            "with filler.\n\n"
             "DRAFT DIGEST:\n"
             "═══════════════════════════════════════\n"
             f"{draft}\n"
-            "═══════════════════════════════════════\n\n"
-            "ORIGINAL SOURCE MATERIAL:\n"
-        )}
-    ]
-    # Append the same source content (text block + PDFs)
-    review_prompt.extend(content)
-
+            "═══════════════════════════════════════\n"
+        ),
+    }]
     review_response = client.messages.create(
         model=CLAUDE_MODEL,
         max_tokens=20000,
-        system=(
-            "You are a senior research analyst reviewing a junior analyst's daily digest. "
-            "Your job is to catch anything important that was missed and produce the final version. "
-            "Use the exact same HTML template and formatting as the draft. "
-            "Do not add filler — only add genuinely important missed items."
-        ),
-        messages=[{"role": "user", "content": review_prompt}],
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": pass2_content}],
     )
 
-    final = review_response.content[0].text
-
-    # Strip any preamble text before the actual HTML
-    html_start = final.find("<div")
-    if html_start > 0:
-        final = final[html_start:]
+    final = _strip_to_html(review_response.content[0].text)
 
     # Log total token usage
     p2_input = review_response.usage.input_tokens
     p2_output = review_response.usage.output_tokens
     print(f"  Pass 2 tokens: {p2_input:,} in + {p2_output:,} out")
+    cost.record(f"digest pass 2{cost_label}", CLAUDE_MODEL, review_response.usage)
 
-    total_input = p1_input + p2_input
-    total_output = p1_output + p2_output
-    input_cost = (total_input / 1_000_000) * 15
-    output_cost = (total_output / 1_000_000) * 75
-    total_cost = input_cost + output_cost
+    # Cost (cache-aware): usage.input_tokens excludes cached tokens, so price via
+    # cost.cost_of, which bills cache reads at 0.1x and writes at 1.25x.
+    def _cache_tokens(usage):
+        return (getattr(usage, "cache_read_input_tokens", 0) or 0,
+                getattr(usage, "cache_creation_input_tokens", 0) or 0)
+    cr1, cw1 = _cache_tokens(response.usage)
+    cr2, cw2 = _cache_tokens(review_response.usage)
+    total_cost = (cost.cost_of(CLAUDE_MODEL, p1_input, p1_output, cr1, cw1)
+                  + cost.cost_of(CLAUDE_MODEL, p2_input, p2_output, cr2, cw2))
 
-    print(f"  Total: {total_input:,} in + {total_output:,} out")
-    print(f"  Estimated cost: ${total_cost:.2f} (${input_cost:.2f} in + ${output_cost:.2f} out)")
+    print(f"  Cache: pass 1 wrote {cw1:,} tok; pass 2 read {cr2:,} tok from cache")
+    print(f"  Estimated 2-pass cost: ${total_cost:.2f}")
 
-    return final, prompt  # Return prompt too for alert evaluation
+    # Source text for alert evaluation — the variant's view (the team variant
+    # has no substack block, so its alerts can never cite Substack). alerts.py
+    # evaluates only the first ~50k chars; with the substack block now at the
+    # TAIL it would rarely make that window, silently blinding the FULL alert
+    # box to Substack (e.g. PETITION flagging a distressed exchange). Carve
+    # the window instead: most of it for the shared sources, a guaranteed
+    # slice for Substack.
+    if substack_block:
+        head = prompt[:35000]
+        if len(prompt) > 35000:
+            head += "\n\n[...remaining shared sources truncated for alert evaluation...]"
+        source_text = head + "\n\n" + substack_block[:15000]
+    else:
+        source_text = prompt
+    return final, source_text
 
 
-def _rank_news_articles(articles, max_articles=8):
+def _rank_news_articles(articles, max_articles=15):
     """Use Claude to force-rank articles by relevance for a credit/distressed investor."""
     if len(articles) <= max_articles:
         return articles
@@ -636,10 +885,10 @@ def _rank_news_articles(articles, max_articles=8):
 
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model=HAIKU_MODEL,
             max_tokens=500,
             system=(
-                "You are selecting the 5-8 most relevant news articles for a "
+                f"You are selecting the {max_articles} most relevant news articles for a "
                 "credit/distressed investment analyst. Be RUTHLESS — only keep articles "
                 "directly relevant to: credit markets, bankruptcies, restructuring, "
                 "leveraged finance, specialty finance, special situations, distressed credit, "
@@ -650,21 +899,15 @@ def _rank_news_articles(articles, max_articles=8):
                 "weight-loss drugs, tech product launches, lifestyle, sports, "
                 "entertainment, and anything without a direct credit/macro angle."
             ),
+            output_config=json_schema_output(wrapped_array_schema("indices", "integer")),
             messages=[{"role": "user", "content": (
-                f"Below are {len(articles)} articles. Return ONLY the index numbers of "
-                f"the top {max_articles} most relevant, in order of relevance. "
-                f"Output as a JSON array of integers, nothing else.\n\n{article_list}"
+                f"Below are {len(articles)} articles. Return the index numbers of "
+                f"the top {max_articles} most relevant, in order of relevance, as a JSON "
+                f'object {{"indices": [ ... ]}}, nothing else.\n\n{article_list}'
             )}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        indices = json.loads(text)
+        indices = parse_json_response(response.content[0].text)["indices"]
         ranked = []
         for idx in indices:
             if isinstance(idx, int) and 0 <= idx < len(articles):
@@ -674,6 +917,7 @@ def _rank_news_articles(articles, max_articles=8):
         tokens_out = response.usage.output_tokens
         print(f"  Ranked: kept {len(ranked)}/{len(articles)} articles "
               f"({tokens_in:,} in + {tokens_out:,} out)")
+        cost.record("news ranking", HAIKU_MODEL, response.usage)
 
         return ranked if ranked else articles[:max_articles]
 
@@ -692,7 +936,7 @@ def build_news_html(articles):
 
     html = (
         '<h2 style="font-size: 18px; border-bottom: 1px solid #ccc; '
-        'padding-bottom: 6px; margin: 28px 0 12px;">10. WSJ/FT Articles</h2>\n'
+        'padding-bottom: 6px; margin: 28px 0 12px;">WSJ/FT Articles</h2>\n'
         '<ul style="padding-left: 20px; margin: 0;">\n'
     )
 
@@ -707,21 +951,21 @@ def build_news_html(articles):
 
         if url:
             headline = (
-                f'<a href="{url}" style="color: #1a5276; text-decoration: none; '
-                f'border-bottom: 1px solid #ccc;">{title}</a>'
+                f'<a href="{safe_href(url)}" style="color: #1a5276; text-decoration: none; '
+                f'border-bottom: 1px solid #ccc;">{esc(title)}</a>'
             )
         else:
-            headline = title
+            headline = esc(title)
 
         html += (
             f'<li style="margin-bottom: 10px; font-size: 14px;">'
             f'{headline} '
             f'<span style="color: {src_color}; font-weight: 700; font-size: 11px;">'
-            f'({source})</span>'
+            f'({esc(source)})</span>'
         )
 
         if summary:
-            html += f'<br><span style="color: #555; font-size: 13px;">{summary}</span>'
+            html += f'<br><span style="color: #555; font-size: 13px;">{esc(summary)}</span>'
 
         html += '</li>\n'
 
@@ -731,8 +975,8 @@ def build_news_html(articles):
 
 
 def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
-                          earnings_html, news_html, trace_html, pacer_html,
-                          ratings_html="", funds_html="", deals_html="",
+                          earnings_html, news_html, pacer_html,
+                          funds_html="",
                           auctions_html="", fed_bs_html=""):
     """
     Assemble the final digest HTML by injecting pre-built sections
@@ -766,14 +1010,8 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
     post_sections = ""
     if news_html:
         post_sections += news_html
-    if ratings_html:
-        post_sections += ratings_html
-    if deals_html:
-        post_sections += deals_html
     if funds_html:
         post_sections += funds_html
-    if trace_html:
-        post_sections += trace_html
     if pacer_html:
         post_sections += pacer_html
 
@@ -784,11 +1022,15 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
     return digest_html
 
 
-def save_daily_digest(html, date=None):
-    """Save the daily digest HTML to disk for weekly summary."""
+def save_daily_digest(html, date=None, team=False):
+    """Save the daily digest HTML to disk for weekly summary.
+
+    team=True saves the Substack-free variant alongside (TEAM_DIGEST_SPEC) —
+    each variant's weekly wrap synthesizes its own dailies."""
     date = date or datetime.date.today()
     DIGESTS_DIR.mkdir(exist_ok=True)
-    filepath = DIGESTS_DIR / f"{date.isoformat()}.html"
+    suffix = "_team" if team else ""
+    filepath = DIGESTS_DIR / f"{date.isoformat()}{suffix}.html"
     filepath.write_text(html, encoding="utf-8")
     print(f"  Saved digest to {filepath}")
 
@@ -798,19 +1040,49 @@ def _is_friday():
     return datetime.date.today().weekday() == 4
 
 
-def _get_week_digests():
-    """Load this week's daily digests for the weekly summary."""
+def _week_monday(today=None):
+    """Monday of the given (default: current) week."""
+    today = today or datetime.date.today()
+    return today - datetime.timedelta(days=today.weekday())
+
+
+def _weekly_subject(monday=None, full=False):
+    """'📊 Weekly Research Wrap — Week of Monday, July 6' (operator-specified
+    wording, 2026-07-10). The 📊 weekly has never matched the reply bot's
+    'Re: 📬 Daily Inbox Digest' query, and still doesn't. full=True prepends
+    FULL_SUBJECT_MARKER for jared's variant; the team weekly keeps it plain."""
+    monday = monday or _week_monday()
+    subject = (f"\U0001f4ca Weekly Research Wrap — "
+               f"Week of {monday.strftime('%A, %B')} {monday.day}")
+    return f"{FULL_SUBJECT_MARKER}{subject}" if full else subject
+
+
+def save_weekly_digest(html, date=None, team=False):
+    """Save the weekly wrap to disk — before this, the sent email was the only
+    copy (the 2026-07-10 first-run template check had to be done from the inbox)."""
+    date = date or datetime.date.today()
+    DIGESTS_DIR.mkdir(exist_ok=True)
+    suffix = "_team" if team else ""
+    filepath = DIGESTS_DIR / f"weekly_{date.isoformat()}{suffix}.html"
+    filepath.write_text(html, encoding="utf-8")
+    print(f"  Saved weekly summary to {filepath}")
+
+
+def _get_week_digests(team=False):
+    """Load this week's daily digests for the weekly summary.
+
+    team=True loads the Substack-free variant's dailies — the team wrap must
+    be synthesized only from inputs that never contained Substack."""
     if not DIGESTS_DIR.exists():
         return []
 
-    today = datetime.date.today()
-    # Get Monday of this week
-    monday = today - datetime.timedelta(days=today.weekday())
+    monday = _week_monday()
+    suffix = "_team" if team else ""
 
     digests = []
     for i in range(5):  # Mon-Fri
         d = monday + datetime.timedelta(days=i)
-        filepath = DIGESTS_DIR / f"{d.isoformat()}.html"
+        filepath = DIGESTS_DIR / f"{d.isoformat()}{suffix}.html"
         if filepath.exists():
             digests.append({
                 "date": d.isoformat(),
@@ -821,7 +1093,7 @@ def _get_week_digests():
     return digests
 
 
-def generate_weekly_summary(digests):
+def generate_weekly_summary(digests, cost_label=""):
     """Generate a weekly summary by synthesizing the week's daily digests with Opus."""
     if not digests:
         return ""
@@ -854,23 +1126,41 @@ def generate_weekly_summary(digests):
         )}],
     )
 
-    weekly = response.content[0].text
+    weekly = _strip_to_html(response.content[0].text)
 
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  Weekly summary tokens: {tokens_in:,} in + {tokens_out:,} out")
+    cost.record(f"weekly summary{cost_label}", CLAUDE_MODEL, response.usage)
 
     return weekly
 
 
-def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject_prefix="📬"):
-    """Send the digest as an email via Gmail, with retry for transient SSL errors."""
+def _digest_subject(full=False):
+    """Daily digest subject: '📬 Daily Inbox Digest — <Weekday, Month D>'.
+
+    Built on config.DIGEST_SUBJECT_PREFIX — the exact string reply_monitor's
+    Gmail query matches replies against, so the sender and the matcher can't
+    drift apart. full=True prepends FULL_SUBJECT_MARKER for jared's Substack-
+    inclusive variant (the marker sits before the prefix, which reply matching
+    tolerates); the team variant passes full=False and keeps the plain subject.
+    """
+    day = datetime.date.today().day
+    today = datetime.date.today().strftime(f"%A, %B {day}")
+    subject = f"{DIGEST_SUBJECT_PREFIX} — {today}"
+    return f"{FULL_SUBJECT_MARKER}{subject}" if full else subject
+
+
+def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject=None):
+    """Send a digest email via Gmail, with retry for transient SSL errors.
+
+    `subject` overrides the daily default (the weekly wrap passes its own)."""
     day = datetime.date.today().day
     today = datetime.date.today().strftime(f"%A, %B {day}")
 
     message = MIMEText(html_body, "html")
     message["to"] = ", ".join(recipients)
-    message["subject"] = f"{subject_prefix} Daily Inbox Digest — {today}"
+    message["subject"] = subject or _digest_subject()
 
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
@@ -892,6 +1182,127 @@ def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject_
                 raise
 
 
+# ======================================================================
+# SOURCE REGISTRY + PARALLEL FETCH (efficiency S1 + E1, 2026-07-09)
+# ======================================================================
+
+# S1: the 13 independent fetchers main() runs before the Claude passes, as a
+# table instead of 13 near-identical try/except blocks. Each row:
+# (result key, progress line, failure label, zero-arg callable). Any source
+# failing yields [] and the run continues — the same per-source isolation the
+# old blocks provided. Gmail, Substack, and 13D are deliberately NOT here:
+# Gmail is the auth root, Substack reuses the Gmail service (magic-link
+# renewal), and 13D drives Playwright — all three stay serial in main().
+SOURCE_FETCHERS = [
+    ("sec_filings", "Checking SEC EDGAR filings...", "EDGAR fetch",
+     fetch_recent_filings),
+    ("news_articles", "Fetching WSJ/FT headlines...", "WSJ/FT fetch",
+     fetch_wsj_ft_articles),
+    ("market_data", "Fetching market data...", "Market data fetch",
+     fetch_market_data),
+    ("macro_data", "Fetching FRED macro data...", "Macro data fetch",
+     fetch_macro_data),
+    ("earnings", "Checking earnings calendar...", "Earnings calendar",
+     fetch_earnings_calendar),
+    ("pacer_entries", "Checking PACER dockets...", "PACER fetch",
+     fetch_pacer_docket),
+    ("rating_actions", "Fetching rating actions...", "Rating actions",
+     fetch_rating_actions),
+    ("fund_results", "Checking 13F fund filings...", "13F tracking",
+     fetch_fund_holdings),
+    ("research_articles", "Fetching central bank research...", "Research blogs",
+     fetch_research_articles),
+    ("treasury_auctions", "Fetching Treasury auctions...", "Treasury auctions",
+     fetch_treasury_auctions),
+    ("cot_data", "Checking CFTC positioning...", "CFTC COT",
+     fetch_cot_data),
+    ("fed_bs", "Fetching Fed balance sheet...", "Fed balance sheet",
+     fetch_fed_balance_sheet),
+    ("bank_failures", "Checking FDIC for bank failures...", "FDIC check",
+     fetch_failed_banks),
+]
+
+MAX_FETCH_WORKERS = 6
+
+
+class _ThreadLocalStdout:
+    """stdout proxy that routes each worker thread's prints to its own buffer.
+
+    The fetcher modules print() progress liberally; running them in a pool
+    would interleave those lines into log soup. Workers register a per-thread
+    buffer; unregistered threads (the main thread) pass through to the real
+    stdout. contextlib.redirect_stdout can't do this — it swaps the ONE global
+    sys.stdout, so it isn't thread-safe.
+    """
+
+    def __init__(self, default):
+        import threading
+        self._default = default
+        self._local = threading.local()
+
+    def register(self, buffer):
+        self._local.buffer = buffer
+
+    def unregister(self):
+        self._local.buffer = None
+
+    def write(self, s):
+        buf = getattr(self._local, "buffer", None)
+        return (buf if buf is not None else self._default).write(s)
+
+    def flush(self):
+        buf = getattr(self._local, "buffer", None)
+        (buf if buf is not None else self._default).flush()
+
+
+def _fetch_all_sources(registry=None, max_workers=MAX_FETCH_WORKERS):
+    """Run the registry fetchers in parallel (E1). Returns {key: result}.
+
+    The pure-HTTP sources are independent, so the ~5-8 min serial fetch phase
+    collapses to roughly the slowest source. Each source's output is buffered
+    and printed as one coherent block when it completes (completion order);
+    per-source rate-limit sleeps stay correct inside their own threads. A
+    failed source prints its old failure line and yields [] — isolation
+    unchanged from the serial version.
+    """
+    registry = SOURCE_FETCHERS if registry is None else registry
+    results = {}
+    proxy = _ThreadLocalStdout(sys.stdout)
+    real_stdout = sys.stdout
+    started = time.time()
+
+    def _run(entry):
+        key, _start_msg, fail_label, fetch = entry
+        buffer = io.StringIO()
+        proxy.register(buffer)
+        try:
+            result = fetch()
+        except Exception as e:
+            print(f"{fail_label} failed: {e} — continuing without.")
+            result = []
+        finally:
+            proxy.unregister()
+        return key, result, buffer.getvalue()
+
+    labels = {entry[0]: entry[1] for entry in registry}
+    sys.stdout = proxy
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [pool.submit(_run, entry) for entry in registry]
+            for future in as_completed(futures):
+                key, result, output = future.result()
+                results[key] = result
+                real_stdout.write(labels[key] + "\n")
+                if output:
+                    real_stdout.write(output if output.endswith("\n") else output + "\n")
+    finally:
+        sys.stdout = real_stdout
+
+    print(f"Fetch phase: {time.time() - started:.0f}s "
+          f"({len(registry)} sources, {max_workers} workers)")
+    return results
+
+
 def main():
     print(f"[{datetime.datetime.now()}] Starting daily digest...")
 
@@ -909,22 +1320,6 @@ def main():
         print(f"Substack scraping failed: {e} — continuing without.")
         substack_articles = []
 
-    # --- Octus Intelligence ---
-    print("Fetching Octus intelligence...")
-    try:
-        octus_articles = fetch_octus_articles()
-    except Exception as e:
-        print(f"Octus articles failed: {e} — continuing without.")
-        octus_articles = []
-
-    # --- Octus Deals ---
-    print("Fetching Octus primary deals...")
-    try:
-        octus_deals = fetch_octus_deals()
-    except Exception as e:
-        print(f"Octus deals failed: {e} — continuing without.")
-        octus_deals = []
-
     # --- 13D WILTW ---
     print("Checking 13D WILTW...")
     try:
@@ -933,119 +1328,21 @@ def main():
         print(f"13D WILTW failed: {e} — continuing without.")
         wiltw = None
 
-    # --- SEC EDGAR ---
-    print("Checking SEC EDGAR filings...")
-    try:
-        sec_filings = fetch_recent_filings()
-    except Exception as e:
-        print(f"EDGAR fetch failed: {e} — continuing without.")
-        sec_filings = []
-
-    # --- WSJ / FT ---
-    print("Fetching WSJ/FT headlines...")
-    try:
-        news_articles = fetch_wsj_ft_articles()
-    except Exception as e:
-        print(f"WSJ/FT fetch failed: {e} — continuing without.")
-        news_articles = []
-
-    # --- Market Data ---
-    print("Fetching market data...")
-    try:
-        market_data = fetch_market_data()
-    except Exception as e:
-        print(f"Market data fetch failed: {e} — continuing without.")
-        market_data = []
-
-    # --- FRED Macro Data ---
-    print("Fetching FRED macro data...")
-    try:
-        macro_data = fetch_macro_data()
-    except Exception as e:
-        print(f"Macro data fetch failed: {e} — continuing without.")
-        macro_data = []
-
-    # --- Earnings Calendar ---
-    print("Checking earnings calendar...")
-    try:
-        # Include SEC watchlist tickers
-        from sec_filings import WATCHLIST as SEC_WATCHLIST
-        earnings = fetch_earnings_calendar(extra_tickers=SEC_WATCHLIST)
-    except Exception as e:
-        print(f"Earnings calendar failed: {e} — continuing without.")
-        earnings = []
-
-    # --- FINRA TRACE ---
-    print("Fetching TRACE bond data...")
-    try:
-        trace_data = fetch_trace_data()
-    except Exception as e:
-        print(f"TRACE fetch failed: {e} — continuing without.")
-        trace_data = []
-
-    # --- PACER Docket ---
-    print("Checking PACER dockets...")
-    try:
-        pacer_entries = fetch_pacer_docket()
-    except Exception as e:
-        print(f"PACER fetch failed: {e} — continuing without.")
-        pacer_entries = []
-
-    # --- Rating Agency Actions ---
-    print("Fetching rating actions...")
-    try:
-        rating_actions = fetch_rating_actions()
-    except Exception as e:
-        print(f"Rating actions failed: {e} — continuing without.")
-        rating_actions = []
-
-    # --- 13F Fund Tracking ---
-    print("Checking 13F fund filings...")
-    try:
-        fund_results = fetch_fund_holdings()
-    except Exception as e:
-        print(f"13F tracking failed: {e} — continuing without.")
-        fund_results = []
-
-    # --- Central Bank Research ---
-    print("Fetching central bank research...")
-    try:
-        research_articles = fetch_research_articles()
-    except Exception as e:
-        print(f"Research blogs failed: {e} — continuing without.")
-        research_articles = []
-
-    # --- Treasury Auctions ---
-    print("Fetching Treasury auctions...")
-    try:
-        treasury_auctions = fetch_treasury_auctions()
-    except Exception as e:
-        print(f"Treasury auctions failed: {e} — continuing without.")
-        treasury_auctions = []
-
-    # --- CFTC COT ---
-    print("Checking CFTC positioning...")
-    try:
-        cot_data = fetch_cot_data()
-    except Exception as e:
-        print(f"CFTC COT failed: {e} — continuing without.")
-        cot_data = []
-
-    # --- Fed Balance Sheet ---
-    print("Fetching Fed balance sheet...")
-    try:
-        fed_bs = fetch_fed_balance_sheet()
-    except Exception as e:
-        print(f"Fed balance sheet failed: {e} — continuing without.")
-        fed_bs = []
-
-    # --- FDIC Bank Failures ---
-    print("Checking FDIC for bank failures...")
-    try:
-        bank_failures = fetch_failed_banks()
-    except Exception as e:
-        print(f"FDIC check failed: {e} — continuing without.")
-        bank_failures = []
+    # --- The 13 independent sources (S1 registry, fetched in parallel — E1) ---
+    fetched = _fetch_all_sources()
+    sec_filings = fetched["sec_filings"]
+    news_articles = fetched["news_articles"]
+    market_data = fetched["market_data"]
+    macro_data = fetched["macro_data"]
+    earnings = fetched["earnings"]
+    pacer_entries = fetched["pacer_entries"]
+    rating_actions = fetched["rating_actions"]
+    fund_results = fetched["fund_results"]
+    research_articles = fetched["research_articles"]
+    treasury_auctions = fetched["treasury_auctions"]
+    cot_data = fetched["cot_data"]
+    fed_bs = fetched["fed_bs"]
+    bank_failures = fetched["bank_failures"]
 
     # --- Check if anything to digest ---
     if not emails and not substack_articles and not sec_filings and not news_articles:
@@ -1059,15 +1356,75 @@ def main():
                     f"{len(rating_actions)} rating actions, {len(fund_results)} 13F filings")
     print(f"Summarizing with Claude ({source_count})...")
 
-    digest_html, source_text = summarize_with_claude(
-        emails, substack_articles, sec_filings,
-        market_data, macro_data, earnings,
-        trace_data, pacer_entries,
-        rating_actions, fund_results, octus_articles, octus_deals, wiltw,
-        research_articles, treasury_auctions, cot_data, fed_bs, bank_failures,
+    # TEAM_DIGEST_SPEC: Substack is personal to jared, so when TEAM_RECIPIENTS
+    # is non-empty a second, Substack-free variant is generated FIRST — its
+    # prompt is the shared cache prefix, so the full run that follows reads it
+    # and pays only for the substack tail. With the list empty (today), only
+    # the full variant runs, exactly as before.
+    team_active = bool(TEAM_RECIPIENTS)
+
+    # Post-activation misconfiguration guard (CLEANUP_SPEC 2.1): activation is
+    # recorded in config but DIGEST_TO_TEAM is missing from the environment —
+    # only the FULL digest generates, and indexing it / feeding memory from it
+    # would leak Substack to team askers. This run warns loudly (below), puts
+    # an alert in the digest's alert box, skips the memory update, and
+    # search._chunks_for_date skips the day's digest chunks. Deliberate
+    # retirement of the team variant must unset TEAM_ACTIVATION_DATE (config.py).
+    team_misconfigured = (
+        bool(TEAM_ACTIVATION_DATE)
+        and datetime.date.today().isoformat() >= TEAM_ACTIVATION_DATE
+        and not team_active
+    )
+    if team_misconfigured:
+        print("  WARNING: config.TEAM_ACTIVATION_DATE is set but DIGEST_TO_TEAM is "
+              "empty — team variant NOT generated. This run's digest chunks will "
+              "not be indexed and the shared memory will not be updated "
+              "(Substack-leak guard).")
+
+    # Substack-memory context (yesterday's store) for the FULL prompt only
+    substack_memory_context = ""
+    try:
+        substack_memory_context = get_substack_memory_context()
+    except Exception as e:
+        print(f"Substack memory context failed: {e} — continuing without.")
+
+    shared_kwargs = dict(
+        emails=emails,
+        sec_filings=sec_filings,
+        market_data=market_data,
+        macro_data=macro_data,
+        earnings=earnings,
+        pacer_entries=pacer_entries,
+        rating_actions=rating_actions,
+        fund_results=fund_results,
+        wiltw=wiltw,
+        research_articles=research_articles,
+        treasury_auctions=treasury_auctions,
+        cot_data=cot_data,
+        fed_bs=fed_bs,
+        bank_failures=bank_failures,
     )
 
-    # --- Custom Alerts ---
+    team_digest_html = team_source_text = None
+    if team_active:
+        if not TEAM_ACTIVATION_DATE:
+            # The 7/13 validation A/B proved this leaks: pre-cleanse memory.json
+            # carries substack-derived storylines that surface in the team digest.
+            print("  WARNING: TEAM_RECIPIENTS set but config.TEAM_ACTIVATION_DATE "
+                  "is None — run the TEAM_DIGEST_SPEC Stage-5 activation checklist "
+                  "(memory cleanse!) or the shared memory can leak Substack "
+                  "storylines into the team digest.")
+        print("  TEAM variant (Substack-free)...")
+        team_digest_html, team_source_text = summarize_with_claude(
+            substack_articles=[], cost_label=" (team)", **shared_kwargs)
+
+    digest_html, source_text = summarize_with_claude(
+        substack_articles=substack_articles,
+        substack_memory_context=substack_memory_context,
+        **shared_kwargs)
+
+    # --- Custom Alerts (per variant — the team box is evaluated on the team
+    # source text, so it can never cite a Substack pub) ---
     print("Evaluating custom alerts...")
     try:
         triggered_alerts = evaluate_alerts(source_text)
@@ -1075,37 +1432,131 @@ def main():
         print(f"Alert evaluation failed: {e} — continuing without.")
         triggered_alerts = []
 
-    # --- Build pre-formatted HTML sections ---
+    team_alerts = []
+    if team_active:
+        print("Evaluating custom alerts (team source)...")
+        try:
+            team_alerts = evaluate_alerts(team_source_text)
+        except Exception as e:
+            print(f"Team alert evaluation failed: {e} — continuing without.")
+
+    # --- Deterministic signals (appended to BOTH variants' alert boxes) ---
+    deterministic_alerts = []
+
+    # Team config guard (CLEANUP_SPEC 2.1): make the misconfiguration visible
+    # in the sent email itself, not just the log nobody reads unattended.
+    if team_misconfigured:
+        deterministic_alerts.append({
+            "name": "Team config missing",
+            "detail": ("DIGEST_TO_TEAM is unset but team activation is recorded "
+                       "(config.TEAM_ACTIVATION_DATE) — only the FULL digest was "
+                       "generated; its chunks were NOT indexed and the shared "
+                       "memory was NOT updated. Set DIGEST_TO_TEAM in env.bat, or "
+                       "unset TEAM_ACTIVATION_DATE if the team variant is retired."),
+            "source": "config guard",
+        })
+
+    # Fed discount-window stress (numeric, from FRED H.4.1): threshold check on
+    # the actual discount-window level. Replaces the old LLM-evaluated "Fed
+    # stress signal" rule (removed from alerts_config.json) so the threshold
+    # lives in exactly one place: fed_balance_sheet.DISCOUNT_WINDOW_ALERT_MM /
+    # _SURGE_MM. Runs even if the LLM alert eval above failed.
+    try:
+        for signal in check_fed_stress(fed_bs):
+            deterministic_alerts.append({
+                "name": "Fed stress signal",
+                "detail": signal,
+                "source": "FRED H.4.1",
+            })
+    except Exception as e:
+        print(f"Fed stress check failed: {e} — continuing without.")
+
+    # Content monitor (O3): record per-source counts; flag a normally-nonzero
+    # source stuck at zero (the silent-degradation mode the per-source
+    # try/except deliberately swallows). Recorded ONCE per run.
+    try:
+        counts = {
+            "emails": len(emails),
+            "substack": len(substack_articles),
+            # Articles we actually got FULL text for (CLEANUP_SPEC 4.2): the
+            # custom-domain pubs never receive the auth cookie and depend on
+            # Substack's unauthenticated per-post API — if that closes, total
+            # count stays healthy while full-text collapses. A fulltext
+            # zero-streak then fires the existing O3 rule.
+            "substack_fulltext": sum(
+                1 for a in substack_articles
+                if "[preview only" not in (a.get("text") or "")
+                and "[Paid-only post" not in (a.get("text") or "")
+            ),
+            "wiltw": 1 if wiltw else 0,
+            **{key: len(fetched[key]) for key in fetched},
+        }
+        for signal in record_and_check(counts):
+            deterministic_alerts.append({
+                "name": "Source degradation",
+                "detail": signal,
+                "source": "content monitor",
+            })
+    except Exception as e:
+        print(f"Content monitor failed: {e} — continuing.")
+
+    triggered_alerts.extend(deterministic_alerts)
+    team_alerts.extend(deterministic_alerts)
+
+    # --- Build pre-formatted HTML sections (shared by both variants) ---
     alerts_html = build_alerts_html(triggered_alerts)
+    team_alerts_html = build_alerts_html(team_alerts)
     market_html = build_market_table_html(market_data)
     macro_html = build_macro_table_html(macro_data)
     earnings_html = build_earnings_html(earnings)
     news_html = build_news_html(news_articles)
-    trace_html = build_trace_html(trace_data)
     pacer_html = build_pacer_html(pacer_entries)
-    ratings_html = ""  # Rating data goes to Opus only; Octus has better coverage
+    # No ratings section is pre-built here — Opus writes the §9 "Rating Actions" section itself from
+    # the rating data (see SYSTEM_PROMPT), unlike other sources which pre-render their section.
     funds_html = build_funds_html(fund_results)
-    deals_html = build_deals_table_html(octus_deals)
     auctions_html = build_auctions_table_html(treasury_auctions)
     fed_bs_html = build_fed_bs_table_html(fed_bs)
 
-    # --- Assemble final digest ---
+    # --- Assemble final digest(s) ---
     final_html = _assemble_digest_html(
         digest_html, alerts_html, market_html, macro_html,
-        earnings_html, news_html, trace_html, pacer_html,
-        ratings_html, funds_html, deals_html,
+        earnings_html, news_html, pacer_html,
+        funds_html,
         auctions_html, fed_bs_html,
     )
+    team_final_html = None
+    if team_active:
+        team_final_html = _assemble_digest_html(
+            team_digest_html, team_alerts_html, market_html, macro_html,
+            earnings_html, news_html, pacer_html,
+            funds_html,
+            auctions_html, fed_bs_html,
+        )
 
-    # --- Save daily digest for weekly summary ---
+    # --- Save daily digest(s) for weekly summary (each non-fatal on its own) ---
     try:
         save_daily_digest(final_html)
     except Exception as e:
         print(f"Failed to save daily digest: {e}")
+    if team_final_html:
+        try:
+            save_daily_digest(team_final_html, team=True)
+        except Exception as e:
+            print(f"Failed to save team daily digest: {e}")
 
-    # --- Send digest ---
+    # --- Send digest(s) ---
     print("Sending digest email...")
-    send_digest_email(service, final_html)
+    send_digest_email(service, final_html, subject=_digest_subject(full=True))
+    if team_final_html:
+        print("Sending TEAM digest email...")
+        send_digest_email(service, team_final_html, recipients=TEAM_RECIPIENTS)
+
+    # --- PACER seen-state (F1a-4): persist only now that the digest(s) actually
+    # sent — a crash anywhere earlier leaves the entries unseen for the next run.
+    try:
+        commit_seen()
+    except Exception as e:
+        print(f"PACER seen-state commit failed: {e} — continuing.")
 
     # --- Save timestamp for midday.py ---
     try:
@@ -1124,14 +1575,13 @@ def main():
         archive_daily_content(
             date=today_str,
             digest_html=final_html,
+            digest_team_html=team_final_html or "",
             emails=emails,
             substack_articles=substack_articles,
             sec_filings=sec_filings,
             news_articles=news_articles,
             market_data=market_data,
             macro_data=macro_data,
-            octus_articles=octus_articles,
-            octus_deals=octus_deals,
             rating_actions=rating_actions,
             pacer_entries=pacer_entries,
             fund_results=fund_results,
@@ -1141,17 +1591,30 @@ def main():
         print(f"Archiving failed: {e} — continuing.")
 
     # --- Index into vector search ---
+    # (search prefers digest_team.html for the digest chunks when it exists —
+    # full-digest prose embeds Substack analysis; see search._chunks_for_date)
     print("Indexing archive for search...")
     try:
         index_daily_content(today_str)
     except Exception as e:
         print(f"Indexing failed: {e} — continuing.")
 
-    # --- Update cross-digest memory ---
+    # --- Update cross-digest memory (the shared store must stay Substack-free
+    # once the team variant exists, so it learns from the team digest then) ---
+    if team_misconfigured:
+        print("Memory update skipped — post-activation run without a team digest "
+              "(the full digest would re-contaminate the cleansed store).")
+    else:
+        try:
+            update_memory(team_final_html if team_final_html else final_html)
+        except Exception as e:
+            print(f"Memory update failed: {e} — continuing.")
+
+    # --- Update substack memory (Stage 3 — jared-personal storylines) ---
     try:
-        update_memory(final_html)
+        update_substack_memory(substack_articles)
     except Exception as e:
-        print(f"Memory update failed: {e} — continuing.")
+        print(f"Substack memory update failed: {e} — continuing.")
 
     # --- Weekly Summary (Friday only) ---
     if _is_friday():
@@ -1161,15 +1624,49 @@ def main():
             if len(week_digests) >= 2:  # Need at least 2 days for a meaningful summary
                 weekly_html = generate_weekly_summary(week_digests)
                 if weekly_html:
+                    try:
+                        save_weekly_digest(weekly_html)
+                    except Exception as e:
+                        print(f"Failed to save weekly summary: {e}")
                     send_digest_email(
                         service, weekly_html,
-                        subject_prefix="📊",
+                        subject=_weekly_subject(full=True),
                     )
                     print("Weekly summary sent.")
             else:
                 print(f"Only {len(week_digests)} digest(s) this week — skipping weekly summary.")
         except Exception as e:
             print(f"Weekly summary failed: {e}")
+
+        # TEAM weekly wrap (TEAM_DIGEST_SPEC): synthesized only from the team
+        # dailies, so it can't contain Substack; the first partial week after
+        # activation self-skips on the >=2 check.
+        if team_active:
+            try:
+                team_week = _get_week_digests(team=True)
+                if len(team_week) >= 2:
+                    team_weekly = generate_weekly_summary(team_week, cost_label=" (team)")
+                    if team_weekly:
+                        try:
+                            save_weekly_digest(team_weekly, team=True)
+                        except Exception as e:
+                            print(f"Failed to save team weekly summary: {e}")
+                        send_digest_email(
+                            service, team_weekly,
+                            recipients=TEAM_RECIPIENTS,
+                            subject=_weekly_subject(),
+                        )
+                        print("Team weekly summary sent.")
+                else:
+                    print(f"Only {len(team_week)} team digest(s) this week — "
+                          "skipping team weekly summary.")
+            except Exception as e:
+                print(f"Team weekly summary failed: {e}")
+
+    # --- Per-run Claude cost (every call, not just the two Opus passes) ---
+    cost_text, _ = cost.summary()
+    print("Claude usage this run:")
+    print(cost_text)
 
     print("Done.")
 

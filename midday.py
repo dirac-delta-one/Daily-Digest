@@ -18,15 +18,17 @@ from pathlib import Path
 
 import anthropic
 
-from digest import get_gmail_service, DIGEST_RECIPIENTS, fetch_recent_emails
+from config import SONNET_MODEL, is_substack_email
+from digest import (
+    get_gmail_service, DIGEST_RECIPIENTS, TEAM_RECIPIENTS, _is_self_artifact,
+)
 from news import fetch_wsj_ft_articles
 from sec_filings import fetch_recent_filings
 from ratings import fetch_rating_actions
+import cost
 
 SCRIPT_DIR = Path(__file__).parent
 ARCHIVE_DIR = SCRIPT_DIR / "archive"
-
-SONNET_MODEL = "claude-sonnet-4-6"
 
 MATERIALITY_PROMPT = """\
 You are evaluating whether any of the following new content warrants an
@@ -103,6 +105,17 @@ def _fetch_new_emails(service, cutoff):
             headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
             snippet = msg.get("snippet", "")
 
+            # Never treat the system's own output (morning digest, alerts) or
+            # replies to it as "new content since morning" — CLEANUP_SPEC 2.5.
+            if _is_self_artifact(headers.get("From", ""), headers.get("Subject", "")):
+                continue
+
+            # Substack newsletters arriving as inbox email are jared-personal
+            # (TEAM boundary, 2026-07-15). The midday alert reaches team
+            # recipients too, so exclude them from the materiality check.
+            if is_substack_email(headers.get("From", "")):
+                continue
+
             emails.append({
                 "from": headers.get("From", "Unknown"),
                 "subject": headers.get("Subject", "(no subject)"),
@@ -158,17 +171,46 @@ def evaluate_materiality(emails, articles, filings, rating_actions):
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  Materiality check: {tokens_in:,} in + {tokens_out:,} out")
+    cost.record("midday materiality", SONNET_MODEL, response.usage)
 
     return result
 
 
-def send_alert_email(service, subject_desc, alert_html):
-    """Send the midday alert email."""
-    day = datetime.date.today().day
-    today = datetime.date.today().strftime(f"%A, %B {day}")
+def _parse_alert_result(result):
+    """Split Sonnet's materiality output into (subject_desc, alert_html).
 
+    Expected shape (MATERIALITY_PROMPT): a subject line, a run of '=' as a
+    separator, then the HTML body. Extracted from main() so the brittle string
+    handling is unit-testable (Cleanup Stage 1.2); behavior unchanged:
+    - subject = last non-separator line before the '=' run;
+    - with no separator, subject = first 60 chars (newlines flattened);
+    - any preamble (incl. leftover '=' from a >10-char separator) before the
+      first '<div' is stripped from the HTML.
+    """
+    if "=" * 10 in result:
+        parts = result.split("=" * 10, 1)
+        subject_desc = parts[0].strip().split("\n")[-1].strip()
+        alert_html = parts[1].strip() if len(parts) > 1 else result
+    else:
+        subject_desc = result[:60].replace("\n", " ")
+        alert_html = result
+
+    # Strip any preamble before HTML
+    html_start = alert_html.find("<div")
+    if html_start > 0:
+        alert_html = alert_html[html_start:]
+
+    return subject_desc, alert_html
+
+
+def send_alert_email(service, subject_desc, alert_html):
+    """Send the midday alert email.
+
+    Midday's sources (inbox/news/EDGAR/ratings) contain no Substack, so the
+    alert goes to BOTH recipient lists (TEAM_DIGEST_SPEC §1), deduped."""
+    recipients = list(dict.fromkeys(DIGEST_RECIPIENTS + TEAM_RECIPIENTS))
     message = MIMEText(alert_html, "html")
-    message["to"] = ", ".join(DIGEST_RECIPIENTS)
+    message["to"] = ", ".join(recipients)
     message["subject"] = f"\U0001f6a8 Midday Alert — {subject_desc}"
 
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
@@ -231,24 +273,15 @@ def main():
 
     print(f"  Evaluating materiality ({total} items)...")
     result = evaluate_materiality(new_emails, new_articles, new_filings, new_ratings)
+    cost_text, _ = cost.summary()
+    print(cost_text)
 
     if result.strip() == "NO_ALERT" and not force:
         print("  Nothing material. No alert sent.")
         return
 
     # Parse the result: first line = subject, rest = HTML (after separator)
-    if "=" * 10 in result:
-        parts = result.split("=" * 10, 1)
-        subject_desc = parts[0].strip().split("\n")[-1].strip()
-        alert_html = parts[1].strip() if len(parts) > 1 else result
-    else:
-        subject_desc = result[:60].replace("\n", " ")
-        alert_html = result
-
-    # Strip any preamble before HTML
-    html_start = alert_html.find("<div")
-    if html_start > 0:
-        alert_html = alert_html[html_start:]
+    subject_desc, alert_html = _parse_alert_result(result)
 
     print(f"  ALERT: {subject_desc}")
     send_alert_email(service, subject_desc, alert_html)

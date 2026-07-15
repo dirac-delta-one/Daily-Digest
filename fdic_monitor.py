@@ -9,13 +9,15 @@ import json
 import datetime
 import urllib.request
 
+from config import FEED_USER_AGENT
+
 FDIC_API = "https://banks.data.fdic.gov/api/failures?sort_by=FAILDATE&sort_order=DESC&limit=5"
 LOOKBACK_DAYS = 30  # wider window since failures are rare
 
 
 def _fetch_json(url):
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", "DailyDigest/1.0")
+    req.add_header("User-Agent", FEED_USER_AGENT)
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -52,7 +54,7 @@ def fetch_failed_banks():
     if isinstance(records, dict) and "data" in records:
         records = records["data"]
     if not isinstance(records, list):
-        print(f"    Unexpected FDIC response format.")
+        print("    Unexpected FDIC response format.")
         return []
 
     failures = []

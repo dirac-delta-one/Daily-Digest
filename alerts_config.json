@@ -31,11 +31,6 @@
       "priority": "high"
     },
     {
-      "name": "Fed stress signal",
-      "trigger": "Discount window borrowing exceeds $5B or increases by more than $2B week-over-week",
-      "priority": "high"
-    },
-    {
       "name": "Bank failure",
       "trigger": "Any FDIC bank failure detected",
       "priority": "high"

@@ -6,10 +6,11 @@ Shows bid-to-cover, yield, tail, and bidder breakdown.
 """
 
 import json
-import ssl
 import datetime
 import urllib.request
-from pathlib import Path
+
+from net_utils import unverified_ssl_context
+from config import FEED_USER_AGENT
 
 HOURS_LOOKBACK = 24
 
@@ -21,15 +22,13 @@ API_URL = (
     "&filter=auction_date:gte:{start_date},high_investment_rate:gt:0"
 )
 
-# SSL context for Treasury (self-signed cert chain)
-_SSL_CTX = ssl.create_default_context()
-_SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode = ssl.CERT_NONE
+# SSL context for Treasury (cert chain doesn't validate against the default store)
+_SSL_CTX = unverified_ssl_context()
 
 
 def _fetch_json(url):
     req = urllib.request.Request(url)
-    req.add_header("User-Agent", "DailyDigest/1.0")
+    req.add_header("User-Agent", FEED_USER_AGENT)
     try:
         with urllib.request.urlopen(req, timeout=20, context=_SSL_CTX) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -131,7 +130,7 @@ def format_auctions_for_prompt(auctions):
     if not auctions:
         return ""
 
-    lines = ["TREASURY AUCTIONS (last 48h):"]
+    lines = [f"TREASURY AUCTIONS (last {HOURS_LOOKBACK}h):"]
     for a in auctions:
         term = a["security_term"]
         atype = a["security_type"]
@@ -140,7 +139,8 @@ def format_auctions_for_prompt(auctions):
         btc = a["bid_to_cover"]
         tail = a["tail_bps"]
 
-        line = f"  {term} {atype} ({date}): {yld:.3f}% yield"
+        yld_str = f"{yld:.3f}% yield" if yld is not None else "yield n/a"
+        line = f"  {term} {atype} ({date}): {yld_str}"
         if btc:
             line += f", bid-to-cover {btc:.2f}x"
         if tail is not None:

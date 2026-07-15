@@ -11,7 +11,6 @@ Two modes:
 
 import json
 import re
-import datetime
 import time
 import xml.etree.ElementTree as ET
 import urllib.request
@@ -20,10 +19,12 @@ from pathlib import Path
 
 import anthropic
 
+from config import esc, safe_href, SONNET_MODEL, USER_AGENT
+from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
+import cost
+
 SCRIPT_DIR = Path(__file__).parent
 SEEN_FILE = SCRIPT_DIR / "pacer_seen.json"
-
-USER_AGENT = "DailyDigest/1.0 (jtramontano@acorninv.com)"
 
 # ======================================================================
 # DISCOVERY — Monitor courts for new Chapter 11 filings
@@ -75,7 +76,19 @@ MATERIAL_KEYWORDS = [
 # PERSISTENCE
 # ======================================================================
 
+# F1a-4 (seen-state durability): discovery/tracking used to write pacer_seen.json
+# DURING the fetch, so a crash later in the run (or a failed send) silently
+# dropped every just-marked entry from the next digest (30 lost on 2026-07-02).
+# The scan now STASHES the updated state in memory; digest.main commits it only
+# after the digest actually sends. A crash after send but before commit means
+# the next run re-reports the same entries — duplication over silent loss is
+# the right bias for a bankruptcy monitor.
+_pending_seen = None
+
+
 def _load_seen():
+    if _pending_seen is not None:
+        return _pending_seen
     if SEEN_FILE.exists():
         try:
             return json.loads(SEEN_FILE.read_text(encoding="utf-8"))
@@ -84,8 +97,32 @@ def _load_seen():
     return {"discovery": {}, "tracking": {}}
 
 
-def _save_seen(seen):
-    SEEN_FILE.write_text(json.dumps(seen, indent=2, ensure_ascii=False), encoding="utf-8")
+def _stash_seen(seen):
+    """Hold the updated seen-state in memory until commit_seen() persists it."""
+    global _pending_seen
+    _pending_seen = seen
+
+
+def commit_seen():
+    """Persist the seen-state stashed by this run's scan (call after a
+    successful digest send). No-op when nothing is pending."""
+    global _pending_seen
+    if _pending_seen is not None:
+        SEEN_FILE.write_text(
+            json.dumps(_pending_seen, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        _pending_seen = None
+
+
+def _ordered_seen(ids):
+    """Insertion-ordered, deduped seen-id list.
+
+    Seen ids are kept as an ORDERED list so the size cap evicts oldest-first.
+    The old `list(set)[-N:]` trim kept an arbitrary N (set order), so once a
+    busy court crossed the cap, recently-seen filings could be evicted and
+    re-reported as new. Legacy (unordered) files load fine — order becomes
+    meaningful from the first run that appends."""
+    return list(dict.fromkeys(ids))
 
 
 # ======================================================================
@@ -237,11 +274,6 @@ def _is_corporate_entity(name):
 
 def _search_company_size(debtor_name):
     """Web search for the company to get context about its size."""
-    try:
-        from search import search as _unused  # just to verify imports work
-    except Exception:
-        pass
-
     # Use urllib to hit a search API — we'll use the WebSearch tool via
     # a simple Google search and pass results to Sonnet
     query = f"{debtor_name} company revenue assets size"
@@ -301,7 +333,7 @@ def _filter_by_size(filings):
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=SONNET_MODEL,
             max_tokens=1000,
             system=(
                 "You are filtering Chapter 11 bankruptcy filings for a distressed credit investor. "
@@ -311,9 +343,11 @@ def _filter_by_size(filings):
                 "Consider: Is this a publicly traded company? A large private company? A PE-backed "
                 "platform? A real estate portfolio? If there's not enough info to tell, lean toward "
                 "EXCLUDE — the investor only wants to see large cases.\n\n"
-                "Output ONLY a JSON array of the candidate indices (integers) that are likely >$500M. "
-                "Example: [0, 3, 7]. If none qualify, output []. No explanation."
+                "Return a JSON object {\"indices\": [ ... ]} with the candidate indices (integers) "
+                "that are likely >$500M. Example: {\"indices\": [0, 3, 7]}. If none qualify, "
+                "return {\"indices\": []}. No explanation."
             ),
+            output_config=json_schema_output(wrapped_array_schema("indices", "integer")),
             messages=[{"role": "user", "content": (
                 f"Evaluate these {len(filings)} Chapter 11 filings. "
                 f"Return the indices of those likely >$500M in assets/liabilities.\n"
@@ -321,14 +355,7 @@ def _filter_by_size(filings):
             )}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        indices = json.loads(text)
+        indices = parse_json_response(response.content[0].text)["indices"]
 
         kept = [filings[i] for i in indices if isinstance(i, int) and 0 <= i < len(filings)]
 
@@ -336,6 +363,7 @@ def _filter_by_size(filings):
         tokens_out = response.usage.output_tokens
         print(f"  Size filter: kept {len(kept)}/{len(filings)} "
               f"({tokens_in:,} in + {tokens_out:,} out)")
+        cost.record("pacer size filter", SONNET_MODEL, response.usage)
 
         return kept
 
@@ -360,12 +388,13 @@ def discover_new_filings():
         tree = _fetch_court_rss(court)
         items = _parse_items(tree)
 
-        court_seen = set(disc_seen.get(court, []))
+        court_seen = _ordered_seen(disc_seen.get(court, []))
+        court_seen_set = set(court_seen)
         court_new = 0
 
         for item in items:
             entry_id = item["link"] or item["title"]
-            if entry_id in court_seen:
+            if entry_id in court_seen_set:
                 continue
 
             if _is_chapter_11_filing(item["title"], item["description"]):
@@ -385,9 +414,10 @@ def discover_new_filings():
                 court_new += 1
                 print(f"    NEW Ch.11: {debtor or item['title'][:50]} ({court.upper()}, {case_number})")
 
-            court_seen.add(entry_id)
+            court_seen.append(entry_id)
+            court_seen_set.add(entry_id)
 
-        disc_seen[court] = list(court_seen)[-1000:]  # keep last 1000 per court
+        disc_seen[court] = court_seen[-1000:]  # ordered trim: oldest evicted first
 
         if court_new == 0 and items:
             print(f"    {court.upper()}: {len(items)} entries, no new Ch.11 petitions")
@@ -395,7 +425,7 @@ def discover_new_filings():
         time.sleep(0.3)  # polite rate limiting
 
     seen["discovery"] = disc_seen
-    _save_seen(seen)
+    _stash_seen(seen)
 
     print(f"  Found {len(new_filings)} raw Chapter 11 filing(s).")
 
@@ -445,14 +475,15 @@ def track_existing_cases():
 
     for court, case_number, company in TRACKED_CASES:
         case_key = f"{court}/{case_number}"
-        case_seen = set(track_seen.get(case_key, []))
+        case_seen = _ordered_seen(track_seen.get(case_key, []))
+        case_seen_set = set(case_seen)
 
         tree = _fetch_case_rss(court, case_number)
         items = _parse_items(tree)
 
         for item in items:
             entry_id = item["link"] or item["title"]
-            if entry_id in case_seen:
+            if entry_id in case_seen_set:
                 continue
 
             full_text = f"{item['title']} {item['description']}"
@@ -471,13 +502,14 @@ def track_existing_cases():
                 })
                 print(f"    {company}: {item['title'][:60]}... [{', '.join(matched)}]")
 
-            case_seen.add(entry_id)
+            case_seen.append(entry_id)
+            case_seen_set.add(entry_id)
 
-        track_seen[case_key] = list(case_seen)[-500:]
+        track_seen[case_key] = case_seen[-500:]  # ordered trim: oldest evicted first
         time.sleep(0.3)
 
     seen["tracking"] = track_seen
-    _save_seen(seen)
+    _stash_seen(seen)
 
     print(f"  Found {len(new_entries)} new material docket entries.")
     return new_entries
@@ -582,7 +614,7 @@ def build_pacer_html(entries):
             link_html = ""
             if e.get("link"):
                 link_html = (
-                    f' <a href="{e["link"]}" style="color: #1a5276; font-size: 12px;">'
+                    f' <a href="{safe_href(e["link"])}" style="color: #1a5276; font-size: 12px;">'
                     f'[PACER]</a>'
                 )
 
@@ -590,12 +622,12 @@ def build_pacer_html(entries):
             if e.get("description"):
                 desc = (
                     f'<br><span style="color: #555; font-size: 12px;">'
-                    f'{e["description"][:200]}</span>'
+                    f'{esc(e["description"][:200])}</span>'
                 )
 
             html += (
                 f'<li style="margin-bottom: 8px; font-size: 14px;">'
-                f'<strong>{debtor}</strong> — {court_label} Case {case_num}{link_html}'
+                f'<strong>{esc(debtor)}</strong> — {court_label} Case {esc(case_num)}{link_html}'
                 f'{desc}</li>\n'
             )
         html += '</ul>\n</div>\n'
@@ -610,7 +642,7 @@ def build_pacer_html(entries):
         for company, cases in by_company.items():
             html += (
                 f'<li style="margin-bottom: 12px; font-size: 14px;">'
-                f'<strong>{company}</strong> (Case {cases[0]["case_number"]})'
+                f'<strong>{esc(company)}</strong> (Case {esc(cases[0]["case_number"])})'
                 f'<ul style="margin: 4px 0 0; padding-left: 16px;">'
             )
             for e in cases:
@@ -618,14 +650,14 @@ def build_pacer_html(entries):
                 link_html = ""
                 if e.get("link"):
                     link_html = (
-                        f' <a href="{e["link"]}" style="color: #1a5276; '
+                        f' <a href="{safe_href(e["link"])}" style="color: #1a5276; '
                         f'font-size: 12px;">[docket]</a>'
                     )
                 html += (
                     f'<li style="margin-bottom: 6px; font-size: 13px;">'
-                    f'{e["title"]}{link_html}'
+                    f'{esc(e["title"])}{link_html}'
                     f'<br><span style="color: #888; font-size: 12px;">'
-                    f'Flagged: {kw_tags}</span></li>'
+                    f'Flagged: {esc(kw_tags)}</span></li>'
                 )
             html += '</ul></li>\n'
         html += '</ul>\n'
@@ -650,3 +682,6 @@ if __name__ == "__main__":
                 print(f"  {e['company']}: {e['title'][:60]}")
         else:
             print("  No new material docket entries.")
+
+    # Standalone runs have no later "send" step — persist immediately.
+    commit_seen()

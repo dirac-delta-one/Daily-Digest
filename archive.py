@@ -30,14 +30,13 @@ ARCHIVE_DIR = SCRIPT_DIR / "archive"
 def archive_daily_content(
     date=None,
     digest_html="",
+    digest_team_html="",
     emails=None,
     substack_articles=None,
     sec_filings=None,
     news_articles=None,
     market_data=None,
     macro_data=None,
-    octus_articles=None,
-    octus_deals=None,
     rating_actions=None,
     pacer_entries=None,
     fund_results=None,
@@ -46,6 +45,11 @@ def archive_daily_content(
     """
     Save all raw content from today's digest run to the archive.
     Everything saved here gets indexed into the RAG vector search.
+
+    digest_team_html (TEAM_DIGEST_SPEC): the Substack-free variant. When
+    present it becomes the reply bot's context for team askers AND the
+    variant search indexes for digest chunks (full-digest prose embeds
+    Substack analysis).
     """
     date = date or datetime.date.today().isoformat()
     day_dir = ARCHIVE_DIR / date
@@ -56,9 +60,11 @@ def archive_daily_content(
 
     print(f"  Archiving content to {day_dir}...")
 
-    # Save digest HTML
+    # Save digest HTML (both variants when the team one exists)
     if digest_html:
         (day_dir / "digest.html").write_text(digest_html, encoding="utf-8")
+    if digest_team_html:
+        (day_dir / "digest_team.html").write_text(digest_team_html, encoding="utf-8")
 
     # Save emails (strip base64 PDF data to save disk — PDFs saved separately)
     emails = emails or []
@@ -102,12 +108,6 @@ def archive_daily_content(
     # Save macro data
     _save_json(day_dir / "macro_data.json", macro_data or [])
 
-    # Save Octus articles
-    _save_json(day_dir / "octus_articles.json", octus_articles or [])
-
-    # Save Octus deals
-    _save_json(day_dir / "octus_deals.json", octus_deals or [])
-
     # Save rating actions
     _save_json(day_dir / "rating_actions.json", rating_actions or [])
 
@@ -121,19 +121,21 @@ def archive_daily_content(
     if wiltw:
         _save_json(day_dir / "wiltw.json", wiltw)
 
-    # Snapshot current memory.json
-    memory_file = SCRIPT_DIR / "memory.json"
-    if memory_file.exists():
-        try:
-            memory = json.loads(memory_file.read_text(encoding="utf-8"))
-            _save_json(day_dir / "memory.json", memory)
-        except Exception:
-            pass
+    # Snapshot current memory stores (day-granular corruption-recovery history;
+    # substack_memory added CLEANUP_SPEC 4.3 for parity — neither is ever read
+    # by the indexer, which only consumes the fixed filename set above)
+    for store_name in ("memory.json", "substack_memory.json"):
+        store_file = SCRIPT_DIR / store_name
+        if store_file.exists():
+            try:
+                store = json.loads(store_file.read_text(encoding="utf-8"))
+                _save_json(day_dir / store_name, store)
+            except Exception:
+                pass
 
     print(f"  Archived: {len(emails_clean)} emails, {pdf_count} PDFs, "
           f"{len(substack_articles or [])} substacks, {len(sec_filings or [])} filings, "
-          f"{len(news_articles or [])} news, {len(octus_articles or [])} octus, "
-          f"{len(rating_actions or [])} ratings, {len(octus_deals or [])} deals.")
+          f"{len(news_articles or [])} news, {len(rating_actions or [])} ratings.")
 
     return str(day_dir)
 

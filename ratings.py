@@ -7,13 +7,10 @@ as a reliable proxy (direct agency feeds are paywalled/broken).
 
 import datetime
 import re
-import xml.etree.ElementTree as ET
-import urllib.request
-import urllib.error
-from email.utils import parsedate_to_datetime
+
+from feeds import fetch_feed, parse_date, is_recent
 
 HOURS_LOOKBACK = 24
-USER_AGENT = "DailyDigest/1.0"
 
 # Google News RSS searches for rating actions by agency
 RATING_FEEDS = [
@@ -49,44 +46,6 @@ ACTION_KEYWORDS = [
 ]
 
 
-def _fetch_feed(url):
-    """Fetch and parse a single RSS feed."""
-    req = urllib.request.Request(url)
-    req.add_header("User-Agent", USER_AGENT)
-
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return ET.parse(resp)
-    except Exception as e:
-        print(f"    Ratings RSS error: {e}")
-        return None
-
-
-def _parse_date(date_str):
-    if not date_str:
-        return None
-    try:
-        return parsedate_to_datetime(date_str)
-    except Exception:
-        pass
-    try:
-        return datetime.datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-    except Exception:
-        pass
-    return None
-
-
-def _is_recent(date_str, hours=HOURS_LOOKBACK):
-    parsed = _parse_date(date_str)
-    if not parsed:
-        return True
-    now = datetime.datetime.now(datetime.timezone.utc)
-    cutoff = now - datetime.timedelta(hours=hours)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
-    return parsed >= cutoff
-
-
 def _is_rating_action(title, description):
     """Check if the headline is about an actual rating action."""
     text = f"{title} {description}".lower()
@@ -109,7 +68,7 @@ def fetch_rating_actions(since_datetime=None):
     seen_titles = set()
 
     for feed_url, source in RATING_FEEDS:
-        tree = _fetch_feed(feed_url)
+        tree = fetch_feed(feed_url)
         if tree is None:
             continue
 
@@ -135,14 +94,14 @@ def fetch_rating_actions(since_datetime=None):
 
             # Date filter
             if since_datetime:
-                parsed = _parse_date(pub_date)
+                parsed = parse_date(pub_date)
                 if parsed and parsed.tzinfo is None:
                     parsed = parsed.replace(tzinfo=datetime.timezone.utc)
                 if since_datetime.tzinfo is None:
                     since_datetime = since_datetime.replace(tzinfo=datetime.timezone.utc)
                 if parsed and parsed < since_datetime:
                     continue
-            elif not _is_recent(pub_date):
+            elif not is_recent(pub_date, HOURS_LOOKBACK):
                 continue
 
             # Must be an actual rating action
@@ -208,51 +167,10 @@ def format_ratings_for_prompt(actions):
     return "\n".join(lines)
 
 
-def build_ratings_html(actions):
-    """Render rating actions as an HTML section."""
-    if not actions:
-        return ""
-
-    items = ""
-    for a in actions:
-        source = a["source"]
-        title = a["title"]
-        url = a.get("url", "")
-        desc = a.get("description", "")
-
-        # Color by direction
-        title_lower = title.lower()
-        if any(w in title_lower for w in ("downgrade", "negative", "junk", "review for downgrade", "lowers", "cuts")):
-            indicator = '<span style="color: #c0392b; font-weight: 700;">&#x25BC;</span> '
-        elif any(w in title_lower for w in ("upgrade", "positive", "raises")):
-            indicator = '<span style="color: #27ae60; font-weight: 700;">&#x25B2;</span> '
-        else:
-            indicator = ""
-
-        if url:
-            headline = (
-                f'<a href="{url}" style="color: #1a5276; text-decoration: none; '
-                f'border-bottom: 1px solid #ccc;">{title}</a>'
-            )
-        else:
-            headline = title
-
-        items += (
-            f'<li style="margin-bottom: 10px; font-size: 14px;">'
-            f'{indicator}{headline} '
-            f'<span style="color: #888; font-size: 11px;">({source})</span>'
-        )
-        if desc:
-            items += f'<br><span style="color: #555; font-size: 13px;">{desc}</span>'
-        items += '</li>\n'
-
-    html = (
-        '<h2 style="font-size: 18px; border-bottom: 1px solid #ccc; '
-        'padding-bottom: 6px; margin: 28px 0 12px;">9. Rating Actions</h2>\n'
-        f'<ul style="padding-left: 20px; margin: 0;">\n{items}</ul>\n'
-    )
-
-    return html
+# No build_ratings_html here: unlike the other source modules, ratings has no pre-rendered HTML
+# section. The digest's §9 "Rating Actions" is written by Opus from format_ratings_for_prompt()
+# output (see digest.py SYSTEM_PROMPT). A raw-table renderer lived here until 2026-06-30; it was
+# removed as dead code (it would have duplicated Opus's §9). Recoverable from git if ever wanted.
 
 
 if __name__ == "__main__":

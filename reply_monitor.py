@@ -12,7 +12,6 @@ Usage:
 """
 
 import base64
-import json
 import re
 import sys
 import time
@@ -23,52 +22,106 @@ from pathlib import Path
 import anthropic
 
 # Reuse Gmail auth from digest.py
-from digest import get_gmail_service
+from digest import get_gmail_service, DIGEST_RECIPIENTS, TEAM_RECIPIENTS
 
-from search import search
+from search import search, extract_entities, dedupe_near_duplicates
+from memory import match_stories, SUBSTACK_MEMORY_FILE
+from config import (
+    OPUS_MODEL, SONNET_MODEL, DIGEST_SUBJECT_PREFIX,
+    FULL_ACCESS_SENDERS, TEAM_ACTIVATION_DATE,
+)
+from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
+import cost
+from html_utils import extract_gmail_body, strip_html
 
 ARCHIVE_DIR = Path(__file__).parent / "archive"
 
 # --- Configuration ---
 POLL_INTERVAL_SECONDS = 300    # check every 5 minutes
 SEARCH_TOP_K = 20              # retrieve top 20 chunks for context
-REPLY_MODEL = "claude-opus-4-6"
+REPLY_MODEL = OPUS_MODEL
 MAX_CONTEXT_CHARS = 80000      # cap context to control Opus costs
 MAX_REPLIES_PER_HOUR = 10      # rate limit
-
-DIGEST_SUBJECT_PREFIX = "\U0001f4ec Daily Inbox Digest"
 
 # Queries processed this hour (for rate limiting)
 _replies_this_hour = []
 
-SCRIPT_DIR = Path(__file__).parent
+
+# ======================================================================
+# ACCESS TIERS (TEAM_DIGEST_SPEC Stage 2)
+# ======================================================================
+
+def _sender_email(from_header):
+    """'Name <a@b.com>' -> 'a@b.com' (lowercased); bare addresses pass through."""
+    from email.utils import parseaddr
+    return parseaddr(from_header or "")[1].lower()
+
+
+def _is_full_access(asker):
+    """Substack content is personal to jared: only FULL_ACCESS_SENDERS see it
+    in reply answers. `asker=None` (direct/internal answer_question calls, the
+    A/B tools) keeps today's full behavior — real replies always carry the
+    asker's address."""
+    if asker is None:
+        return True
+    return asker.lower() in {s.lower() for s in FULL_ACCESS_SENDERS}
+
+
+_substack_pub_tokens_cache = None
+
+
+def _substack_pub_tokens():
+    """Normalized name tokens for the configured Substack pubs (lazy, cached).
+
+    'www.junkbondinvestor.com' -> 'junkbondinvestor'; 'x.substack.com' -> 'x'.
+    Used by the best-effort story guard below; tokens under 5 chars are
+    dropped to avoid false hits on common words."""
+    global _substack_pub_tokens_cache
+    if _substack_pub_tokens_cache is None:
+        from urllib.parse import urlparse
+        from substack import SUBSCRIPTIONS
+        tokens = set()
+        for url in SUBSCRIPTIONS:
+            host = urlparse(url).netloc
+            parts = host.split(".")
+            core = parts[0] if host.endswith(".substack.com") else parts[-2]
+            if core == "www" and len(parts) > 2:
+                core = parts[1]
+            token = re.sub(r"[^a-z0-9]", "", core.lower())
+            if len(token) >= 5:
+                tokens.add(token)
+        _substack_pub_tokens_cache = tokens
+    return _substack_pub_tokens_cache
+
+
+def _story_mentions_substack(story):
+    """Best-effort: True when any of the story's sources looks like one of the
+    configured Substack pubs. Used by the reply-bot router guard AND the
+    Stage-5 memory cleanse — sources are model-written strings, so this is
+    heuristic by design, biased toward privacy (any match flags the story).
+
+    Matching: the literal word "substack" always matches; otherwise each
+    5+-char word of the source is compared against the pub tokens in both
+    directions ("Krugman Substack" -> "krugman" matches paulkrugman;
+    "Burry" matches michaeljburry)."""
+    tokens = _substack_pub_tokens()
+    for source in story.get("sources") or []:
+        norm = re.sub(r"[^a-z0-9 ]", "", (source or "").lower())
+        if not norm:
+            continue
+        if "substack" in norm:
+            return True
+        words = [w for w in norm.split() if len(w) >= 5] + [norm.replace(" ", "")]
+        for word in words:
+            for token in tokens:
+                if word in token or token in word:
+                    return True
+    return False
 
 
 # ======================================================================
 # GMAIL HELPERS
 # ======================================================================
-
-def _extract_body(payload):
-    """Recursively extract plain text body from Gmail message payload."""
-    body = ""
-
-    mime_type = payload.get("mimeType", "")
-
-    if payload.get("body", {}).get("data"):
-        decoded = base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="replace")
-        if "plain" in mime_type:
-            body += decoded
-        elif "html" in mime_type and not body:
-            # Strip HTML as fallback
-            body += re.sub(r'<[^>]+>', ' ', decoded)
-
-    for part in payload.get("parts", []):
-        part_body = _extract_body(part)
-        if part_body:
-            body += part_body
-
-    return body
-
 
 def _extract_question(body):
     """
@@ -104,10 +157,6 @@ def _extract_question(body):
         question_lines.append(stripped)
 
     question = "\n".join(question_lines).strip()
-
-    # Remove trailing empty lines
-    while question.endswith("\n"):
-        question = question[:-1].strip()
 
     return question
 
@@ -155,11 +204,17 @@ def _extract_digest_date(subject, thread_id, service):
     return None
 
 
-def _load_digest_for_date(date_str):
-    """Load the archived digest HTML for a given date, if available."""
+def _load_digest_for_date(date_str, team=False):
+    """Load the archived digest HTML for a given date, if available.
+
+    team=True loads the Substack-free variant (digest_team.html) for
+    non-full-access askers; before team activation no such file exists and
+    None is returned — the answer then relies on (substack-filtered)
+    retrieval alone rather than leaking the full digest as context."""
     if not date_str:
         return None
-    digest_file = ARCHIVE_DIR / date_str / "digest.html"
+    name = "digest_team.html" if team else "digest.html"
+    digest_file = ARCHIVE_DIR / date_str / name
     if digest_file.exists():
         try:
             return digest_file.read_text(encoding="utf-8")
@@ -168,19 +223,39 @@ def _load_digest_for_date(date_str):
     return None
 
 
+def _reply_query():
+    """Gmail query for digest replies — the sender allow-list is EXACTLY the
+    configured audience (CLEANUP_SPEC 2.3): everyone who receives a digest
+    (full + team recipient lists) plus FULL_ACCESS_SENDERS. Config-driven, so
+    adding a team recipient automatically makes their replies answerable
+    (previously three hardcoded addresses — a silent-ignore foot-gun).
+
+    Two separate subject: terms (AND) rather than one "Re: <prefix>" phrase,
+    so the FULL variant's "[FULL] " marker sitting between "Re:" and the
+    prefix (digest.FULL_SUBJECT_MARKER) still matches. The "Re:" term keeps
+    excluding any original digest sitting in the inbox; the prefix phrase
+    matches both the full and team subjects and their replies. Deterministic
+    (sorted) so the query string is stable run-to-run.
+    """
+    senders = sorted({s.lower() for s in
+                      {*FULL_ACCESS_SENDERS, *DIGEST_RECIPIENTS, *TEAM_RECIPIENTS}})
+    from_clause = " OR ".join(f"from:{s}" for s in senders)
+    return (
+        f'subject:"Re:" subject:"{DIGEST_SUBJECT_PREFIX}" '
+        f'is:unread '
+        f'newer_than:1d '
+        f'({from_clause})'
+    )
+
+
 def check_for_replies(service):
     """
     Find unprocessed replies to digest emails.
 
-    Returns list of (message_id, thread_id, subject, question_text, digest_date).
+    Returns list of (message_id, thread_id, subject, question_text,
+    digest_date, rfc_message_id, asker_email).
     """
-    # Search for replies to digest threads from the user
-    query = (
-        f'subject:"Re: {DIGEST_SUBJECT_PREFIX}" '
-        f'is:unread '
-        f'newer_than:1d '
-        f'(from:jtramontano@acorninv.com OR from:jaredtramontano@gmail.com)'
-    )
+    query = _reply_query()
 
     try:
         results = service.users().messages().list(
@@ -206,7 +281,7 @@ def check_for_replies(service):
             thread_id = msg.get("threadId", "")
 
             # Extract the question from the reply body
-            body = _extract_body(msg["payload"])
+            body = extract_gmail_body(msg["payload"])
             question = _extract_question(body)
 
             if not question or len(question) < 3:
@@ -227,7 +302,12 @@ def check_for_replies(service):
             # Get the RFC Message-ID for proper threading in Outlook/other clients
             rfc_message_id = headers.get("Message-ID", headers.get("Message-Id", ""))
 
-            replies.append((msg_meta["id"], thread_id, subject, question, digest_date, rfc_message_id))
+            # Who asked — drives the reply address (asker-only) and the
+            # access tier (TEAM_DIGEST_SPEC Stage 2)
+            asker = _sender_email(headers.get("From", ""))
+
+            replies.append((msg_meta["id"], thread_id, subject, question,
+                            digest_date, rfc_message_id, asker))
 
         except Exception as e:
             print(f"  Error processing message {msg_meta['id']}: {e}")
@@ -257,27 +337,22 @@ def _extract_search_queries(reply_text):
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=SONNET_MODEL,
             max_tokens=500,
             system=(
                 "Extract the questions or information requests from this email reply. "
-                "Return them as a JSON array of strings — one search query per question. "
+                "Return a JSON object {\"queries\": [ ... ]} — one search-query string per question. "
                 "Rephrase each as a clear search query suitable for searching a research archive. "
                 "If there's only one question, return a single-element array. "
-                "If the message isn't a question (just a comment/thanks), return []. "
-                "Output ONLY a JSON array, nothing else."
+                "If the message isn't a question (just a comment/thanks), return {\"queries\": []}. "
+                "Output ONLY the JSON object, nothing else."
             ),
+            output_config=json_schema_output(wrapped_array_schema("queries", "string")),
             messages=[{"role": "user", "content": reply_text}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-        queries = json.loads(text)
+        cost.record("reply query-extract", SONNET_MODEL, response.usage)
+        queries = parse_json_response(response.content[0].text)["queries"]
         if isinstance(queries, list) and queries:
             print(f"  Extracted {len(queries)} search queries from reply")
             for q in queries:
@@ -291,34 +366,189 @@ def _extract_search_queries(reply_text):
     return [reply_text[:500]]
 
 
-def _search_multiple(queries, digest_date=None):
-    """Search for multiple queries and merge results, deduped by chunk_id."""
+_MONTH_NAMES = ("january", "february", "march", "april", "may", "june", "july",
+                "august", "september", "october", "november", "december")
+
+
+def _month_day_to_date(month_name, day):
+    """'July 7' -> the most recent past occurrence (same year-boundary logic
+    as _extract_digest_date). None if the day is invalid (e.g. June 31)."""
+    month = _MONTH_NAMES.index(month_name.lower()) + 1
+    today = datetime.date.today()
+    try:
+        candidate = datetime.date(today.year, month, int(day))
+    except ValueError:
+        return None
+    if candidate > today:
+        candidate = datetime.date(today.year - 1, month, int(day))
+    return candidate
+
+
+def _extract_query_filters(question, digest_date=None):
+    """Stage-4 query understanding — regex-only, free, deterministic.
+
+    Returns (entities, date_from, date_to) to drive the Stage-3a search
+    filters. Entities come from search.extract_entities — the SAME lexicon
+    that tags the index (watchlist tickers, $TICK mentions, tracked funds) —
+    so a detected entity can actually match chunk tags. The date window comes
+    from, in priority order: explicit ISO dates, "Month DD" mentions, or a
+    this-week/last-week phrase anchored to the digest being replied to.
+    Anything unrecognized yields (…, None, None) and retrieval stays broad.
+    """
+    entities = extract_entities(question)
+
+    # Explicit ISO dates: one -> that day; several -> min..max window
+    iso = re.findall(r'\b(20\d{2}-\d{2}-\d{2})\b', question)
+    if iso:
+        return entities, min(iso), max(iso)
+
+    # "July 7" style mentions ("may" etc. only match when followed by a day number)
+    month_days = re.findall(rf'\b({"|".join(_MONTH_NAMES)})\s+(\d{{1,2}})\b',
+                            question, re.IGNORECASE)
+    days = [d for d in (_month_day_to_date(m, dd) for m, dd in month_days) if d]
+    if days:
+        return entities, min(days).isoformat(), max(days).isoformat()
+
+    # Week phrases, anchored to the digest day (or today)
+    anchor = None
+    if digest_date:
+        try:
+            anchor = datetime.date.fromisoformat(digest_date)
+        except ValueError:
+            pass
+    anchor = anchor or datetime.date.today()
+    q = question.lower()
+    if re.search(r'\blast week\b', q):
+        monday = anchor - datetime.timedelta(days=anchor.weekday() + 7)
+        sunday = monday + datetime.timedelta(days=6)
+        return entities, monday.isoformat(), sunday.isoformat()
+    if re.search(r'\b(this week|across the week)\b', q):
+        monday = anchor - datetime.timedelta(days=anchor.weekday())
+        return entities, monday.isoformat(), anchor.isoformat()
+    if re.search(r'\bpast week\b', q):
+        return entities, (anchor - datetime.timedelta(days=6)).isoformat(), anchor.isoformat()
+
+    return entities, None, None
+
+
+def _team_search_exclusions():
+    """The retrieval exclusions for non-full-access askers (TEAM_DIGEST_SPEC):
+    no substack chunks ever, and no digest chunks from before team activation
+    (those are FULL digests with Substack woven into their prose; with no
+    activation date every digest chunk is excluded)."""
+    return {
+        "exclude_source_types": ("substack",),
+        "exclude_digest_before": TEAM_ACTIVATION_DATE or "9999-12-31",
+    }
+
+
+def _search_multiple(queries, digest_date=None, question=None, stories=None,
+                     full_access=True):
+    """Search for multiple queries and merge results, deduped by chunk_id.
+
+    Stage 4 behavior on top of the original day-then-broad phases:
+    - Same-day digest chunks are excluded from every phase — the bot already
+      loads that digest verbatim as context, so retrieving its chunks wastes
+      slots (the checkpoint's rerank finding, applied to the default path too).
+    - A question naming a tagged entity and/or a date window gets extra
+      filtered phases driving the Stage-3a search params.
+    - Near-duplicate chunks (same PDF forwarded twice) are dropped before the
+      final cap.
+    Stage 5: matched storylines (`stories`, from memory.match_stories) add
+    targeted phases — the story's entities searched inside its lifespan
+    window. This reaches entities the question-side regex can't (e.g. "the
+    Wynn story" -> the story's WYNN tag) and anchors cross-day questions to
+    the dates the story actually spans.
+    TEAM_DIGEST_SPEC: full_access=False adds the substack/pre-activation-digest
+    exclusions to EVERY phase.
+    """
+    entities, date_from, date_to = [], None, None
+    if question:
+        entities, date_from, date_to = _extract_query_filters(question, digest_date)
+        if entities or date_from:
+            print(f"  Query filters: entities={entities or 'none'}"
+                  f" window={date_from or '-'}..{date_to or '-'}")
+
+    access = {} if full_access else _team_search_exclusions()
+
     all_results = []
     seen_ids = set()
 
-    for query in queries:
-        # Two-phase search: digest day first, then broaden
-        if digest_date:
-            day_results = search(query, top_k=SEARCH_TOP_K // 2, date_filter=digest_date)
-            for meta, score in day_results:
-                cid = meta.get("chunk_id")
-                if cid not in seen_ids:
-                    seen_ids.add(cid)
-                    all_results.append((meta, score))
-
-        broader = search(query, top_k=SEARCH_TOP_K)
-        for meta, score in broader:
+    def _collect(results):
+        for meta, score in results:
             cid = meta.get("chunk_id")
             if cid not in seen_ids:
                 seen_ids.add(cid)
                 all_results.append((meta, score))
 
-    # Sort by score and cap
+    for query in queries:
+        # Phase 1: digest day first (original behavior, minus that day's digest chunks)
+        if digest_date:
+            _collect(search(query, top_k=SEARCH_TOP_K // 2, date_filter=digest_date,
+                            exclude_digest_date=digest_date, **access))
+
+        # Phase 2 (Stage 4): entity-filtered, inside the date window when present
+        for ent in entities[:3]:
+            _collect(search(query, top_k=SEARCH_TOP_K // 2, entity_filter=ent,
+                            date_from=date_from, date_to=date_to,
+                            exclude_digest_date=digest_date, **access))
+
+        # Phase 3 (Stage 4): date-window only, when no entity was detected
+        if not entities and (date_from or date_to):
+            _collect(search(query, top_k=SEARCH_TOP_K // 2,
+                            date_from=date_from, date_to=date_to,
+                            exclude_digest_date=digest_date, **access))
+
+        # Phase 4: broad backstop (filters have limited coverage by design)
+        _collect(search(query, top_k=SEARCH_TOP_K,
+                        exclude_digest_date=digest_date, **access))
+
+    # Phase 5 (Stage 5): storyline-driven — search the question against each
+    # matched story's entities inside the story's lifespan window
+    for story in (stories or [])[:2]:
+        search_text = question or (queries[0] if queries else "")
+        if not search_text:
+            break
+        for ent in (story.get("entities") or [])[:2]:
+            _collect(search(search_text, top_k=SEARCH_TOP_K // 2,
+                            entity_filter=ent,
+                            date_from=story.get("first_seen") or None,
+                            date_to=story.get("last_updated") or None,
+                            exclude_digest_date=digest_date, **access))
+
+    # Sort by score, drop near-duplicate texts, cap
     all_results.sort(key=lambda x: x[1], reverse=True)
-    return all_results[:SEARCH_TOP_K]
+    return dedupe_near_duplicates(all_results)[:SEARCH_TOP_K]
 
 
-def answer_question(question, digest_date=None):
+def _story_context_block(stories):
+    """Render matched storylines (Stage-5 router) as answer context.
+
+    The timeline is the narrative spine System B can't retrieve on its own —
+    dated developments across days. Capped small (<=2 stories, last 8 entries
+    each); the header tells Opus to cite the ORIGINAL sources, matching the
+    digest's never-cite-the-memory-system rule.
+    """
+    if not stories:
+        return ""
+    parts = []
+    for story in stories:
+        lines = [
+            f"TRACKED STORYLINE: {story.get('topic', '')} "
+            f"({story.get('first_seen', '?')} → {story.get('last_updated', '?')}, "
+            f"{story.get('status', 'active')}) "
+            "[assembled from prior digests — cite the original sources named below, "
+            "never this tracking system]",
+            f"Summary: {story.get('summary', '')}",
+        ]
+        for entry in (story.get("timeline") or [])[-8:]:
+            src = f" ({', '.join(entry['sources'])})" if entry.get("sources") else ""
+            lines.append(f"  {entry.get('date', '?')}: {entry.get('update', '')}{src}")
+        parts.append("\n".join(lines))
+    return "\n\n".join(parts) + "\n\n"
+
+
+def answer_question(question, digest_date=None, asker=None):
     """
     Parse the full reply for questions, search the archive for each,
     and generate a unified answer using Claude Opus.
@@ -326,15 +556,40 @@ def answer_question(question, digest_date=None):
     Args:
         question: The user's full reply text (stripped of quoted content).
         digest_date: ISO date string of the digest being replied to.
+        asker: The asker's email address (drives the TEAM_DIGEST_SPEC access
+            tier). None — direct/internal calls — means full access.
 
     Returns:
         HTML string with the answer.
     """
+    full_access = _is_full_access(asker)
     date_label = f" (replying to {digest_date} digest)" if digest_date else ""
-    print(f"  Processing reply{date_label}: {question[:80]}...")
+    tier_label = "" if full_access else " [team access]"
+    print(f"  Processing reply{date_label}{tier_label}: {question[:80]}...")
 
     # Extract individual search queries from the reply
     queries = _extract_search_queries(question)
+
+    # Stage-5 router: match the question against tracked storylines (free,
+    # local). A match contributes its timeline as context and drives
+    # story-targeted retrieval; no match changes nothing. Access tiers
+    # (TEAM_DIGEST_SPEC): full-access askers also match against the substack
+    # store; team askers additionally lose main-store stories that look
+    # substack-sourced (best-effort until the Stage-5 cleanse).
+    try:
+        stories = match_stories(question)
+        if full_access:
+            stories = stories + match_stories(question, path=SUBSTACK_MEMORY_FILE)
+        else:
+            stories = [s for s in stories if not _story_mentions_substack(s)]
+        # Stage-5 design budget: at most 2 storylines join the answer context
+        # (main-store matches first; substack matches fill remaining slots)
+        stories = stories[:2]
+    except Exception as e:
+        print(f"  Story router failed ({e}) — continuing without.")
+        stories = []
+    if stories:
+        print(f"  Matched storylines: {[s.get('id') for s in stories]}")
 
     if not queries:
         return (
@@ -344,8 +599,11 @@ def answer_question(question, digest_date=None):
             "Try rephrasing as a specific question about your research archive.</p></div>"
         )
 
-    # Search for all queries, merge and dedupe results
-    results = _search_multiple(queries, digest_date=digest_date)
+    # Search for all queries, merge and dedupe results (question drives the
+    # Stage-4 entity/date-window filters; stories drive the Stage-5 phases;
+    # team askers get the substack/pre-activation-digest exclusions)
+    results = _search_multiple(queries, digest_date=digest_date, question=question,
+                               stories=stories, full_access=full_access)
 
     if not results:
         return (
@@ -356,14 +614,15 @@ def answer_question(question, digest_date=None):
             "appeared in your research sources.</p></div>"
         )
 
-    # Load the original digest as primary context
+    # Load the original digest as primary context — the variant matching the
+    # asker's tier (team askers must never see the full digest's substack prose;
+    # before activation no team file exists and the block is simply omitted)
     digest_context = ""
     if digest_date:
-        digest_html = _load_digest_for_date(digest_date)
+        digest_html = _load_digest_for_date(digest_date, team=not full_access)
         if digest_html:
             # Strip HTML for the prompt
-            from search import _strip_html
-            digest_text = _strip_html(digest_html)
+            digest_text = strip_html(digest_html)
             # Cap at 20K chars to leave room for RAG chunks
             if len(digest_text) > 20000:
                 digest_text = digest_text[:20000] + "\n[...digest truncated]"
@@ -372,9 +631,12 @@ def answer_question(question, digest_date=None):
                 f"{'='*40}\n{digest_text}\n{'='*40}\n\n"
             )
 
+    # Storyline timelines (Stage 5) join the context as the narrative spine
+    story_context = _story_context_block(stories)
+
     # Build context from retrieved chunks
     context_parts = []
-    total_chars = len(digest_context)
+    total_chars = len(digest_context) + len(story_context)
     for chunk_meta, score in results:
         entry = (
             f"[Source: {chunk_meta['source_name']} | "
@@ -394,7 +656,7 @@ def answer_question(question, digest_date=None):
         context_parts.append(entry)
         total_chars += len(entry)
 
-    context = digest_context + "\n---\n".join(context_parts)
+    context = digest_context + story_context + "\n---\n".join(context_parts)
 
     print(f"  Retrieved {len(context_parts)} chunks ({total_chars:,} chars). Asking Opus...")
 
@@ -406,7 +668,7 @@ def answer_question(question, digest_date=None):
         system=(
             "You are a research assistant for a credit/distressed investment analyst. "
             "You have access to an archive of investment research — PDFs, newsletters, "
-            "SEC filings, Substack articles, Octus intelligence, and daily digests.\n\n"
+            "SEC filings, Substack articles, and daily digests.\n\n"
             "RULES:\n"
             "- Answer using the provided source material. Extract every relevant detail — "
             "numbers, prices, yields, spreads, leverage ratios, dates, names.\n"
@@ -433,6 +695,7 @@ def answer_question(question, digest_date=None):
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
     print(f"  Answer tokens: {tokens_in:,} in + {tokens_out:,} out")
+    cost.record("reply answer", REPLY_MODEL, response.usage)
 
     # Wrap in container div if not already
     if not answer.strip().startswith("<div"):
@@ -453,14 +716,19 @@ def answer_question(question, digest_date=None):
 # REPLY SENDING
 # ======================================================================
 
-def send_reply(service, thread_id, original_msg_id, subject, answer_html, rfc_message_id=""):
-    """Reply in the same email thread with Claude's answer."""
+def send_reply(service, thread_id, original_msg_id, subject, answer_html,
+               rfc_message_id="", to_addr=None):
+    """Reply in the same email thread with Claude's answer.
+
+    `to_addr` addresses the asker only (TEAM_DIGEST_SPEC Stage 2 — answers
+    used to broadcast to every digest recipient); None falls back to the full
+    recipient list (internal/legacy callers)."""
     # Ensure subject has Re: prefix
     if not subject.startswith("Re:"):
         subject = f"Re: {subject}"
 
     message = MIMEText(answer_html, "html")
-    message["to"] = "jtramontano@acorninv.com, jaredtramontano@gmail.com"
+    message["to"] = to_addr or ", ".join(DIGEST_RECIPIENTS)
     message["subject"] = subject
 
     # Use RFC Message-ID for proper threading in Outlook and other clients
@@ -493,7 +761,8 @@ def send_reply(service, thread_id, original_msg_id, subject, answer_html, rfc_me
     return False
 
 
-def send_error_reply(service, thread_id, original_msg_id, subject, error_msg, rfc_message_id=""):
+def send_error_reply(service, thread_id, original_msg_id, subject, error_msg,
+                     rfc_message_id="", to_addr=None):
     """Reply with a brief error message rather than silently failing."""
     html = (
         '<div style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; '
@@ -502,7 +771,8 @@ def send_error_reply(service, thread_id, original_msg_id, subject, error_msg, rf
         '<p style="font-size: 12px; color: #888;">Try rephrasing, or reply again and I\'ll retry.</p>'
         '</div>'
     )
-    send_reply(service, thread_id, original_msg_id, subject, html, rfc_message_id)
+    send_reply(service, thread_id, original_msg_id, subject, html, rfc_message_id,
+               to_addr=to_addr)
 
 
 # ======================================================================
@@ -528,30 +798,35 @@ def process_replies(service):
     print(f"  Found {len(replies)} pending question(s).")
 
     processed = 0
-    for msg_id, thread_id, subject, question, digest_date, rfc_message_id in replies:
+    for msg_id, thread_id, subject, question, digest_date, rfc_message_id, asker in replies:
         if len(_replies_this_hour) >= MAX_REPLIES_PER_HOUR:
-            print(f"  Rate limit reached. Deferring remaining replies.")
+            print("  Rate limit reached. Deferring remaining replies.")
             break
 
-        print(f"\n  Q: {question[:100]}...")
+        print(f"\n  Q ({asker or 'unknown sender'}): {question[:100]}...")
         if digest_date:
             print(f"  Digest date: {digest_date}")
 
         try:
-            answer = answer_question(question, digest_date=digest_date)
-            success = send_reply(service, thread_id, msg_id, subject, answer, rfc_message_id)
+            cost.reset()
+            answer = answer_question(question, digest_date=digest_date, asker=asker)
+            cost_text, _ = cost.summary()
+            print(cost_text)
+            success = send_reply(service, thread_id, msg_id, subject, answer,
+                                 rfc_message_id, to_addr=asker or None)
 
             if success:
-                print(f"  Replied successfully.")
+                print("  Replied successfully.")
                 processed += 1
                 _replies_this_hour.append(time.time())
             else:
-                print(f"  Reply send failed.")
+                print("  Reply send failed.")
 
         except Exception as e:
             print(f"  Error answering question: {e}")
             try:
-                send_error_reply(service, thread_id, msg_id, subject, str(e), rfc_message_id)
+                send_error_reply(service, thread_id, msg_id, subject, str(e),
+                                 rfc_message_id, to_addr=asker or None)
             except Exception:
                 pass
 
@@ -585,7 +860,7 @@ def main():
             if n:
                 print(f"  Processed {n} replies.")
             else:
-                print(f"  No pending replies.")
+                print("  No pending replies.")
 
         except Exception as e:
             print(f"  Error in poll cycle: {e}")
