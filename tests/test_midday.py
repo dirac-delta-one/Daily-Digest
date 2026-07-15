@@ -41,6 +41,14 @@ def test_html_at_start_unchanged():
     assert html == "<div>x</div>"
 
 
+def test_no_alert_passthrough():
+    # main() checks for NO_ALERT before parsing; pinned anyway so the helper's
+    # fallback path is safe if that ordering ever changes
+    subject, html = midday._parse_alert_result("NO_ALERT")
+    assert subject == "NO_ALERT"
+    assert html == "NO_ALERT"
+
+
 def test_no_div_body_keeps_leftover_separator():
     # Pre-existing behavior, pinned as-is: without a <div to anchor on, the
     # 30 leftover '=' from splitting a 40-char separator on its first 10 stay

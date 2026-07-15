@@ -1100,6 +1100,11 @@ rule-based forwards; detail in WORKLOG 2026-07-13):
   from a logged-in browser into `substack_cookie.txt`.
 - [x] ~~**polymathinvestor.com** 403~~ — removed from `SUBSCRIPTIONS` 2026-07-13 (operator: sub
   lapsed, not renewing).
+- [ ] **Custom-domain Substack pubs ride Substack's unauthenticated per-post API** (the auth
+  cookie is `.substack.com`-scoped — full detail in §5, flagged 2026-07-15). If Substack ever
+  closes that hole, those 9 pubs silently degrade to paywall previews: visible via the
+  `[preview only…]` markers in the digest and, if total, the `substack_fulltext` O3
+  zero-streak. Accepted; per-domain auth deliberately not built.
 
 ---
 

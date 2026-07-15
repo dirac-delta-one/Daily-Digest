@@ -66,3 +66,10 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
 - Known slow burn (developer item, not urgent): the search index grows daily
   and will get gradually slower after several months (~2026 Q4 at current
   rates); a developer should revisit per HANDOFF §14 when replies feel slow.
+
+## If something breaks beyond the three fixes above
+
+Any developer can pick the project up cold: everything they need is in the
+project folder — start with `HANDOFF.md` §1 (state + constraints), then
+`WORKLOG.md` (every change ever made, and why). The git history is the full
+record. Nothing about the system lives only in someone's head.
