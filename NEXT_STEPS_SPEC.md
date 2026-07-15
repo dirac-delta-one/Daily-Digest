@@ -300,7 +300,10 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
 **Pre-deploy (dev machine → server):**
 - [ ] Copy secrets: `credentials.json`; the production `token.json` (the durable one
       minted 2026-07-10 — copy THIS file, never re-consent in Testing mode); fresh
-      `substack_cookie.txt`; `thirteen_d_session.json`.
+      `substack_cookie.txt`; `thirteen_d_session.json` (⚠️ currently
+      UNAUTHENTICATED after the 2026-07-15 clobber — holds only the tracking
+      cookie; copying it is harmless but WILTW stays skipped until Jared re-logs
+      in on the box — see the Cutover step below).
       Do **NOT** copy `credentials_JARED.json` (dev-machine backup only).
 - [ ] Copy state: `memory.json`, `substack_memory.json`, `wiltw_cache.json`,
       `pacer_seen.json`, `source_counts.json`, the whole `archive/` tree (incl.
@@ -341,6 +344,15 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
       also double-send.
 - [ ] Recipients to production: `DIGEST_TO` unset; `DIGEST_TO_TEAM` = the team list —
       **@acorninv.com only** (all covered by IT's org-wide Outlook Abnormal allowlist).
+- [ ] **Get WILTW working — REQUIRES JARED (paid 13D account; the departing
+      developer has no credentials, and no free/bot account can substitute).** On
+      the server, in the project folder, run
+      `.venv\Scripts\python.exe thirteen_d.py --login`; a browser opens →
+      **Jared logs into client.13d.com** → press ENTER in the terminal. It saves a
+      fresh authenticated `thirteen_d_session.json` (the save guard refuses to
+      persist anything that isn't genuinely logged in). Until this is done, WILTW
+      is simply skipped and the digest still sends. The session lasts weeks–months;
+      repeat this whenever the `wiltw` source-degradation alert fires.
 - [ ] Confirm the first unattended 08:00 run end-to-end: digests arrive, log clean,
       09:00 watchdog stays silent.
 
@@ -397,3 +409,10 @@ checks read `logs\digest_<date>.log` + state files; $0.
    PACER commits after send; ~$2/day cost line. Retrieval-eval baseline for ANY
    future comparison: **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
    (`tools/eval_results/2026-07-15_post_index_filter.json`).
+7. **Substack-via-email boundary (NEW 2026-07-15):** the team digest must carry
+   NO Substack content. On the next run, confirm the log shows `Excluded N
+   Substack-origin email(s) from the digest prompt`, and that the TEAM digest
+   (`digests/<date>_team.html`) has no `(PETITION)` / other Substack-pub source
+   tags or "Worth Reading" links to Substack posts. Team-tier reply retrieval
+   drops them via `source_type="substack"`. FULL is unaffected (keeps Substack
+   via the scraper). Context: WORKLOG 2026-07-15 "Substack-via-email leak".

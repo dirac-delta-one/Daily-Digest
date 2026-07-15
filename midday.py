@@ -18,7 +18,7 @@ from pathlib import Path
 
 import anthropic
 
-from config import SONNET_MODEL
+from config import SONNET_MODEL, is_substack_email
 from digest import (
     get_gmail_service, DIGEST_RECIPIENTS, TEAM_RECIPIENTS, _is_self_artifact,
 )
@@ -108,6 +108,12 @@ def _fetch_new_emails(service, cutoff):
             # Never treat the system's own output (morning digest, alerts) or
             # replies to it as "new content since morning" — CLEANUP_SPEC 2.5.
             if _is_self_artifact(headers.get("From", ""), headers.get("Subject", "")):
+                continue
+
+            # Substack newsletters arriving as inbox email are jared-personal
+            # (TEAM boundary, 2026-07-15). The midday alert reaches team
+            # recipients too, so exclude them from the materiality check.
+            if is_substack_email(headers.get("From", "")):
                 continue
 
             emails.append({

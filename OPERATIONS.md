@@ -45,6 +45,16 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
    `.venv\Scripts\python.exe thirteen_d.py --login` — a browser opens; log in to
    client.13d.com, then press ENTER in the terminal. Until this is done, WILTW
    is simply skipped (the digest still sends).
+   *Note:* WILTW publishes on Thursdays and takes occasional multi-week breaks. A
+   `Report not found` line in the log on a non-publishing week is NORMAL — the
+   session is fine, there just isn't a report yet. Only a `Session expired —
+   re-login required` line means the login actually died. If you know a report is
+   due, you can refresh the session ahead of time with the same `--login` command.
+   **Who can do this:** the login uses 13D's PAID subscription account (Jared's).
+   Only someone with those credentials can refresh the session — there is no free
+   or alternative account, and a new signup would have no access to WILTW. If the
+   session dies and Jared is unavailable, WILTW simply stays skipped until he
+   re-logs in; the digest is otherwise unaffected.
 2. **Substack cookie paste** (only if auto-renewal fails — it renews itself via
    a login code emailed to your gmail and auto-forwarded to the bot): log in to
    substack.com in a browser, copy the `substack.sid` cookie value (browser dev

@@ -9,13 +9,13 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 **The second-pass cleanup (`CLEANUP_SPEC.md`) is COMPLETE** — 5 stages + the
 audit-gap and index-side-filter follow-ups, all committed ("cleanup spec stage
-1..5" + two follow-up commits). `ruff` clean, `pytest` **336** green;
+1..5" + two follow-up commits). `ruff` clean, `pytest` **349** green;
 retrieval-eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
 (`2026-07-15_post_index_filter.json` — improved over 0.862/0.966/0.917: the
 self-ingested reply artifacts had been suppressing real sources); **$0 Claude
 spend across the whole track.** Durable outcomes: the TEAM privacy boundary is
 code-enforced end-to-end (post-activation env guard + index-side digest skip +
-fetch/index self-artifact filters); the receiving side is **@acorninv.com
+fetch/index self-artifact filters + Substack-via-email exclusion); the receiving side is **@acorninv.com
 only** (bot removed as recipient — self-ingestion loop killed); reply access is
 config-driven (answerable = exactly the digest recipients; full tier =
 jtramontano alone); memory contexts are budget-bounded (byte-identical today)
@@ -31,11 +31,103 @@ cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
 2. **Apply the first-run watch list (NEXT_STEPS §5 subsection)** to the next
    natural run — especially the resolved-story re-creation ride-along (memory
    3.1) and the memory size log; both stay live watches through ~mid-August
-   (the 30-day aging fires its first resolutions ~7/30).
+   (the 30-day aging's first batch was pulled forward to 2026-07-15 for soak —
+   4 stories resolved via the real path, then `STALE_DAYS` restored to 30 — so
+   the re-creation ride-along is live on the NEXT run; see the 2026-07-15 entry).
 3. **Push** — the branch is ahead of origin (operator pushes).
 4. Optional, parked in HANDOFF §14.G: the F7 weekly-diet `count_tokens`
    quantification (standing $0-call permission); the F22 HANDOFF consolidation
    as its own later docs pass.
+
+---
+
+## Substack-via-email leak into the TEAM digest — FOUND + FIXED (2026-07-15)
+
+Surfaced while eyeballing today's forced-run alert box (a deep-check the run
+itself passed). `ruff` clean, `pytest` **349** green (+6).
+
+**The leak.** The TEAM digest is meant to be Substack-free, but paid Substack
+newsletters ALSO arrive as inbox email (PETITION from petition@substack.com; 6
+more from no-reply@substack.com today). The team exclusion only covered the
+substack.py SCRAPER layer (substack_articles=[]), so those emails flowed into the
+team source, the team digest (PETITION's Serta Simmons LME analysis appeared in
+apain's copy — alert box + a "Distressed / Credit Movers" item + a "Worth Reading"
+link), and the index (322 email chunks were team-retrievable). FULL was unaffected
+(it includes Substack anyway).
+
+**Fix (boundary now enforced at the email layer too):**
+- `config.is_substack_email(*senders)` — True for @substack.com / *.substack.com in
+  From or effective_from (forwarded ones carry it in effective_from). Custom-domain
+  pubs emailing from their OWN domain are a documented residual (extend
+  `_SUBSTACK_EMAIL_DOMAINS` if observed).
+- `digest.summarize_with_claude` drops Substack-origin emails from the shared prompt
+  prefix + PDF loop (BOTH variants filter identically → cached prefix stays
+  byte-identical → cross-variant cache preserved; FULL still gets Substack via the
+  scraper block). Fixes the team alert eval for free (its source_text is that prefix).
+  Logs "Excluded N Substack-origin email(s)".
+- `search._chunks_for_date` tags Substack-origin email chunks source_type="substack"
+  so team retrieval's exclude_source_types drops them like scraped chunks.
+- `midday._fetch_new_emails` drops them too (the midday alert reaches team recipients).
+- **Re-indexed 2026-07-15** (only day with substack senders): 322 email chunks
+  retagged email→substack (PETITION 82, no-reply Substack 240); 0 substack-sender
+  chunks remain "email"; index steady at 7,241 (metadata-only → vectors + the
+  retrieval-eval baseline unchanged). Index backed up first.
+- New `tests/test_substack_email_boundary.py` (6 tests: predicate incl. forwarded +
+  negatives; index tagging incl. forwarded).
+
+**Trade-off (accepted):** a Substack that emails the inbox but ISN'T in the scraper's
+SUBSCRIPTIONS is now dropped from the FULL prompt too (PETITION IS scraped, so no loss;
+the no-reply items were largely noise). The digest-prompt filter is live-exercised on
+the NEXT run (watch list §5, new item 7). The already-SENT 7/15 team digest to apain
+can't be recalled — heads-up if PETITION access is sensitive.
+
+---
+
+## 13D session-save guard + WILTW-is-Jared's-paid-account finding (2026-07-15)
+
+Follow-up during the day's forced validation run (see the "Day's context" note
+at the end). `ruff` clean, `pytest` **343** green (+7); $0 Claude for the code/tests.
+
+**Incident.** A `thirteen_d.py --login` — run to refresh the 13D session before
+the server deploy — surfaced two things: (1) the 13D account is **Jared's PAID
+subscription** and the operator has no credentials; no free/bot-email account can
+substitute (WILTW is gated behind the paid sub). (2) The login attempt (ENTER at
+the prompt without actually logging in) **overwrote the valid session with an
+unauthenticated one** — `thirteen_d_session.json` went from {visitrack, user} to
+{visitrack} only. No backup exists (gitignored, not archived), so the prior
+session is unrecoverable from disk. Impact bounded: the digest skips WILTW
+gracefully (1 of ~17 sources) until Jared runs a real `--login`.
+
+**Hardening (so the clobber can't recur).** `thirteen_d._save_session` now
+refuses to write unless the state is authenticated — `_looks_authenticated`
+requires a `user` auth cookie with a value — and never overwrites an existing
+session with an unauthenticated one. It's the single save chokepoint, so it
+guards both the manual-login path and the download-path saves. `_do_manual_login`
+reports honestly ("Login complete" only on a real save). Same defensive shape as
+the substack `_check_session` fix. The `user`-cookie assumption is documented
+with its SAFE failure mode (won't clobber; would merely stop persisting if 13D
+renames the cookie). New `tests/test_thirteen_d_session.py` (7 tests: authed
+save, anonymous refuses + keeps existing, no-file case, empty/None states).
+
+**Docs.** OPERATIONS.md + MAINTENANCE.md now state the 13D re-login needs Jared's
+paid-account credentials (no free/alternative account); MAINTENANCE distinguishes
+`Report not found` (publishing break — session fine) from `Session expired`
+(dead), and flags the O3 blind-spot on a long WILTW zero-streak. NEXT_STEPS §5:
+the pre-deploy secrets line marks the copied session as unauthenticated, and a
+Cutover step spells out getting Jared to `--login` on the box.
+
+**Day's context.** Forced manual `run_digest.bat` — GREEN, $1.96, both variants
+to the intended recipients (FULL → jtramontano+acohen; TEAM → apain+acohen; env
+recipients set for this run; apain added to `DIGEST_TO_TEAM`). First-run watch
+list all clean: re-creation N/A (0 resolved that run, 10 genuinely-new stories);
+the two main-store memory lines byte-identical (39,491 chars / 51 of 51); no
+self-artifacts archived; no "team config missing"; O3 armed at 6 runs with the
+new `substack_fulltext` count; market_data back to 6; cache engaged (team wrote /
+full read); index +1,286 → 7,241; PACER committed after send. Aging pulled
+forward for soak: `STALE_DAYS` 30→14 fired the first batch via the real
+`_age_stale_stories` (resolved the 4 six-30 stories: tungsten, fsk-kkr,
+big-tech-230, alamos-gold), then **restored to 30** — memory.json now 57 active /
+8 resolved. WILTW "gap" explained: 13D Q2 publishing break, next report 7/16.
 
 ---
 

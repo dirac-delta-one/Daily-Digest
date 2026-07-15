@@ -50,6 +50,35 @@ def is_self_artifact(sender, subject):
         return True
     return DIGEST_SUBJECT_PREFIX in (subject or "")
 
+
+# --- Substack-via-email (2026-07-15) ---
+# Paid Substack newsletters ALSO arrive as inbox email (e.g. PETITION from
+# petition@substack.com, or "no-reply@substack.com"). That is Substack content —
+# jared-personal — even though it enters via the email path rather than the
+# substack.py scraper. Without this, such emails slipped into the TEAM digest,
+# its index, and team-tier reply retrieval (observed 2026-07-15: PETITION's Serta
+# Simmons analysis in apain's team digest). Treated as Substack everywhere the
+# boundary is enforced: excluded from the shared/team prompt prefix
+# (digest.summarize_with_claude), tagged source_type="substack" at index time
+# (search._chunks_for_date), and dropped from the midday alert (midday reaches
+# team recipients too). Forwarded ones carry the substack address in
+# effective_from, so both headers are checked.
+# NOTE: custom-domain pubs that email from their OWN domain (not *.substack.com)
+# are NOT caught here — add domains below if any are ever observed.
+_SUBSTACK_EMAIL_DOMAINS = ("substack.com",)
+
+
+def is_substack_email(*senders):
+    """True if any given sender header (From / effective_from) is a Substack
+    address — i.e. an inbox email carrying Substack newsletter content."""
+    for s in senders:
+        s = (s or "").lower()
+        for dom in _SUBSTACK_EMAIL_DOMAINS:
+            if f"@{dom}" in s or f".{dom}" in s:
+                return True
+    return False
+
+
 # --- Reply-bot access tiers (TEAM_DIGEST_SPEC Stage 2) ---
 # Substack content is personal to jared: full-access askers get Substack in
 # reply answers (raw substack chunks, substack-memory storylines, the FULL

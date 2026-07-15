@@ -28,6 +28,7 @@ from googleapiclient.discovery import build
 from config import (
     OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, TEAM_ACTIVATION_DATE,
     FORWARDER_ADDRESSES, esc, safe_href, unattended, is_self_artifact,
+    is_substack_email,
 )
 from config import BOT_ADDRESS  # noqa: F401  (re-exported for tests/callers)
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
@@ -687,12 +688,28 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     fed_bs = fed_bs or []
     bank_failures = bank_failures or []
 
+    # Substack-via-email boundary (2026-07-15): paid Substack newsletters also
+    # arrive as inbox email (e.g. PETITION from petition@substack.com). They are
+    # Substack content — jared-personal — so they must NOT enter the shared/team
+    # prompt prefix. Drop them here; because BOTH variants filter identically the
+    # cached prefix stays byte-identical, and the FULL variant still gets Substack
+    # via the scraped substack_block. (Their index chunks are tagged "substack" in
+    # search._chunks_for_date; midday drops them too.)
+    shared_emails = [
+        e for e in emails
+        if not is_substack_email(e.get("effective_from"), e.get("from"))
+    ]
+    n_sub_email = len(emails) - len(shared_emails)
+    if n_sub_email:
+        print(f"  Excluded {n_sub_email} Substack-origin email(s) from the digest "
+              "prompt (jared-personal; FULL still gets Substack via the scraper).")
+
     # Get cross-digest memory context (the shared/team store — both variants)
     memory_context = get_memory_context()
 
     # Build the team-shareable source prompt (no Substack — see the builder)
     prompt = _build_source_prompt(
-        emails=emails,
+        emails=shared_emails,
         sec_filings=sec_filings,
         market_data=market_data,
         macro_data=macro_data,
@@ -712,8 +729,9 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     # Build the content array for Claude's messages API
     content = [{"type": "text", "text": prompt}]
 
-    # Add each PDF as a document block
-    for e in emails:
+    # Add each PDF as a document block (shared_emails only — a Substack-origin
+    # email's attachments follow the same jared-personal boundary as its body)
+    for e in shared_emails:
         for pdf in e["pdfs"]:
             content.append({
                 "type": "text",

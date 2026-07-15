@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from config import TEAM_ACTIVATION_DATE, is_self_artifact
+from config import TEAM_ACTIVATION_DATE, is_self_artifact, is_substack_email
 from html_utils import strip_html, parse_forwarded_from
 
 SCRIPT_DIR = Path(__file__).parent
@@ -603,6 +603,12 @@ def _chunks_for_date(date_str):
                 effective = effective or sender
                 source_name = effective.split("<")[0].strip() or effective
 
+                # Substack-via-email (2026-07-15): a newsletter delivered as inbox
+                # email (e.g. PETITION from petition@substack.com) is Substack
+                # content — tag it "substack" so the team-tier retrieval exclusion
+                # (exclude_source_types) drops it exactly like a scraped chunk.
+                is_sub = is_substack_email(sender, effective)
+
                 header = f"From: {effective}\nSubject: {subject}\n\n"
                 text = header + body
 
@@ -614,7 +620,7 @@ def _chunks_for_date(date_str):
                     chunks.append((chunk, {
                         "chunk_id": f"{date_str}_email_{j:02d}_{i:04d}",
                         "date": date_str,
-                        "source_type": "email",
+                        "source_type": "substack" if is_sub else "email",
                         "source_name": source_name,
                         "source_file": str(emails_file.relative_to(SCRIPT_DIR)),
                         "text": chunk,

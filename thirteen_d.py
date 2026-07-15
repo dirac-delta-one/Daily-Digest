@@ -55,10 +55,44 @@ def _save_summary_cache(key, result):
     )
 
 
+# 13D's authenticated-session cookie. An anonymous visitor (login page only) gets
+# just the "visitrack" tracking cookie; a logged-in session also carries "user".
+# Saving an anonymous state OVER a valid one is what destroyed the session on
+# 2026-07-15 (a stray ENTER at the login prompt with no credentials), so every
+# save is gated on this. If 13D ever renames the auth cookie, logins simply stop
+# persisting — a SAFE failure (it never clobbers a good session) that surfaces via
+# the warning below; update this set when that happens.
+_AUTH_COOKIE_NAMES = {"user"}
+
+
+def _looks_authenticated(state):
+    """True iff a Playwright storage_state carries a 13D auth cookie with a value."""
+    for c in (state or {}).get("cookies", []):
+        if c.get("name") in _AUTH_COOKIE_NAMES and (c.get("value") or "").strip():
+            return True
+    return False
+
+
 def _save_session(context):
-    state = context.storage_state()
+    """Persist the browser session — but ONLY if it is actually authenticated.
+    Refuses to overwrite an existing session file with an unauthenticated one
+    (the 2026-07-15 clobber). Returns True iff a session was written."""
+    try:
+        state = context.storage_state()
+    except Exception as e:
+        print(f"  Warning: could not read session state: {e}")
+        return False
+    if not _looks_authenticated(state):
+        if SESSION_FILE.exists():
+            print("  WARNING: 13D login not detected (no auth cookie) — keeping the "
+                  "EXISTING session file untouched (refusing to overwrite a "
+                  "possibly-valid session with an unauthenticated one).")
+        else:
+            print("  WARNING: 13D login not detected (no auth cookie) — no session saved.")
+        return False
     SESSION_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
     print("  Session saved.")
+    return True
 
 
 def _has_session():
@@ -77,15 +111,16 @@ def _do_manual_login(playwright):
 
     input("\n  >>> Press ENTER after logging in (keep browser open)... ")
 
-    try:
-        _save_session(context)
-    except Exception as e:
-        print(f"  Warning: could not save session: {e}")
+    saved = _save_session(context)
     try:
         browser.close()
     except Exception:
         pass
-    print("  Login complete.")
+    if saved:
+        print("  Login complete.")
+    else:
+        print("  Login NOT saved (see the warning above) — existing session, if "
+              "any, is unchanged. Re-run once you can actually log in.")
 
 
 def _find_latest_thursday():

@@ -42,7 +42,7 @@ All gitignored; account-bound (not machine-bound). Copy from a working install o
 | `credentials.json` | Google OAuth **client** | the Cloud project | Long-lived. Rotate only if leaked (regenerate the OAuth client, re-download, re-consent). |
 | `token.json` | Gmail **access/refresh** token | the bot Gmail account | Durable **only in Production** publishing status. Rotate when Google revokes it (see §2a). |
 | `substack_cookie.txt` | Substack session (`substack.sid`) | jared's Substack account | Expires in **weeks**. Auto-renews via OTP; manual paste is the fallback (§4). |
-| `thirteen_d_session.json` | Playwright storage state | jared's 13D account | Expires in **weeks–months**. Manual re-login only (§4). |
+| `thirteen_d_session.json` | Playwright storage state | jared's **paid** 13D account | Expires in **weeks–months**. Manual re-login only (§4) — **requires Jared's 13D credentials; no free/alternative account.** |
 | `ANTHROPIC_API_KEY` (env) | Claude API key | the bot's Anthropic account | No expiry. Rotate if leaked. Watch the credit balance. |
 | `FRED_API_KEY` (env) | FRED data key | free FRED account | Stable, free. No rotation. |
 | `SUBSTACK_EMAIL` (env) | inbox the Substack OTP code arrives at | — | Config value, not a secret. |
@@ -110,9 +110,27 @@ tools → Application → Cookies), paste it as the *only* contents of `substack
 (the auth cookie is `.substack.com`-scoped); if Substack closes that, they degrade to previews —
 accepted, visible via the markers.
 
-**13D / WILTW missing.** The 13D session expired (no auto-renewal — interactive login only). The
-digest skips WILTW gracefully. **Fix:** on the server, `.venv\Scripts\python.exe thirteen_d.py
---login`, log into client.13d.com in the browser that opens, press ENTER in the terminal.
+**13D / WILTW missing.** Two distinct causes — read the log to tell them apart:
+- `Report not found` = the session is **authenticated** but no report exists at that date. WILTW
+  publishes Thursdays and takes **periodic multi-week breaks** (e.g. the Q2 2026 break — the 7/02
+  report's own footnote announced the next as 7/16). This is normal; the digest skips gracefully.
+- `Session expired — re-login required` (a redirect to the login page) = the session actually died.
+  No auto-renewal — interactive login only. **Fix:** `.venv\Scripts\python.exe thirteen_d.py
+  --login`, log into client.13d.com in the browser that opens, press ENTER.
+  **Credentials:** 13D is a **paid subscription and the account is Jared's** — only he (or a holder
+  of those credentials) can perform the `--login`. There is no free tier and a new bot-email account
+  would have **no WILTW access**, so this is not a fix a developer can do alone. If Jared is
+  unavailable when the session dies, WILTW stays skipped (non-fatal, 1 of ~17 sources) until he
+  re-logs in. Long-term ownership (keep it Jared's vs. transfer/re-purchase under the bot) is a
+  billing decision for Acorn, not a code task.
+
+Session note: 13D auth is a **server-side session** (`thirteen_d_session.json` holds a `user`
+session-cookie with no client-visible expiry), so you can't tell staleness from the file — only a
+live request shows it. To de-risk a known-upcoming report, run `--login` proactively beforehand.
+**O3 caveat:** the content monitor will NOT alert on a WILTW outage if `wiltw` has been 0 across the
+whole recorded window (a long break makes it look "normally zero"), so after a break ends, manually
+confirm WILTW returns (`source_counts.json` → `wiltw > 0`) rather than trusting the degradation
+alert. Once it logs one nonzero day, O3 can catch future zero-streaks.
 
 **"Team config missing" alert.** The environment lost `DIGEST_TO_TEAM` (§3). That run skipped
 indexing + memory on purpose. Restore the line in `env.bat`; the next run self-heals.
