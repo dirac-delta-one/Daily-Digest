@@ -35,6 +35,10 @@ set SUBSTACK_EMAIL=your@email.com     REM Substack auto-logs in via emailed one-
 REM On a test machine, route ALL digest/alert/reply email to yourself instead of the
 REM production recipients (defaults to the production list if unset):
 set DIGEST_TO=you@example.com
+REM Team-digest recipients (Substack-free variant). REQUIRED in production since
+REM team activation (2026-07-13) — a missing value pauses digest indexing/memory
+REM as a privacy guard and alerts in the digest itself:
+set DIGEST_TO_TEAM=teammate@acorninv.com
 ```
 
 `PYTHONUTF8=1` is already set by the `run_*.bat` wrappers (the logs contain Unicode and crash

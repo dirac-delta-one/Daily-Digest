@@ -5,6 +5,39 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Cleanup Stage 5 — docs & deploy readiness (CLEANUP_SPEC 5.1–5.3) — TRACK COMPLETE (2026-07-15)
+
+Docs only (no code); `ruff` clean, `pytest` **334** green re-verified. **The
+second-pass cleanup track is COMPLETE — all 5 stages, $0 Claude spend.**
+
+- **5.1 — deploy + cutover checklist appended to NEXT_STEPS_SPEC (new §5)** —
+  the F1 deliverable: pre-deploy secrets/state lists (incl. the durable
+  token.json, `DIGEST_TO_TEAM` + `SUBSTACK_EMAIL` env, do-NOT-copy
+  credentials_JARED.json), on-box validation (check.bat, setup_tasks.ps1 as
+  admin, the 13D skip drill, one manual green run), the **CUTOVER step that
+  was missing everywhere** (disable jared's machine's tasks + reply monitor
+  same-day — exactly ONE reply daemon; recipients @acorninv.com only), and
+  post-deploy (O4 backups incl. both memory stores + wiltw/pacer/counts
+  state; watchdog drill; hand OPERATIONS.md to jared).
+- **5.2 — `OPERATIONS.md` (new)** — the jared-facing one-pager: what each
+  alert email means (incl. the new "Team config missing" and "Source
+  degradation" signals), the three manual fixes (13D re-login, Substack
+  cookie paste, API credit top-up at ~$45–55/month), task-scheduler basics,
+  and the index-growth slow-burn note for a future developer.
+- **5.3 — HANDOFF reconciliation:** §1 records the track (307 → 334 tests) +
+  the pick-the-deploy-date call-to-action (operator's last day 2026-07-31);
+  §5 gains the custom-domain-Substack leak-dependency risk; §14.B gains the
+  F13 index-growth plan (measured slope, ~3–8-month ceiling, escalation
+  ladder, 30–50k-vector tripwire); §14.F's memory-growth watch item marked
+  BOUNDED IN CODE; new **§14.G** records the review's declined/deferred items
+  (F7 count_tokens-first + standing $0-call permission, F8/F9/F10/F11
+  declined, F22 → separate pass) so they aren't re-derived. README's env.bat
+  sample now includes `DIGEST_TO_TEAM`. CLEANUP_SPEC got its completion
+  banner (both residuals named: the 3.1 ride-along watch + the pending
+  archive-scrub decision).
+
+---
+
 ## Cleanup Stage 4 — small cleanups (CLEANUP_SPEC 4.1–4.5) (2026-07-15)
 
 `ruff` clean, `pytest` **334** green (+1 net); free eval spot-run after the

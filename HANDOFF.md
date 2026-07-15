@@ -25,7 +25,7 @@ low-risk improvements.
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), run daily
 through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**, and the whole
 2026-07-09 batch **live-validated by the 2026-07-10 run (GREEN, $1.58, checklist 9/9)**; `ruff`
-clean, `pytest` **307** green (2026-07-14). The **cost refactor is complete** (2026-07-01; see
+clean, `pytest` **334** green (2026-07-15). The **cost refactor is complete** (2026-07-01; see
 §11 / §14 + `WORKLOG`).
 **✅ The CLEANUP/REFACTOR TRACK is COMPLETE (2026-07-10; `CLEANUP_REFACTOR_SPEC.md`, all 9
 stages, $0 Claude spend, tests 180 → 227).** Highlights: dead code out (write-only FRED
@@ -130,6 +130,23 @@ reply-bot Gmail query was reworked to two separate `subject:` terms so reply mat
 survives it). **F3 golden-set refresh:** 26 → **29** questions (the stale relative-time item
 date-anchored); eval re-baselined **hit@1 0.862 / hit@3 0.966 / hit@5 1.0 / MRR 0.917, zero
 misses** (snapshot `2026-07-14_f3_refresh`). Detail in §13 + WORKLOG 2026-07-14.
+**✅ 2026-07-15 — SECOND-PASS CLEANUP COMPLETE (`CLEANUP_SPEC.md`, 5 stages, $0 spend,
+tests 307 → 334).** Highlights: the post-activation TEAM leak guard is CODE-ENFORCED
+(missing `DIGEST_TO_TEAM` ⇒ warn + in-email alert + digest chunks un-indexed + memory
+frozen; escape hatch in config.py); chunk_id collisions fixed (79 dup ids → 0; rebuild +
+eval **metric-identical** 0.862/0.966/1.0/0.917); the reply allow-list is config-driven
+(answerable = exactly the digest recipients) with `FULL_ACCESS_SENDERS` trimmed to
+jtramontano alone; **receiving side is @acorninv.com-only** (bot removed as recipient —
+the latent self-ingestion loop killed, plus a fetch-side `_is_self_artifact` filter); O3
+gains partial-degradation floors + a `substack_fulltext` count; the memory contexts are
+budget-bounded (byte-identical today, verified) with resolved→ids-only in the Sonnet index
+(**ride-along watch on the next natural run**) and a per-run size log; lazy BM25;
+vectorized subset scan; daily substack-memory snapshot; `check.bat`; the **deploy+cutover
+checklist (NEXT_STEPS §5)** and **OPERATIONS.md** (the jared-facing runbook). Residual
+awaiting operator approval: scrub the two self-ingested reply artifacts from
+`archive/2026-07-14/emails.json` + re-index (backup ready; detail in WORKLOG Stage 2).
+Per-stage detail in WORKLOG 2026-07-14/15. **The operator's last work day is 2026-07-31 —
+pick the §7.2 deploy date now** (checklist ready; soak time is the scarce resource).
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on
@@ -343,6 +360,14 @@ is cookie/magic-link based) — README is stale on this point.
   the real corpus cleanly; `_clean_pdf_text` is now conservative (the old aggressive patches were
   themselves the damage — see §6). Residual risk: a future genuinely-fragmented PDF would index
   poorly until a gated rescue rule is added.
+- **Custom-domain Substack pubs are leak-dependent (flagged 2026-07-15):** the auth cookie is
+  scoped to `.substack.com`, so the 9 custom-domain pubs (JBI, PETITION, HYL, creditcrunch,
+  privatedebtnews, techinvestments, YAVB, pari-passu, semianalysis) receive full paid bodies only
+  via Substack's unauthenticated per-post API — the same leak that masked the 2026-07-13
+  dead-cookie incident. If Substack closes it they degrade to previews: visible via the
+  `[preview only…]` markers in the digest and, if total, via the `substack_fulltext` O3
+  zero-streak (CLEANUP_SPEC 4.2). A partial custom-domain-only degradation stays above zero —
+  the in-digest markers are the mitigation. Real per-domain auth (SSO dance) deliberately not built.
 
 ---
 
@@ -1122,6 +1147,15 @@ permissioned Claude run, or is **(B)** genuine *wait-and-see* (do only if a prob
 - **3.5b — PACER company-sizing search (`pacer._search_company_size`)** — Google scraping is fragile
   but degrades gracefully. Options: a free-tier search API (e.g. Brave) or dropping the web step. Low
   priority, low volume.
+- **Index growth plan (F13, measured 2026-07-15).** The FAISS index grows ~600–1,500 chunks per
+  weekday since the forwarding body extracts (6,067 vectors after 9 archived days; 7/14 alone
+  added 1,484) — the §6 "~100k revisit" ceiling arrives in roughly **3–8 months** of Mon–Fri
+  server operation, not years. Degradation is gradual (slower searches/reindex/startup, larger
+  `chunk_metadata.json`), never wrong answers. Escalation ladder, cheapest first: (1) ✅ the
+  vectorized subset scan (`reconstruct_batch`, done 2026-07-15); (2) a date-windowed retrieval
+  default (e.g. last N months live, full archive on disk); (3) prune-and-archive old days out of
+  the live index; (4) IVF only if (2)+(3) aren't enough. **Tripwire: revisit at ~30–50k vectors
+  or when reply-bot latency is felt** (also noted for the post-handoff owner in OPERATIONS.md).
 - ✅ **Three cosmetic nits from the first dual-variant run — FIXED 2026-07-14** (were
   watch-items; WORKLOG 2026-07-13 comparison entry + the 2026-07-14 fix entry):
   (1) **"…memory" in source tags** ("(Greenmantle memory)", "Substack memory references…") —
@@ -1255,7 +1289,32 @@ re-testing is a flag, not a rebuild):
   staged; the only production need (excluding same-day digests) shipped as `exclude_digest_date`.
   Watch: query understanding wanting "only filings / only ratings" retrieval. Fix: ~5 lines in
   `search._filter_ids` + a param, same pattern as `entity_filter`.
-- **Memory-store growth.** v2 never deletes (stories only resolve); the compact index sent to
-  Sonnet grows with total story count. Watch: the memory pass's input tokens creeping back up in
-  the per-run cost logs. Fix: drop resolved stories from the index text (keep ids only), or archive
-  resolved stories older than ~90 days to a side file.
+- ✅ **Memory-store growth — BOUNDED IN CODE 2026-07-15** (CLEANUP_SPEC Stage 3; the watch
+  trigger had fired: memory-pass input 10,344 → 11,816 tokens 7/09→7/14, and the digest-prompt
+  context had grown to 39.5k chars / 51 active stories). Now: the rendered contexts are
+  budget-capped (60 stories / 45k chars — above today's size, so byte-identical until the store
+  outgrows it; stalest-updated drop first), resolved stories send ids-only in the Sonnet index
+  (watch the next natural run's delta for resolved-story re-creation; revert = re-append the
+  topic), and every run logs "Memory context: N chars / M of K active". The old ~90-day
+  archive-to-side-file idea stays available if the store itself (not the context) ever needs
+  shrinking.
+
+### G. Second-pass review (2026-07-15) — declined/deferred, so they aren't re-derived
+
+The CLEANUP_SPEC review examined the whole codebase a second time; these were considered
+and NOT done (full rationale in CLEANUP_SPEC.md's banner + the session transcript):
+- **F7 — weekly-wrap token diet** (strip HTML from the week's dailies before the Opus wrap;
+  ~$35/yr EV): DEFERRED — quantify first with the free `count_tokens` endpoint (**operator
+  granted standing permission for $0 count_tokens calls, 2026-07-14**; generation calls stay
+  ask-first), and only ship bundled with a permissioned Friday ride-along — the wrap's template
+  adherence plausibly derives from SEEING the digest HTML.
+- **F8 — alert-eval cross-variant prompt-cache share** (~$25/yr): DECLINED — restructures a
+  §6-adjacent prompt for marginal EV.
+- **F9 — extract Gmail auth/send into `gmail_utils.py`**: DECLINED as churn (satellites
+  importing digest is deliberate — TEAM spec Stage 1).
+- **F10 — hoist the Haiku news-ranking out of `build_news_html`**: DECLINED (consequences
+  managed; never move it into the free `python news.py` path).
+- **F11 — FULL/TEAM variant loop in `main()`**: DECLINED — explicitness is valued (§2) and
+  every branch is pinned.
+- **F22 — HANDOFF consolidation of superseded sections**: approved as a SEPARATE later docs
+  pass, not part of the cleanup.

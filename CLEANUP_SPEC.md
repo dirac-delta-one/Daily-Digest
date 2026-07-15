@@ -1,5 +1,16 @@
 # Cleanup Spec — second-pass review findings
 
+> ✅ **EXECUTED 2026-07-15 — all 5 stages implemented and committed** ("cleanup spec
+> stage N" commits; per-stage detail in WORKLOG 2026-07-14/15). Final state: `ruff`
+> clean, `pytest` 307 → **334** green; chunk_id rebuild + eval gate **metric-identical**
+> (0.862/0.966/1.0/0.917, dup ids 208 → 0); memory contexts verified byte-identical on
+> the live stores; $0 Claude spend. **Two residuals:** (1) the 3.1 ride-along
+> observation (watch the next natural run's memory delta for resolved-story
+> re-creation); (2) the two self-ingested reply artifacts already in
+> `archive/2026-07-14/emails.json` were NOT scrubbed — archive mutation was outside
+> this spec's approved scope (backup + recipe ready; operator decision pending, see
+> WORKLOG Stage 2). This document is retained as the record of what was specced.
+
 > Output of the 2026-07-14 second-pass architecture/code review (full codebase re-read;
 > findings verified empirically offline — 79 duplicate chunk_ids confirmed in the live
 > index, memory context measured at 39.5k chars, market_data 1-of-6 incident confirmed

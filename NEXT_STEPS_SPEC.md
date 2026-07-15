@@ -284,3 +284,60 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 the checkpoint; the checkpoint itself needs ~$0.20. Extending daily runs ≈ $5–7/week ⇒ the
 top-up decision belongs to the checkpoint. Everything else in this spec is local/free except
 where marked permissioned.
+
+---
+
+## 5. F1 — Server deploy + cutover checklist (added 2026-07-15, CLEANUP_SPEC 5.1)
+
+The F1 "deliverable: a checklist section appended to this spec when the work starts."
+Execute top to bottom on deploy day(s). Receiving-side policy (operator, 2026-07-14):
+recipients are **@acorninv.com addresses only**. Context: the operator's last work day is
+**2026-07-31** — deploy as early as possible so the unattended soak happens while a fixer
+still exists (the accrual week surfaced ~8 failure modes only live operation revealed).
+
+**Pre-deploy (dev machine → server):**
+- [ ] Copy secrets: `credentials.json`; the production `token.json` (the durable one
+      minted 2026-07-10 — copy THIS file, never re-consent in Testing mode); fresh
+      `substack_cookie.txt`; `thirteen_d_session.json`.
+      Do **NOT** copy `credentials_JARED.json` (dev-machine backup only).
+- [ ] Copy state: `memory.json`, `substack_memory.json`, `wiltw_cache.json`,
+      `pacer_seen.json`, `source_counts.json`, the whole `archive/` tree (incl.
+      `index.faiss` + `chunk_metadata.json`), and `digests/`.
+- [ ] Create `env.bat` on the box: `ANTHROPIC_API_KEY`, `FRED_API_KEY`,
+      `SUBSTACK_EMAIL`, **`DIGEST_TO_TEAM`** (required post-activation — the 2.1 guard
+      warns+alerts+freezes indexing/memory if missing). `DIGEST_TO` stays UNSET in
+      production (defaults to jtramontano@acorninv.com). Leave the root-level `*.bak` /
+      `*_prestage5.bak` / `memory_v1_backup.json` files behind — the server starts clean.
+- [ ] Python 3.12 venv at `.venv`; `pip install -r requirements.txt`;
+      `playwright install chromium`. Disk: ~2 GB for the HF model cache + archive growth.
+
+**On-box validation:**
+- [ ] `.\check.bat` green (ruff + the full 334-test suite).
+- [ ] Free smoke: `python news.py`; a Gmail metadata-only call authenticates as the bot.
+- [ ] Run `setup_tasks.ps1` **as administrator** (registers MorningDigest 08:00 /
+      Watchdog 09:00 / MiddayAlert 13:00 / ReplyMonitor at startup; sets
+      `DIGEST_UNATTENDED=1` machine-wide). Verify `Get-ScheduledTask -TaskPath "\DailyDigest\"`.
+- [ ] The 13D drill (CLEANUP_REFACTOR 2.5 residual): temporarily rename
+      `thirteen_d_session.json`, trigger a run, confirm the loud skip line and NO hang;
+      restore the file.
+- [ ] One manual green run via `run_digest.bat`: both variants deliver, dated log written,
+      index appends, "Memory context: N chars" line sane, cost summary sane.
+
+**Cutover (coordinate with jared — same day, in this order):**
+- [ ] **Disable jared's machine's scheduled tasks AND his reply monitor.** Exactly ONE
+      reply daemon may exist anywhere — two poll the same bot inbox and race (double
+      answers; mark-as-read is not atomic across processes). Two digest instances would
+      also double-send.
+- [ ] Recipients to production: `DIGEST_TO` unset; `DIGEST_TO_TEAM` = the team list —
+      **@acorninv.com only** (all covered by IT's org-wide Outlook Abnormal allowlist).
+- [ ] Confirm the first unattended 08:00 run end-to-end: digests arrive, log clean,
+      09:00 watchdog stays silent.
+
+**Post-deploy:**
+- [ ] O4 backups (scheduled copy off-box or to a second disk): `archive/`,
+      `memory.json`, `substack_memory.json`, `wiltw_cache.json`, `pacer_seen.json`,
+      `source_counts.json`, `digests/`, the two index files.
+- [ ] Watchdog drill: `run_alert.py digest --check-completed --test` → "(TEST drill)"
+      email arrives.
+- [ ] Hand `OPERATIONS.md` to jared; walk him through the three manual fixes
+      (13D re-login, cookie paste, credit top-up) and who owns console.anthropic.com billing.
