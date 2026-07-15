@@ -27,7 +27,7 @@ FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 
 **Current state — CODE-COMPLETE; the server deploy is IN PROGRESS (started 2026-07-15).** Code was
 refactored on the dev machine (operator `acohen@acorninv.com`, Windows user `KimCohen`, branch
-`ava-updates`); `ruff` clean, `pytest` **349 green**, retrieval eval baseline **hit@1 0.897 /
+`ava-updates`); `ruff` clean, `pytest` **353 green**, retrieval eval baseline **hit@1 0.897 /
 hit@3 1.0 / MRR 0.937, zero misses** (`tools/eval_results/2026-07-15_post_index_filter.json`). Every
 refactor/cleanup track is closed (see the table below). **Jared's instance is decommissioned — the
 dedicated server will be the ONLY instance.**
@@ -325,6 +325,12 @@ never worked, $9k/yr for a 2-issuer watchlist).
 What remains is only what a future session might still act on.)*
 
 ### A. Conditional — do only if a real problem appears (no evidence yet)
+- **BBG-Data-License snapshot rows (2026-07-15, jared)** — snapshot items with NO free source,
+  wanted if a Bloomberg Data License ever lands: HYG/LQD G-spreads, S&P BDC index (SPBDCUP),
+  BCRED '32 / ARCC '32 G-spreads, SpaceX equity + '56 G-spread, Oracle '66 G-spread, QTS
+  G-spread, CoreWeave '32 + Core Scientific '31 bond prices. In-code comment blocks mark the
+  slots (`market_data.YAHOO_TICKERS`, `macro_data.FRED_SERIES` credit section). Bond-level data
+  = TRACE ($9k/yr, rejected 2026-07-13); SpaceX is private (DXYZ proxy declined).
 - **`_assemble_digest_html` string-match insertion** — revisit only **if** archived digests show
   real section misplacement; the fix risks the tuned `SYSTEM_PROMPT` (§6). *(The numbering-collision
   member of this family was already fixed 2026-07-14 — appended sections are unnumbered.)*

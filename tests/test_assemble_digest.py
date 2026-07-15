@@ -16,9 +16,9 @@ DIGEST = f'<div style="font-family: Georgia;">{HEADER}{TLDR}{BODY}</div>'
 
 
 def _assemble(digest_html=DIGEST, **overrides):
-    kw = dict(alerts_html="", market_html="", macro_html="", earnings_html="",
-              news_html="", pacer_html="", funds_html="",
-              auctions_html="", fed_bs_html="")
+    kw = dict(alerts_html="", market_html="", rates_html="", credit_html="",
+              private_html="", ai_html="", earnings_html="",
+              news_html="", pacer_html="", funds_html="", fed_bs_html="")
     kw.update(overrides)
     return digest._assemble_digest_html(digest_html, **kw)
 
@@ -29,15 +29,19 @@ def test_no_sections_returns_unchanged():
 
 def test_pre_sections_inserted_after_header_before_tldr():
     out = _assemble(alerts_html="<p>ALERTS</p>", market_html="<p>MARKET</p>",
-                    macro_html="<p>MACRO</p>", earnings_html="<p>EARN</p>",
-                    fed_bs_html="<p>FEDBS</p>", auctions_html="<p>AUCT</p>")
+                    rates_html="<p>RATES</p>", credit_html="<p>CREDIT</p>",
+                    private_html="<p>PRIVATE</p>", ai_html="<p>AI</p>",
+                    earnings_html="<p>EARN</p>", fed_bs_html="<p>FEDBS</p>")
     header_pos = out.find("Daily Research Digest")
     tldr_pos = out.find("tldr")
-    for token in ("ALERTS", "MARKET", "MACRO", "EARN", "FEDBS", "AUCT"):
+    for token in ("ALERTS", "MARKET", "RATES", "CREDIT", "PRIVATE",
+                  "<p>AI</p>", "FEDBS", "EARN"):
         assert header_pos < out.find(token) < tldr_pos, token
-    # pinned insertion order: alerts, market, macro, earnings, fed BS, auctions
-    assert (out.find("ALERTS") < out.find("MARKET") < out.find("MACRO")
-            < out.find("EARN") < out.find("FEDBS") < out.find("AUCT"))
+    # pinned insertion order (2026-07-15 snapshot redesign): alerts, market,
+    # rates, credit, private, AI, fed BS (bottom of snapshots), earnings
+    assert (out.find("ALERTS") < out.find("MARKET") < out.find("RATES")
+            < out.find("CREDIT") < out.find("PRIVATE") < out.find("<p>AI</p>")
+            < out.find("FEDBS") < out.find("EARN"))
 
 
 def test_post_sections_appended_before_final_close():

@@ -68,6 +68,10 @@ Produces complete digests (Gmail ✅, WILTW ✅ from 7/16, Substack ✅) to the 
 **Dev is the authoritative state during the interim — do NOT run the server in parallel.**
 
 ## Monday 7/20 — cutover (in this exact order)
+0. **Sync CODE to the server** (added 2026-07-15, later session): the digest-format updates
+   (anti-repetition prompt, snapshot redesign, market-data 1M-lookback bugfix — see WORKLOG) landed
+   on `ava-updates` AFTER the `1a64778` merge the server cloned. Merge `ava-updates` → `main`,
+   push, then `git pull` on the server — otherwise the server runs the old format.
 1. **Stop running on dev** (its state is now final through Friday).
 2. **Re-sync state dev → server:** rebuild the state zip on dev (`archive\` + `memory.json` +
    `substack_memory.json` + the `*_cache.json`/`pacer_seen.json`/`source_counts.json` + `digests\`

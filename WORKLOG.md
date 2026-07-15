@@ -42,6 +42,60 @@ cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
 
 ---
 
+## Digest-format updates: anti-repetition prompt + snapshot redesign + a latent market-data bug (2026-07-15, later session)
+
+Two operator-requested format changes (jared's feedback), plus a real bug found while validating.
+`ruff` clean, **pytest 353** (349 → 353). $0 Claude spend — all validation was offline tests +
+free Yahoo/FRED fetches rendered to a local HTML file.
+
+**1. Cross-section repetition (commit `5ee7397`).** Jared flagged the digest as repetitive across
+sections. Measured on the sent 7/14 + 7/15 digests: near-verbatim restatements ($CRWV in §3 AND §7
+at 0.67 token-Jaccard; $HCA in §1 AND §3), and §5 Contrarian re-narrating stories from §1/§2 (4 of
+5 bullets on 7/15). Three prompt-only fixes (no template/HTML change, so the §6 string-match
+assembly and team/full cache sharing are untouched): a NO-REPETITION-ACROSS-SECTIONS rule in
+`SYSTEM_PROMPT` (one home section per story; later sections give only a genuinely-new angle in one
+line; TL;DR exempt); §7 Bloomberg restricted to items NOT already covered in §1–6; a repetition
+check added to the pass-2 review instruction. **Live watch on the next run:** confirm consolidation
+happened and Opus didn't over-consolidate (§5's new-angle value should survive).
+
+**2. Snapshot section redesign (jared's spec).** Old layout: Market Snapshot / Macro Dashboard /
+Fed BS / Treasury Auctions tables. New layout: **Market** (S&P, VIX, WTI, DXY, BTC — Gold dropped)
+→ **Rates** (2Y/10Y/20Y/30Y, 2s20s, 10Y+30Y breakevens, 10Y+30Y reals, SOFR — FRED, incl. new
+DGS20/DFII10/DFII30 + derived rows) → **Corporate Credit** (HY/IG/AAA/A/BBB/BB/B/CCC OAS via the
+FRED ICE BofA series — the free analogs of the Bloomberg LF98/LUAC/… tickers jared listed — plus
+Yahoo IGLB/IGIB rows) → **Private Credit** (RTY, ARCC, OTF, BKLN + its trailing yield) → **AI**
+(Nasdaq, SK Hynix, Oracle, CoreWeave) → **Fed BS** (moved to bottom of snapshots) → earnings
+calendar. Macro Dashboard + Treasury Auctions tables REMOVED, but their data still feeds the Opus
+prompt (operator decision — §2 prose keeps citing CPI/claims/auctions);
+`build_macro_table_html`/`build_auctions_table_html` deleted as dead code (repo convention).
+Mechanics: FRED series + Yahoo tickers carry a `section` tag; `macro_data._build_fred_table` /
+`market_data._build_yahoo_table` render per-section; the credit table embeds Yahoo rows via
+`market_data.table_rows_html`. `_assemble_digest_html` re-pinned (params + order) in
+`test_assemble_digest.py`; new formatting/section tests in `test_market_macro.py`.
+**BBG-DATA-LICENSE WISHLIST (no free source — operator wants these if a license ever lands;
+in-code comments at the section definitions):** HYG/LQD G-spreads; S&P BDC index (SPBDCUP);
+BCRED '32 + ARCC '32 G-spreads; SpaceX equity + '56 G-spread; Oracle '66 G-spread; QTS G-spread;
+CoreWeave '32 + Core Scientific '31 bond prices. (Bond-level data = TRACE, evaluated and rejected
+at $9k/yr on 2026-07-13; SpaceX is private — DXYZ proxy considered and declined.)
+
+**3. Latent off-by-one in `market_data` 1M lookback — FOUND + FIXED.** `if len(series) >= 20:
+series.iloc[-21]` throws IndexError at exactly 20 rows, and the per-ticker silent except then
+drops the ENTIRE row. On 2026-07-15 a `period="1mo"` download returned exactly 20 US trading
+days, so **every US-listed ticker (including S&P 500) silently vanished** — the bug predates the
+redesign and would have hit the original 6-ticker table the same day. Guard corrected to `>= 21`
+(the `>= 15` fallback covers 15–20). Found because the redesign's validation render came back 6
+rows instead of 16; a loud-except instrumented run pinpointed the line. Also added: one
+unthreaded retry pass for tickers whose batch download comes back empty (defense against Yahoo
+partial-batch failures — cheap, no-op when nothing is missing).
+
+**O3 note for the next run:** `market_data` counts jump 6 → ~16 and `macro_data` ~12 → 24
+(new series + deriveds). Increases can't fire the zero-streak/floor alerts, but don't be
+surprised by the new baseline in `source_counts.json`.
+
+**Deploy implication:** these commits are on `ava-updates` only. The server cloned `main` @
+`1a64778` — **merge to main + pull on the server BEFORE the Monday 7/20 cutover** (step added to
+`DEPLOY_PROGRESS.md`).
+
 ## Server deployment STARTED — staged on the box, blocked on a 48h Google lockout (2026-07-15)
 
 Began the §7.2 deploy on the dedicated Windows server (user `ShawnArmstrong`,

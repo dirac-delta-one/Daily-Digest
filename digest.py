@@ -37,8 +37,14 @@ from html_utils import extract_gmail_body, parse_forwarded_from, strip_forward_h
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
-from market_data import fetch_market_data, build_market_table_html, format_market_data_for_prompt
-from macro_data import fetch_macro_data, build_macro_table_html, format_macro_for_prompt
+from market_data import (
+    fetch_market_data, build_market_table_html, build_private_credit_html,
+    build_ai_html, format_market_data_for_prompt,
+)
+from macro_data import (
+    fetch_macro_data, build_rates_table_html, build_credit_table_html,
+    format_macro_for_prompt,
+)
 from memory import (
     get_memory_context, update_memory,
     get_substack_memory_context, update_substack_memory,
@@ -50,7 +56,7 @@ from ratings import fetch_rating_actions, format_ratings_for_prompt
 from fund_tracking import fetch_fund_holdings, format_funds_for_prompt, build_funds_html
 from thirteen_d import fetch_wiltw
 from fed_research import fetch_research_articles, format_research_for_prompt
-from treasury_auctions import fetch_treasury_auctions, format_auctions_for_prompt, build_auctions_table_html
+from treasury_auctions import fetch_treasury_auctions, format_auctions_for_prompt
 from cftc_cot import fetch_cot_data, format_cot_for_prompt
 from fed_balance_sheet import (
     fetch_fed_balance_sheet, format_fed_bs_for_prompt, build_fed_bs_table_html, check_fed_stress,
@@ -986,16 +992,20 @@ def build_news_html(articles):
     return html
 
 
-def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
+def _assemble_digest_html(digest_html, alerts_html, market_html, rates_html,
+                          credit_html, private_html, ai_html,
                           earnings_html, news_html, pacer_html,
-                          funds_html="",
-                          auctions_html="", fed_bs_html=""):
+                          funds_html="", fed_bs_html=""):
     """
     Assemble the final digest HTML by injecting pre-built sections
     into the Opus-generated digest.
+
+    Snapshot order (jared's 2026-07-15 redesign): Market, Rates, Corporate
+    Credit, Private Credit, AI, then Fed Balance Sheet at the bottom of the
+    snapshots; the earnings calendar follows them.
     """
     # Find the opening div and header end to insert pre-built sections
-    # Insert alerts + market + macro + earnings AFTER the header, BEFORE the TL;DR
+    # Insert alerts + the snapshot tables + earnings AFTER the header, BEFORE the TL;DR
     header_end = digest_html.find('</div>', digest_html.find('border-bottom: 3px double'))
     if header_end != -1:
         # Find the end of the header closing div
@@ -1006,14 +1016,18 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
             pre_sections += alerts_html
         if market_html:
             pre_sections += market_html
-        if macro_html:
-            pre_sections += macro_html
-        if earnings_html:
-            pre_sections += earnings_html
+        if rates_html:
+            pre_sections += rates_html
+        if credit_html:
+            pre_sections += credit_html
+        if private_html:
+            pre_sections += private_html
+        if ai_html:
+            pre_sections += ai_html
         if fed_bs_html:
             pre_sections += fed_bs_html
-        if auctions_html:
-            pre_sections += auctions_html
+        if earnings_html:
+            pre_sections += earnings_html
 
         if pre_sections:
             digest_html = digest_html[:header_end] + "\n" + pre_sections + digest_html[header_end:]
@@ -1519,30 +1533,33 @@ def main():
     alerts_html = build_alerts_html(triggered_alerts)
     team_alerts_html = build_alerts_html(team_alerts)
     market_html = build_market_table_html(market_data)
-    macro_html = build_macro_table_html(macro_data)
+    rates_html = build_rates_table_html(macro_data)
+    credit_html = build_credit_table_html(macro_data, market_data)
+    private_html = build_private_credit_html(market_data)
+    ai_html = build_ai_html(market_data)
     earnings_html = build_earnings_html(earnings)
     news_html = build_news_html(news_articles)
     pacer_html = build_pacer_html(pacer_entries)
     # No ratings section is pre-built here — Opus writes the §9 "Rating Actions" section itself from
     # the rating data (see SYSTEM_PROMPT), unlike other sources which pre-render their section.
+    # No macro/auctions table either (2026-07-15 snapshot redesign) — both still feed the prompt.
     funds_html = build_funds_html(fund_results)
-    auctions_html = build_auctions_table_html(treasury_auctions)
     fed_bs_html = build_fed_bs_table_html(fed_bs)
 
     # --- Assemble final digest(s) ---
     final_html = _assemble_digest_html(
-        digest_html, alerts_html, market_html, macro_html,
+        digest_html, alerts_html, market_html, rates_html,
+        credit_html, private_html, ai_html,
         earnings_html, news_html, pacer_html,
-        funds_html,
-        auctions_html, fed_bs_html,
+        funds_html, fed_bs_html,
     )
     team_final_html = None
     if team_active:
         team_final_html = _assemble_digest_html(
-            team_digest_html, team_alerts_html, market_html, macro_html,
+            team_digest_html, team_alerts_html, market_html, rates_html,
+            credit_html, private_html, ai_html,
             earnings_html, news_html, pacer_html,
-            funds_html,
-            auctions_html, fed_bs_html,
+            funds_html, fed_bs_html,
         )
 
     # --- Save daily digest(s) for weekly summary (each non-fatal on its own) ---

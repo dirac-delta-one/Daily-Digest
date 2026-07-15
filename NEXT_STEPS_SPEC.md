@@ -330,7 +330,7 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
 > account, so nothing to re-create on the server — just don't delete the filter.
 
 **On-box validation:**
-- [ ] `.\check.bat` green (ruff + the full 334-test suite).
+- [ ] `.\check.bat` green (ruff + the full 353-test suite).
 - [ ] Free smoke: `python news.py`; a Gmail metadata-only call authenticates as the bot.
 - [ ] Run `setup_tasks.ps1` **as administrator** (registers MorningDigest 08:00 /
       Watchdog 09:00 / MiddayAlert 13:00 / ReplyMonitor at startup; sets
