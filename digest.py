@@ -1469,6 +1469,16 @@ def main():
         counts = {
             "emails": len(emails),
             "substack": len(substack_articles),
+            # Articles we actually got FULL text for (CLEANUP_SPEC 4.2): the
+            # custom-domain pubs never receive the auth cookie and depend on
+            # Substack's unauthenticated per-post API — if that closes, total
+            # count stays healthy while full-text collapses. A fulltext
+            # zero-streak then fires the existing O3 rule.
+            "substack_fulltext": sum(
+                1 for a in substack_articles
+                if "[preview only" not in (a.get("text") or "")
+                and "[Paid-only post" not in (a.get("text") or "")
+            ),
             "wiltw": 1 if wiltw else 0,
             **{key: len(fetched[key]) for key in fetched},
         }

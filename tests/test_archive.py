@@ -69,6 +69,21 @@ def test_no_team_file_when_not_provided(tmp_archive):
     assert not (tmp_archive / "2026-07-13" / "digest_team.html").exists()
 
 
+def test_both_memory_stores_snapshotted(tmp_path, monkeypatch):
+    # CLEANUP_SPEC 4.3: substack_memory.json gets the same day-granular
+    # snapshot history memory.json has always had
+    monkeypatch.setattr(archive, "ARCHIVE_DIR", tmp_path / "archive")
+    monkeypatch.setattr(archive, "SCRIPT_DIR", tmp_path)
+    (tmp_path / "memory.json").write_text('{"version": 2, "stories": []}',
+                                          encoding="utf-8")
+    (tmp_path / "substack_memory.json").write_text('{"version": 2, "stories": []}',
+                                                   encoding="utf-8")
+    archive.archive_daily_content(date="2026-07-15", digest_html="<div>d</div>")
+    day_dir = tmp_path / "archive" / "2026-07-15"
+    assert json.loads((day_dir / "memory.json").read_text(encoding="utf-8"))["version"] == 2
+    assert json.loads((day_dir / "substack_memory.json").read_text(encoding="utf-8"))["version"] == 2
+
+
 def test_unreadable_pdf_base64_does_not_crash(tmp_archive):
     emails = [{"from": "x", "subject": "s", "date": "", "snippet": "", "body": "",
                "pdfs": [{"filename": "bad.pdf", "base64": "!!!not-base64!!!"}]}]

@@ -402,13 +402,25 @@ def _get_search_state():
         return _search_state
 
     index, metadata = _load_index()
-    bm25 = None
-    if metadata:
-        from rank_bm25 import BM25Okapi
-        bm25 = BM25Okapi([_tokenize(m.get("text", "")) for m in metadata])
-
-    _search_state = {"key": key, "index": index, "metadata": metadata, "bm25": bm25}
+    _search_state = {"key": key, "index": index, "metadata": metadata, "bm25": None}
     return _search_state
+
+
+def _get_bm25(state):
+    """Build (once per index state) and return the BM25 corpus.
+
+    Lazy since 2026-07-15 (CLEANUP_SPEC 4.1): hybrid retrieval is parked
+    permanently (§14.F), yet the corpus was tokenized + built on EVERY state
+    reload — a linearly-growing cost (time + RAM) for a path that never runs
+    in production. The param-gated mechanism stays fully intact per §14.F: a
+    hybrid=True call still works, paying the build on first use and reusing
+    it until the index state changes.
+    """
+    if state["bm25"] is None and state["metadata"]:
+        from rank_bm25 import BM25Okapi
+        state["bm25"] = BM25Okapi(
+            [_tokenize(m.get("text", "")) for m in state["metadata"]])
+    return state["bm25"]
 
 
 def _save_index(index, metadata):
@@ -912,7 +924,15 @@ def _search_vectors(index, query_vec, k, allowed_ids=None):
         scores, indices = index.search(query_vec, k)
         return scores[0], indices[0]
 
-    vecs = np.vstack([index.reconstruct(int(i)) for i in allowed_ids])
+    # Batch reconstruction (CLEANUP_SPEC 4.5): one vectorized call instead of a
+    # per-id Python loop — the exclusion filters pass nearly-full id lists, so
+    # this path scales with the whole index (F13). Per-id fallback kept for
+    # older faiss builds; exactness pinned by the subset-search tests.
+    ids = np.asarray(allowed_ids, dtype=np.int64)
+    try:
+        vecs = index.reconstruct_batch(ids)
+    except AttributeError:
+        vecs = np.vstack([index.reconstruct(int(i)) for i in allowed_ids])
     sims = vecs @ query_vec[0]
     order = np.argsort(-sims)[:k]
     return sims[order], np.array([allowed_ids[j] for j in order])
@@ -978,7 +998,8 @@ def search(query, top_k=10, date_filter=None, rerank=False, hybrid=False,
     """
 
     state = _get_search_state()
-    index, metadata, bm25 = state["index"], state["metadata"], state["bm25"]
+    index, metadata = state["index"], state["metadata"]
+    bm25 = _get_bm25(state) if hybrid else None
     if index.ntotal == 0:
         print("Search index is empty. Run indexing first.")
         return []

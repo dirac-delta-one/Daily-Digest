@@ -121,14 +121,17 @@ def archive_daily_content(
     if wiltw:
         _save_json(day_dir / "wiltw.json", wiltw)
 
-    # Snapshot current memory.json
-    memory_file = SCRIPT_DIR / "memory.json"
-    if memory_file.exists():
-        try:
-            memory = json.loads(memory_file.read_text(encoding="utf-8"))
-            _save_json(day_dir / "memory.json", memory)
-        except Exception:
-            pass
+    # Snapshot current memory stores (day-granular corruption-recovery history;
+    # substack_memory added CLEANUP_SPEC 4.3 for parity — neither is ever read
+    # by the indexer, which only consumes the fixed filename set above)
+    for store_name in ("memory.json", "substack_memory.json"):
+        store_file = SCRIPT_DIR / store_name
+        if store_file.exists():
+            try:
+                store = json.loads(store_file.read_text(encoding="utf-8"))
+                _save_json(day_dir / store_name, store)
+            except Exception:
+                pass
 
     print(f"  Archived: {len(emails_clean)} emails, {pdf_count} PDFs, "
           f"{len(substack_articles or [])} substacks, {len(sec_filings or [])} filings, "

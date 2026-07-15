@@ -5,6 +5,33 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Cleanup Stage 4 — small cleanups (CLEANUP_SPEC 4.1–4.5) (2026-07-15)
+
+`ruff` clean, `pytest` **334** green (+1 net); free eval spot-run after the
+reconstruct swap: **metric-identical** (0.862/0.966/1.0/0.917). No Claude spend.
+
+- **4.1 — BM25 build is lazy** (`search._get_bm25`): hybrid is parked
+  permanently (§14.F), yet every index-state reload tokenized all ~6k chunks
+  and built the corpus. Now built on first `hybrid=True` use, cached per
+  state; the §14.F mechanism is intact (eval `--hybrid` still runs).
+- **4.5 — vectorized subset scan:** `_search_vectors`' allowed-ids path uses
+  `index.reconstruct_batch` (per-id loop kept as fallback) — the exclusion
+  filters pass nearly-full id lists, so this was the first thing to degrade
+  on the F13 growth curve. Exactness pinned by the existing subset tests.
+- **4.2 — `substack_fulltext` O3 count:** articles with real full text
+  (neither preview-flagged nor paid-only-failure) recorded alongside the
+  total — a Substack leak-closure (the custom-domain pubs are cookie-blind
+  and leak-dependent) now shows as a fulltext zero-streak. Known limit,
+  accepted: a PARTIAL custom-domain-only degradation stays above zero and
+  relies on the in-digest preview markers.
+- **4.3 — `substack_memory.json` snapshotted daily** into `archive/<date>/`
+  (parity with memory.json; the indexer never reads either).
+- **4.4 — tooling:** stale `test_send.py` .gitignore entry dropped;
+  `check.bat` added (ruff + pytest, the stage gate as one double-clickable
+  command; note: from git-bash invoke as `.\check.bat`).
+
+---
+
 ## Cleanup Stage 3 — memory bounds (CLEANUP_SPEC 3.1–3.3) (2026-07-15)
 
 `ruff` clean, `pytest` **333** green (+6). No Claude spend; the one

@@ -183,7 +183,12 @@ def test_search_state_cache_and_invalidation(tmp_path, monkeypatch):
 
     _write(["alpha chunk text", "beta chunk text"])
     s1 = search._get_search_state()
-    assert len(s1["metadata"]) == 2 and s1["bm25"] is not None
+    # BM25 is LAZY since CLEANUP_SPEC 4.1 (hybrid is parked; don't pay the
+    # build on every reload) — absent until first requested, then cached
+    assert len(s1["metadata"]) == 2 and s1["bm25"] is None
+    bm25_first = search._get_bm25(s1)
+    assert bm25_first is not None
+    assert search._get_bm25(s1) is bm25_first  # built once per state
 
     # Unchanged files -> same cached object (no reload)
     assert search._get_search_state() is s1
@@ -193,8 +198,8 @@ def test_search_state_cache_and_invalidation(tmp_path, monkeypatch):
     s2 = search._get_search_state()
     assert s2 is not s1
     assert len(s2["metadata"]) == 3
-    # the BM25 corpus was rebuilt too
-    assert search._bm25_top_ids(s2["bm25"], "gamma", pool=3) == [2]
+    # a fresh state gets a fresh (lazily built) BM25 corpus
+    assert search._bm25_top_ids(search._get_bm25(s2), "gamma", pool=3) == [2]
 
 
 # --- _extract_entities (Stage 3a: watchlist + $TICK + tracked funds) ---

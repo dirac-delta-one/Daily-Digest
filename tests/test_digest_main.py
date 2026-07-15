@@ -187,6 +187,27 @@ def test_recipient_defaults_are_acorninv_only():
     assert digest.BOT_ADDRESS not in digest._DEFAULT_RECIPIENTS
 
 
+def test_o3_counts_track_substack_fulltext(harness, monkeypatch):
+    # CLEANUP_SPEC 4.2: preview-flagged and paid-only-failure articles don't
+    # count as full text — a leak-closure at Substack then shows up as a
+    # fulltext collapse even while the total stays healthy
+    calls, _marker = harness
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
+    monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
+    monkeypatch.setattr(digest, "fetch_substack_articles", lambda gmail_service=None: [
+        {"title": "full", "author": "a", "url": "u", "text": "real body text"},
+        {"title": "prev", "author": "b", "url": "u",
+         "text": "intro\n[preview only — the remainder of this article is paywalled]"},
+        {"title": "fail", "author": "c", "url": "u",
+         "text": "[Paid-only post — could not access full content. Check cookie/login.]"},
+    ])
+
+    digest.main()
+    counts = next(c[1] for c in calls if c[0] == "o3")
+    assert counts["substack"] == 3
+    assert counts["substack_fulltext"] == 1
+
+
 def test_is_self_artifact():
     f = digest._is_self_artifact
     # the system's own output (any subject) — sender rule
