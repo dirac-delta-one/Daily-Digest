@@ -313,6 +313,15 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
 - [ ] Python 3.12 venv at `.venv`; `pip install -r requirements.txt`;
       `playwright install chromium`. Disk: ~2 GB for the HF model cache + archive growth.
 
+> **Bot-account note (no deploy action — account-side, carries over automatically):**
+> `acorn.research.bot@gmail.com` is also the GitHub identity that manages the repos
+> deployed to the server, so it receives GitHub notifications. A Gmail filter
+> (added 2026-07-15) archives `from:notifications@github.com` out of the inbox under a
+> `GitHub` label — the digest only reads `in:inbox`, so this keeps deploy/CI mail out of
+> the briefing and off the `MAX_EMAILS`/body budget. Kept narrow on purpose: GitHub
+> security/sign-in/2FA mail (other senders) still lands in the inbox. Filters live on the
+> account, so nothing to re-create on the server — just don't delete the filter.
+
 **On-box validation:**
 - [ ] `.\check.bat` green (ruff + the full 334-test suite).
 - [ ] Free smoke: `python news.py`; a Gmail metadata-only call authenticates as the bot.
