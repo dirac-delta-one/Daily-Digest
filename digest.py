@@ -88,9 +88,14 @@ def _recipients_from_env(var, default):
 # (e.g. set DIGEST_TO=acohen@acorninv.com on a test machine). midday.py and
 # reply_monitor.py import this, so the override applies there too. This is the
 # FULL variant's audience (Substack included) — TEAM_DIGEST_SPEC Stage 1.
-DIGEST_RECIPIENTS = _recipients_from_env(
-    "DIGEST_TO", "jtramontano@acorninv.com,acorn.research.bot@gmail.com"
-)
+# Receiving-side policy (operator, 2026-07-14): recipients are @acorninv.com
+# addresses ONLY. The bot was removed as its own recipient (CLEANUP_SPEC 2.5):
+# the self-send put every digest/alert into the very inbox the digest READS as
+# a source (in:inbox, last 24h) — a latent ingestion loop that would have
+# first fired at server deploy. _is_self_artifact below is the code-side
+# backstop should a self-send ever be reintroduced.
+_DEFAULT_RECIPIENTS = "jtramontano@acorninv.com"
+DIGEST_RECIPIENTS = _recipients_from_env("DIGEST_TO", _DEFAULT_RECIPIENTS)
 
 # The Substack-free TEAM variant's audience (TEAM_DIGEST_SPEC). Default EMPTY:
 # team generation is skipped entirely until a recipient is added (the Stage-5
@@ -104,6 +109,21 @@ TEAM_RECIPIENTS = _recipients_from_env("DIGEST_TO_TEAM", "")
 # leading marker does NOT break reply matching — see reply_monitor.check_for_replies.
 FULL_SUBJECT_MARKER = "[FULL] "
 CLAUDE_MODEL = OPUS_MODEL
+
+# The system's own Gmail identity (sender of digests, alerts, replies).
+BOT_ADDRESS = "acorn.research.bot@gmail.com"
+
+
+def _is_self_artifact(sender, subject):
+    """True for inbox mail the system itself produced — or replies to it
+    (CLEANUP_SPEC 2.5). The digest reads the bot's OWN inbox as its source, so
+    without this check a self-sent digest/midday alert, or a recipient's reply
+    to one (observed ingested 2026-07-14), becomes tomorrow's "source email":
+    recursive self-summarization, plus the FULL digest re-entering the index
+    as source_type="email" chunks that team-asker exclusions don't filter."""
+    if BOT_ADDRESS in (sender or "").lower():
+        return True
+    return DIGEST_SUBJECT_PREFIX in (subject or "")
 
 # Paths (relative to this script)
 SCRIPT_DIR = Path(__file__).parent
@@ -227,6 +247,15 @@ def fetch_recent_emails(service, hours=HOURS_LOOKBACK, max_results=MAX_EMAILS):
         headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
         snippet = msg.get("snippet", "")
 
+        outer_from = headers.get("From", "Unknown")
+        subject = headers.get("Subject", "(no subject)")
+
+        # Never ingest the system's own output (or replies to it) as source
+        # material — CLEANUP_SPEC 2.5.
+        if _is_self_artifact(outer_from, subject):
+            print(f"    Skipping self/digest artifact: {subject[:60]}")
+            continue
+
         # Check for PDF attachments
         pdfs = []
         parts = msg["payload"].get("parts", [])
@@ -235,9 +264,6 @@ def fetch_recent_emails(service, hours=HOURS_LOOKBACK, max_results=MAX_EMAILS):
 
         # Extract full body text for archiving/RAG (not sent to Opus — too large)
         body_text = extract_gmail_body(msg["payload"], cap=50000)
-
-        outer_from = headers.get("From", "Unknown")
-        subject = headers.get("Subject", "(no subject)")
 
         # Forwarding (FORWARDING_FIX_SPEC Stage 1): when jared forwards research
         # in, the outer From is jared — recover the ORIGINAL sender from the
@@ -1328,6 +1354,24 @@ def main():
     # the full variant runs, exactly as before.
     team_active = bool(TEAM_RECIPIENTS)
 
+    # Post-activation misconfiguration guard (CLEANUP_SPEC 2.1): activation is
+    # recorded in config but DIGEST_TO_TEAM is missing from the environment —
+    # only the FULL digest generates, and indexing it / feeding memory from it
+    # would leak Substack to team askers. This run warns loudly (below), puts
+    # an alert in the digest's alert box, skips the memory update, and
+    # search._chunks_for_date skips the day's digest chunks. Deliberate
+    # retirement of the team variant must unset TEAM_ACTIVATION_DATE (config.py).
+    team_misconfigured = (
+        bool(TEAM_ACTIVATION_DATE)
+        and datetime.date.today().isoformat() >= TEAM_ACTIVATION_DATE
+        and not team_active
+    )
+    if team_misconfigured:
+        print("  WARNING: config.TEAM_ACTIVATION_DATE is set but DIGEST_TO_TEAM is "
+              "empty — team variant NOT generated. This run's digest chunks will "
+              "not be indexed and the shared memory will not be updated "
+              "(Substack-leak guard).")
+
     # Substack-memory context (yesterday's store) for the FULL prompt only
     substack_memory_context = ""
     try:
@@ -1389,6 +1433,19 @@ def main():
 
     # --- Deterministic signals (appended to BOTH variants' alert boxes) ---
     deterministic_alerts = []
+
+    # Team config guard (CLEANUP_SPEC 2.1): make the misconfiguration visible
+    # in the sent email itself, not just the log nobody reads unattended.
+    if team_misconfigured:
+        deterministic_alerts.append({
+            "name": "Team config missing",
+            "detail": ("DIGEST_TO_TEAM is unset but team activation is recorded "
+                       "(config.TEAM_ACTIVATION_DATE) — only the FULL digest was "
+                       "generated; its chunks were NOT indexed and the shared "
+                       "memory was NOT updated. Set DIGEST_TO_TEAM in env.bat, or "
+                       "unset TEAM_ACTIVATION_DATE if the team variant is retired."),
+            "source": "config guard",
+        })
 
     # Fed discount-window stress (numeric, from FRED H.4.1): threshold check on
     # the actual discount-window level. Replaces the old LLM-evaluated "Fed
@@ -1525,10 +1582,14 @@ def main():
 
     # --- Update cross-digest memory (the shared store must stay Substack-free
     # once the team variant exists, so it learns from the team digest then) ---
-    try:
-        update_memory(team_final_html if team_final_html else final_html)
-    except Exception as e:
-        print(f"Memory update failed: {e} — continuing.")
+    if team_misconfigured:
+        print("Memory update skipped — post-activation run without a team digest "
+              "(the full digest would re-contaminate the cleansed store).")
+    else:
+        try:
+            update_memory(team_final_html if team_final_html else final_html)
+        except Exception as e:
+            print(f"Memory update failed: {e} — continuing.")
 
     # --- Update substack memory (Stage 3 — jared-personal storylines) ---
     try:

@@ -356,12 +356,63 @@ def test_chunks_prefer_team_digest_when_present(tmp_path, monkeypatch):
     assert all("FULLSECRET" not in c for c in digest_chunks)
 
 
-def test_chunks_fall_back_to_full_digest(tmp_path, monkeypatch):
-    day = _day_dir(tmp_path, monkeypatch)
+def test_chunks_fall_back_to_full_digest_pre_activation(tmp_path, monkeypatch):
+    # Before team activation every digest is a full one and is indexed as-is.
+    day = _day_dir(tmp_path, monkeypatch, date="2026-07-10")
     (day / "digest.html").write_text("<div>" + "full digest only, no team file. " * 10 + "</div>",
                                      encoding="utf-8")
-    chunks = search._chunks_for_date("2026-07-13")
+    chunks = search._chunks_for_date("2026-07-10")
     assert any(m["source_type"] == "digest" for _c, m in chunks)
+
+
+def test_chunks_skip_full_digest_post_activation(tmp_path, monkeypatch):
+    # CLEANUP_SPEC 2.1: a post-activation day WITHOUT digest_team.html means a
+    # misconfigured run (DIGEST_TO_TEAM unset) — the full digest's chunks are
+    # NOT excluded for team askers by exclude_digest_before, so they must not
+    # be indexed at all. Raw sources still index.
+    day = _day_dir(tmp_path, monkeypatch, date="2026-07-14")
+    (day / "digest.html").write_text("<div>" + "FULLSECRET substack analysis. " * 10 + "</div>",
+                                     encoding="utf-8")
+    (day / "news.json").write_text(json.dumps([
+        {"title": "a real headline about credit markets", "summary": "s",
+         "source": "WSJ", "url": "http://x"}]), encoding="utf-8")
+    chunks = search._chunks_for_date("2026-07-14")
+    assert not any(m["source_type"] == "digest" for _c, m in chunks)
+    assert any(m["source_type"] == "news" for _c, m in chunks)
+
+
+def test_chunks_guard_inactive_when_no_activation_date(tmp_path, monkeypatch):
+    # Escape hatch: TEAM_ACTIVATION_DATE unset (team retired) -> full digests
+    # index normally again.
+    monkeypatch.setattr(search, "TEAM_ACTIVATION_DATE", None)
+    day = _day_dir(tmp_path, monkeypatch, date="2026-07-14")
+    (day / "digest.html").write_text("<div>" + "full digest, team retired. " * 10 + "</div>",
+                                     encoding="utf-8")
+    chunks = search._chunks_for_date("2026-07-14")
+    assert any(m["source_type"] == "digest" for _c, m in chunks)
+
+
+# --- chunk_id uniqueness (CLEANUP_SPEC 2.2 — 79 dup ids live before the fix) ---
+
+def test_chunk_ids_unique_same_author_and_ticker(tmp_path, monkeypatch):
+    day = _day_dir(tmp_path, monkeypatch, date="2026-07-10")
+    body = "credit spreads widened as issuance slowed and defaults ticked up. " * 30
+    (day / "substacks.json").write_text(json.dumps([
+        {"title": "A1", "author": "Paul Krugman", "url": "u1", "text": body},
+        {"title": "A2", "author": "Paul Krugman", "url": "u2", "text": body},
+    ]), encoding="utf-8")
+    (day / "filings.json").write_text(json.dumps([
+        {"ticker": "MSTR", "company": "Strategy", "form_type": "8-K",
+         "date": "2026-07-10", "url": "u", "description": "d", "content": body},
+        {"ticker": "MSTR", "company": "Strategy", "form_type": "8-K",
+         "date": "2026-07-10", "url": "u", "description": "d", "content": body},
+    ]), encoding="utf-8")
+
+    chunks = search._chunks_for_date("2026-07-10")
+    ids = [m["chunk_id"] for _c, m in chunks]
+    assert len(ids) == len(set(ids))  # the old scheme collided on both cases
+    assert sum(1 for _c, m in chunks if m["source_type"] == "substack") >= 4
+    assert sum(1 for _c, m in chunks if m["source_type"] == "filing") >= 4
 
 
 # --- dedupe_near_duplicates (Stage 4: near-dup text filter) ---

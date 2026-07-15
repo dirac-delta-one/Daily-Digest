@@ -32,6 +32,14 @@ STREAK = 3           # consecutive zero runs that trigger a signal
 MIN_HISTORY = 3      # runs needed BEFORE the streak to judge "normally nonzero"
 NORMAL_SHARE = 0.5   # nonzero share of prior runs required to qualify
 
+# Fixed-cardinality sources (CLEANUP_SPEC 2.4): their expected item counts are
+# known exactly (6 Yahoo tickers, 11 FRED series + derived 2s10s, 6 H.4.1
+# series), so a PARTIAL failure is detectable — the 2026-07-14 run returned 1
+# of 6 market tickers and the zero-streak rule couldn't see it. Deliberately
+# NOT extended to volume-variable sources (news, emails, ratings...), where a
+# floor would false-positive on quiet days.
+EXPECTED_MIN = {"market_data": 6, "macro_data": 12, "fed_bs": 6}
+
 
 def _load_history(path=None):
     path = path or COUNTS_FILE
@@ -83,6 +91,27 @@ def check_degradation(history):
                 f"{key}: 0 items for {STREAK} straight runs (was nonzero in "
                 f"{nonzero_share:.0%} of the prior {len(earlier_vals)} runs) — "
                 "check its session/cookie/feed"
+            )
+
+    # Expected-count floors for the fixed-cardinality sources: same streak
+    # shape, keyed on "below floor" instead of "zero". A source already
+    # reported by the zero rule above is skipped (no double signal).
+    for key, floor in sorted(EXPECTED_MIN.items()):
+        if any(s.startswith(f"{key}:") for s in signals):
+            continue
+        recent_vals = [run["counts"].get(key) for run in recent]
+        if any(v is None or v >= floor for v in recent_vals):
+            continue  # streak broken (or source missing from a recent run)
+        earlier_vals = [run["counts"][key] for run in earlier if key in run["counts"]]
+        if len(earlier_vals) < MIN_HISTORY:
+            continue
+        met_share = sum(1 for v in earlier_vals if v >= floor) / len(earlier_vals)
+        if met_share >= NORMAL_SHARE:
+            signals.append(
+                f"{key}: below its expected minimum of {floor} for {STREAK} "
+                f"straight runs (latest {recent_vals[-1]}; met the floor in "
+                f"{met_share:.0%} of the prior {len(earlier_vals)} runs) — "
+                "partial source failure"
             )
     return signals
 

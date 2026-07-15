@@ -33,11 +33,12 @@ TAIL_LINES = 40
 
 # Same env-driven recipient logic as digest.py, duplicated on purpose (see
 # module docstring): DIGEST_TO overrides the production default.
+# Receiving-side policy (operator, 2026-07-14): @acorninv.com addresses ONLY
+# — the bot was removed as a recipient (CLEANUP_SPEC 2.5, ingestion loop).
+_DEFAULT_RECIPIENTS = "jtramontano@acorninv.com"
 RECIPIENTS = [
     r.strip()
-    for r in os.environ.get(
-        "DIGEST_TO", "jtramontano@acorninv.com,acorn.research.bot@gmail.com"
-    ).split(",")
+    for r in os.environ.get("DIGEST_TO", _DEFAULT_RECIPIENTS).split(",")
     if r.strip()
 ]
 

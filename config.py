@@ -34,11 +34,16 @@ DIGEST_SUBJECT_PREFIX = "\U0001f4ec Daily Inbox Digest"
 # Substack content is personal to jared: full-access askers get Substack in
 # reply answers (raw substack chunks, substack-memory storylines, the FULL
 # digest as context); every other asker gets the team (Substack-free) view.
-# Add an address here to grant full access.
+# Add an address here to grant full access. WHO GETS ANSWERED AT ALL is the
+# config-driven union built by reply_monitor._reply_query (this set + the
+# full/team recipient lists) — CLEANUP_SPEC 2.3.
+# Trimmed 2026-07-14 (operator directives): jaredtramontano@gmail.com removed
+# (kept unanswerable — it stays in FORWARDER_ADDRESSES below, which is
+# attribution, not access); the bot removed (2026-06-29 slot-swap artifact —
+# internal calls already get full access via asker=None, and the bot neither
+# authors replies nor receives digests anymore).
 FULL_ACCESS_SENDERS = {
     "jtramontano@acorninv.com",
-    "jaredtramontano@gmail.com",
-    "acorn.research.bot@gmail.com",
 }
 
 # Set at Stage-5 team activation (ISO date string). Digest chunks dated BEFORE
@@ -47,8 +52,13 @@ FULL_ACCESS_SENDERS = {
 # is a full digest -> all of them are excluded for team askers.
 # ACTIVATED 2026-07-13 (pilot: acohen on DIGEST_TO_TEAM). Every run from this
 # date generates + indexes the team digest — the server's env.bat must also
-# carry DIGEST_TO_TEAM at deploy or post-activation full digests would be
-# indexed and leak to team askers.
+# carry DIGEST_TO_TEAM at deploy. A post-activation run WITHOUT DIGEST_TO_TEAM
+# is treated as misconfigured (CLEANUP_SPEC 2.1): digest.main warns + alerts,
+# search skips that day's digest chunks, and the shared memory is not updated
+# — so a missing env var can no longer leak Substack to team askers.
+# ESCAPE HATCH: if the team variant is ever DELIBERATELY retired, set this
+# back to None — otherwise the guard keeps digest chunks un-indexed and the
+# shared memory frozen forever (with only the daily alert as a clue).
 TEAM_ACTIVATION_DATE = "2026-07-13"
 
 # --- Forwarding (FORWARDING_FIX_SPEC) ---

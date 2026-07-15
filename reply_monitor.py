@@ -22,7 +22,7 @@ from pathlib import Path
 import anthropic
 
 # Reuse Gmail auth from digest.py
-from digest import get_gmail_service, DIGEST_RECIPIENTS
+from digest import get_gmail_service, DIGEST_RECIPIENTS, TEAM_RECIPIENTS
 
 from search import search, extract_entities, dedupe_near_duplicates
 from memory import match_stories, SUBSTACK_MEMORY_FILE
@@ -223,6 +223,31 @@ def _load_digest_for_date(date_str, team=False):
     return None
 
 
+def _reply_query():
+    """Gmail query for digest replies — the sender allow-list is EXACTLY the
+    configured audience (CLEANUP_SPEC 2.3): everyone who receives a digest
+    (full + team recipient lists) plus FULL_ACCESS_SENDERS. Config-driven, so
+    adding a team recipient automatically makes their replies answerable
+    (previously three hardcoded addresses — a silent-ignore foot-gun).
+
+    Two separate subject: terms (AND) rather than one "Re: <prefix>" phrase,
+    so the FULL variant's "[FULL] " marker sitting between "Re:" and the
+    prefix (digest.FULL_SUBJECT_MARKER) still matches. The "Re:" term keeps
+    excluding any original digest sitting in the inbox; the prefix phrase
+    matches both the full and team subjects and their replies. Deterministic
+    (sorted) so the query string is stable run-to-run.
+    """
+    senders = sorted({s.lower() for s in
+                      {*FULL_ACCESS_SENDERS, *DIGEST_RECIPIENTS, *TEAM_RECIPIENTS}})
+    from_clause = " OR ".join(f"from:{s}" for s in senders)
+    return (
+        f'subject:"Re:" subject:"{DIGEST_SUBJECT_PREFIX}" '
+        f'is:unread '
+        f'newer_than:1d '
+        f'({from_clause})'
+    )
+
+
 def check_for_replies(service):
     """
     Find unprocessed replies to digest emails.
@@ -230,19 +255,7 @@ def check_for_replies(service):
     Returns list of (message_id, thread_id, subject, question_text,
     digest_date, rfc_message_id, asker_email).
     """
-    # Search for replies to digest threads. Two separate subject: terms (AND)
-    # rather than one "Re: <prefix>" phrase, so the FULL variant's "[FULL] "
-    # marker sitting between "Re:" and the prefix (digest.FULL_SUBJECT_MARKER)
-    # still matches. The "Re:" term keeps excluding the original digest (which
-    # the bot also receives in its own inbox); the prefix phrase matches both
-    # the full and team subjects and their replies.
-    query = (
-        f'subject:"Re:" subject:"{DIGEST_SUBJECT_PREFIX}" '
-        f'is:unread '
-        f'newer_than:1d '
-        f'(from:jtramontano@acorninv.com OR from:acorn.research.bot@gmail.com '
-        f'OR from:acohen@acorninv.com)'
-    )
+    query = _reply_query()
 
     try:
         results = service.users().messages().list(

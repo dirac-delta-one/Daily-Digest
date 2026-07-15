@@ -52,7 +52,12 @@ def harness(tmp_path, monkeypatch):
     def fake_summarize(**kwargs):
         label = kwargs.get("cost_label", "")
         calls.append((f"summarize{label}", marker.exists()))
-        return (f"<div>DIGEST{label}</div>", f"SRC{label}")
+        # template-shaped: the double-border header is the anchor
+        # _assemble_digest_html needs to inject the alert box
+        html = ('<div style="font-family: Georgia;">'
+                '<div style="border-bottom: 3px double #1a1a1a;">Header</div>'
+                f'DIGEST{label}</div>')
+        return (html, f"SRC{label}")
     monkeypatch.setattr(digest, "summarize_with_claude", fake_summarize)
 
     monkeypatch.setattr(digest, "get_substack_memory_context", lambda: "")
@@ -66,7 +71,7 @@ def harness(tmp_path, monkeypatch):
         digest, "send_digest_email",
         lambda service, html, recipients=None, subject=None:
         calls.append(("send", tuple(recipients) if recipients else ("FULL",),
-                      marker.exists())))
+                      marker.exists(), html)))
     monkeypatch.setattr(
         digest, "commit_seen",
         lambda: calls.append(("commit_seen", marker.exists())))
@@ -86,7 +91,10 @@ def harness(tmp_path, monkeypatch):
 
 def test_full_only_wiring(harness, monkeypatch):
     calls, marker = harness
+    # the pre-team world: no team recipients AND no activation date (with the
+    # date set, an empty team list is a misconfiguration — tested separately)
     monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
+    monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
 
     digest.main()
     names = [c[0] for c in calls]
@@ -146,3 +154,51 @@ def test_team_active_wiring(harness, monkeypatch):
     # per-variant alert evals, full first; O3 recorded once
     assert [c[1] for c in calls if c[0] == "alerts"] == ["SRC", "SRC (team)"]
     assert names.count("o3") == 1
+
+
+def test_post_activation_misconfig_guard(harness, monkeypatch):
+    # CLEANUP_SPEC 2.1: activation recorded in config but DIGEST_TO_TEAM empty
+    # -> the run completes and sends, but memory is NOT fed the full digest,
+    # and the sent email carries a loud config alert.
+    calls, marker = harness
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
+    monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", "2026-07-13")
+
+    digest.main()
+    names = [c[0] for c in calls]
+
+    assert "update_memory" not in names          # shared store protected
+    assert ("update_substack", 1) in calls       # jared-personal store unaffected
+    assert names.count("send") == 1              # the run still delivers
+    assert marker.exists()                       # and still completes (O2)
+    sent_html = next(c[3] for c in calls if c[0] == "send")
+    assert "Team config missing" in sent_html    # visible in the email itself
+
+
+# --- Receiving-side policy + self-ingestion guard (CLEANUP_SPEC 2.5) ---
+
+def test_recipient_defaults_are_acorninv_only():
+    # Operator policy 2026-07-14: @acorninv.com only on the receiving side.
+    import run_alert
+    for default in (digest._DEFAULT_RECIPIENTS, run_alert._DEFAULT_RECIPIENTS):
+        addrs = [a.strip() for a in default.split(",") if a.strip()]
+        assert addrs, "default recipient list must not be empty"
+        assert all(a.endswith("@acorninv.com") for a in addrs)
+    assert digest.BOT_ADDRESS not in digest._DEFAULT_RECIPIENTS
+
+
+def test_is_self_artifact():
+    f = digest._is_self_artifact
+    # the system's own output (any subject) — sender rule
+    assert f("Acorn Research Bot <acorn.research.bot@gmail.com>", "anything")
+    # replies to digests (observed ingested 2026-07-14) — subject rule,
+    # including the FULL variant's marker
+    assert f("acohen@acorninv.com",
+             "RE: [FULL] \U0001f4ec Daily Inbox Digest — Monday, July 13")
+    assert f("acohen@acorninv.com",
+             "Re: \U0001f4ec Daily Inbox Digest — Monday, July 13")
+    # real source mail passes: forwarded research, Substack OTP, plain mail
+    assert not f("Jared T <jtramontano@acorninv.com>", "FW: Stifel New Issue Flash")
+    assert not f("no-reply@substack.com", "850582 is your Substack verification code")
+    assert not f("news@bloomberg.net", "Today's News")
+    assert not f(None, None)

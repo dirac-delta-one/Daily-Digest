@@ -19,7 +19,9 @@ from pathlib import Path
 import anthropic
 
 from config import SONNET_MODEL
-from digest import get_gmail_service, DIGEST_RECIPIENTS, TEAM_RECIPIENTS
+from digest import (
+    get_gmail_service, DIGEST_RECIPIENTS, TEAM_RECIPIENTS, _is_self_artifact,
+)
 from news import fetch_wsj_ft_articles
 from sec_filings import fetch_recent_filings
 from ratings import fetch_rating_actions
@@ -102,6 +104,11 @@ def _fetch_new_emails(service, cutoff):
 
             headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
             snippet = msg.get("snippet", "")
+
+            # Never treat the system's own output (morning digest, alerts) or
+            # replies to it as "new content since morning" — CLEANUP_SPEC 2.5.
+            if _is_self_artifact(headers.get("From", ""), headers.get("Subject", "")):
+                continue
 
             emails.append({
                 "from": headers.get("From", "Unknown"),

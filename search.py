@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
+from config import TEAM_ACTIVATION_DATE
 from html_utils import strip_html, parse_forwarded_from
 
 SCRIPT_DIR = Path(__file__).parent
@@ -439,7 +440,17 @@ def _chunks_for_date(date_str):
     digest_file = day_dir / "digest_team.html"
     if not digest_file.exists():
         digest_file = day_dir / "digest.html"
-    if digest_file.exists():
+        # Post-activation guard (CLEANUP_SPEC 2.1): a post-activation day with
+        # no team file means the run was misconfigured (DIGEST_TO_TEAM unset).
+        # The FULL digest embeds Substack prose, and digest-type chunks dated
+        # AFTER the activation date are not excluded for team askers — so skip
+        # that day's digest chunks entirely; the raw sources below still index.
+        if (TEAM_ACTIVATION_DATE and date_str >= TEAM_ACTIVATION_DATE
+                and digest_file.exists()):
+            print(f"    {date_str}: post-activation day without digest_team.html "
+                  "— skipping digest chunks (Substack-leak guard).")
+            digest_file = None
+    if digest_file is not None and digest_file.exists():
         text = strip_html(digest_file.read_text(encoding="utf-8"))
         for i, chunk in enumerate(_chunk_text(text)):
             chunks.append((chunk, {
@@ -487,7 +498,10 @@ def _chunks_for_date(date_str):
     if substacks_file.exists():
         try:
             articles = json.loads(substacks_file.read_text(encoding="utf-8"))
-            for art in articles:
+            # a_i disambiguates same-author articles on one day — without it,
+            # chunk_ids collided and the reply bot's chunk_id dedup silently
+            # dropped distinct chunks (79 dup ids live before the 2026-07-14 fix)
+            for a_i, art in enumerate(articles):
                 text = art.get("text", "")
                 title = art.get("title", "")
                 author = art.get("author", "")
@@ -499,7 +513,7 @@ def _chunks_for_date(date_str):
 
                 for i, chunk in enumerate(_chunk_text(text)):
                     chunks.append((chunk, {
-                        "chunk_id": f"{date_str}_substack_{source_name.replace(' ', '_')}_{i:04d}",
+                        "chunk_id": f"{date_str}_substack_{source_name.replace(' ', '_')}_{a_i:02d}_{i:04d}",
                         "date": date_str,
                         "source_type": "substack",
                         "source_name": source_name,
@@ -515,7 +529,9 @@ def _chunks_for_date(date_str):
     if filings_file.exists():
         try:
             filings = json.loads(filings_file.read_text(encoding="utf-8"))
-            for f in filings:
+            # f_i disambiguates same-ticker/same-form filings on one day (same
+            # collision class as the substack ids above)
+            for f_i, f in enumerate(filings):
                 content = f.get("content", "")
                 if not content or content.startswith("["):
                     continue
@@ -530,7 +546,7 @@ def _chunks_for_date(date_str):
 
                 for i, chunk in enumerate(_chunk_text(text)):
                     chunks.append((chunk, {
-                        "chunk_id": f"{date_str}_filing_{ticker}_{form_type}_{i:04d}",
+                        "chunk_id": f"{date_str}_filing_{ticker}_{form_type}_{f_i:02d}_{i:04d}",
                         "date": date_str,
                         "source_type": "filing",
                         "source_name": source_name,

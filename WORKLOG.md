@@ -5,6 +5,57 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Cleanup Stage 2 — correctness guards (CLEANUP_SPEC 2.1–2.5) (2026-07-15)
+
+`ruff` clean, `pytest` **327** green at stage close (+13). Free rebuild + eval gate
+included; no Claude spend.
+
+- **2.1 — post-activation TEAM leak guard (code-enforced, was a docs note):**
+  `TEAM_ACTIVATION_DATE` set + `DIGEST_TO_TEAM` empty now ⇒ loud warning, a
+  "Team config missing" alert IN the sent email, `update_memory` skipped
+  (store can't be re-contaminated), and `search._chunks_for_date` skips that
+  day's digest chunks (raw sources still index). Escape hatch documented in
+  config.py: deliberate team retirement must unset `TEAM_ACTIVATION_DATE`.
+  Pinned via the Stage-1 main() harness + 3 new `_chunks_for_date` tests
+  (post-activation skip / pre-activation fallback / guard-off).
+- **2.2 — chunk_id collisions FIXED + index rebuilt + eval gate PASSED:**
+  substack ids gain a per-article ordinal, filing ids a per-filing ordinal
+  (the old scheme collided for same-author articles and same-ticker/form
+  filings — 79 dup ids / 208 chunks live, silently dropping distinct chunks
+  from reply context via the chunk_id dedup). Pre-rebuild index backed up
+  (scratchpad `index_backup_prechunkids/`); full `--rebuild` → **6,067 chunks
+  / 9 days, dupes now 0**; eval **metric-identical** (0.862/0.966/1.0/0.917,
+  zero misses; snapshot `2026-07-15_post_cleanup_ids.json`). Uniqueness pinned.
+- **2.3 — reply allow-list config-driven + access trims (operator directives
+  2026-07-14):** new `_reply_query()` builds the Gmail `from:` clause from
+  FULL_ACCESS_SENDERS ∪ DIGEST_RECIPIENTS ∪ TEAM_RECIPIENTS (a new team
+  recipient is answerable automatically — was 3 hardcoded addresses).
+  `FULL_ACCESS_SENDERS` trimmed to **jtramontano@acorninv.com alone** (jared's
+  gmail: kept unanswerable by choice; the bot: 2026-06-29 slot-swap artifact).
+  jared's gmail stays in FORWARDER_ADDRESSES (attribution, not access).
+- **2.4 — partial-degradation floors (O3):** `EXPECTED_MIN = {market_data: 6,
+  macro_data: 12, fed_bs: 6}` — same streak shape keyed on below-floor, zero
+  rule takes precedence (no double signal). Would have caught the observed
+  2026-07-14 one-of-six-tickers day. +5 tests.
+- **2.5 — self-ingestion guard (found answering "why is the bot a recipient?"):**
+  the bot REMOVED from both production recipient defaults (digest.py +
+  run_alert.py — operator policy: **@acorninv.com only on the receiving
+  side**), killing the latent loop where server self-sends land in the inbox
+  the digest reads as a source. Belt-and-braces `_is_self_artifact` filter in
+  `fetch_recent_emails` + midday's fetch (bot sender OR digest-subject —
+  covers digests, alerts, and humans' replies-to-digests, two of which were
+  observed ingested in `archive/2026-07-14/emails.json`). Policy pinned
+  (defaults @acorninv.com-only; filter tests incl. the [FULL] marker and
+  pass-through for forwards/OTP mail).
+- **⚠️ Residual for operator decision:** the two already-archived reply
+  artifacts (7/14 `emails.json`) remain in the archive/index — one quotes the
+  FULL digest, so its chunks are team-visible as source_type="email". Scrub =
+  filter the day's emails.json (backup already in scratchpad
+  `emails_2026-07-14_prescrub.json`) + re-index the day; NOT done — archive
+  mutation was outside the committed spec (permission denied, correctly).
+
+---
+
 ## Cleanup Stage 1 — test pins first (CLEANUP_SPEC 1.1 + 1.2) (2026-07-14)
 
 Additive pins landed BEFORE Stage 2 touches `main()`. `ruff` clean, `pytest`

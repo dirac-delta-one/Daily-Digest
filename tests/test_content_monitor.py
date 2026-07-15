@@ -96,6 +96,45 @@ def test_multiple_sources_fire_independently():
     assert any("wiltw" in s for s in signals)
 
 
+# --- EXPECTED_MIN floors (CLEANUP_SPEC 2.4: partial-failure detection) ---
+
+def test_floor_partial_failure_fires():
+    # the observed 2026-07-14 case: 1 of 6 Yahoo tickers, invisible to the
+    # zero rule (nonzero) — the floor rule must catch it after a streak
+    history = _history(*[{"market_data": 6}] * 4, *[{"market_data": 1}] * 3)
+    signals = cm.check_degradation(history)
+    assert len(signals) == 1
+    assert "below its expected minimum of 6" in signals[0]
+    assert "partial source failure" in signals[0]
+
+
+def test_floor_broken_streak_no_signal():
+    history = _history(*[{"market_data": 6}] * 4,
+                       {"market_data": 1}, {"market_data": 6}, {"market_data": 1})
+    assert cm.check_degradation(history) == []
+
+
+def test_floor_never_met_no_signal():
+    # a source that never met its floor can't "degrade" below it (e.g. a
+    # config change legitimately lowered its cardinality)
+    history = _history(*[{"market_data": 3}] * 10)
+    assert cm.check_degradation(history) == []
+
+
+def test_floor_zero_streak_not_double_signaled():
+    # an all-zero streak fires the zero rule only — not the floor rule too
+    history = _history(*[{"market_data": 6}] * 4, *[{"market_data": 0}] * 3)
+    signals = cm.check_degradation(history)
+    assert len(signals) == 1
+    assert "0 items" in signals[0]
+
+
+def test_floor_ignores_volume_variable_sources():
+    # news volume swinging low is NOT a floor case (not in EXPECTED_MIN)
+    history = _history(*[{"news_articles": 120}] * 4, *[{"news_articles": 2}] * 3)
+    assert cm.check_degradation(history) == []
+
+
 # --- record_and_check ---
 
 def test_record_and_check_end_to_end(counts_file):

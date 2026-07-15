@@ -119,9 +119,37 @@ def test_sender_email_parses_display_name():
 def test_is_full_access_tiers():
     assert reply_monitor._is_full_access(None) is True          # internal/tool calls
     assert reply_monitor._is_full_access("jtramontano@acorninv.com") is True
-    assert reply_monitor._is_full_access("JAREDTRAMONTANO@GMAIL.COM") is True
+    # 2026-07-14 directives (CLEANUP_SPEC 2.3): jared's personal gmail is
+    # unanswerable by choice, and the bot's slot was a 2026-06-29 swap artifact
+    # — both are team-tier now (and neither is in the answerable query).
+    assert reply_monitor._is_full_access("JAREDTRAMONTANO@GMAIL.COM") is False
+    assert reply_monitor._is_full_access("acorn.research.bot@gmail.com") is False
     assert reply_monitor._is_full_access("acohen@acorninv.com") is False
     assert reply_monitor._is_full_access("stranger@example.com") is False
+
+
+# --- _reply_query (CLEANUP_SPEC 2.3: allow-list derived from config) ---
+
+def test_reply_query_is_config_driven(monkeypatch):
+    monkeypatch.setattr(reply_monitor, "DIGEST_RECIPIENTS", ["jtramontano@acorninv.com"])
+    monkeypatch.setattr(reply_monitor, "TEAM_RECIPIENTS", ["newteam@acorninv.com"])
+    q = reply_monitor._reply_query()
+    # everyone who receives a digest is answerable — incl. a NEW team member
+    assert "from:newteam@acorninv.com" in q
+    assert "from:jtramontano@acorninv.com" in q
+    # the structural terms survive: Re: + prefix (two separate subject terms)
+    assert 'subject:"Re:"' in q
+    assert reply_monitor.DIGEST_SUBJECT_PREFIX in q
+    assert "is:unread" in q
+
+
+def test_reply_query_excludes_removed_addresses(monkeypatch):
+    monkeypatch.setattr(reply_monitor, "DIGEST_RECIPIENTS", ["jtramontano@acorninv.com"])
+    monkeypatch.setattr(reply_monitor, "TEAM_RECIPIENTS", ["acohen@acorninv.com"])
+    q = reply_monitor._reply_query()
+    assert "jaredtramontano@gmail.com" not in q     # operator directive
+    assert "acorn.research.bot@gmail.com" not in q  # slot-swap artifact
+    assert "from:acohen@acorninv.com" in q          # via the team list
 
 
 def test_team_exclusions_without_activation(monkeypatch):
