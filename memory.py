@@ -61,6 +61,20 @@ CLAUDE_MODEL = SONNET_MODEL
 # prompt instruction under the v1 wholesale rewrite — model-enforced and lossy).
 STALE_DAYS = 30
 
+# Rendered-context budget (CLEANUP_SPEC 3.2): the memory block injected into
+# the digest prompt is bounded so an unwatched server can't grow it without
+# limit (measured 2026-07-15: main store 51 active / 39,491 chars — roughly
+# doubled since the 7/13 cleanse; the 30-day age-out can't start resolving
+# stories before ~2026-07-30). Both budgets sit ABOVE the live stores at
+# implementation time (51/39.5k main, 28/25.1k substack), so day-one output is
+# byte-identical; when a store outgrows them, the STALEST-updated stories drop
+# first — exactly the ones aging would resolve days later anyway. Selection is
+# by recency but RENDERING keeps store order, and both must stay deterministic:
+# the TEAM and FULL prompts each render this context and their bytes must match
+# or the cross-variant prompt cache silently stops engaging.
+MEMORY_CONTEXT_MAX_STORIES = 60
+MEMORY_CONTEXT_MAX_CHARS = 45_000
+
 # --- Structured-output schema (A2): the incremental delta ---
 # story_updates reference existing stories by id; new_stories create them.
 # Nullable fields mean "leave unchanged".
@@ -209,41 +223,87 @@ def _save_memory(memory, path=None):
 # DIGEST-PROMPT CONTEXT (contract-preserving)
 # ======================================================================
 
+def _story_block(story):
+    """One story's rendered block (topic / since / summary / data points /
+    sources + trailing blank line) — the exact per-story lines both context
+    renderers have always produced, extracted so the budget selection can
+    measure a story's cost without rendering the whole context."""
+    lines = [
+        f"• {story['topic']} (tracking since {story.get('first_seen', '?')})",
+        f"  Summary: {story.get('summary', '')}",
+    ]
+    for dp in story.get("key_data_points") or []:
+        lines.append(f"    - {dp}")
+    if story.get("sources"):
+        lines.append(f"  Sources: {', '.join(story['sources'])}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _select_stories_for_context(active):
+    """Budget selection (CLEANUP_SPEC 3.2): the most-recently-updated stories
+    within MEMORY_CONTEXT_MAX_STORIES / _MAX_CHARS, returned in ORIGINAL store
+    order. Under budget this is the identity (day-one behavior byte-identical).
+    Python's sort is stable (ties keep store order, reverse included), so
+    selection is deterministic — a cross-variant prompt-cache requirement.
+    At least one story is always kept."""
+    order = sorted(range(len(active)),
+                   key=lambda i: active[i].get("last_updated") or "",
+                   reverse=True)
+    keep = set()
+    chars = 0
+    for i in order:
+        if len(keep) >= MEMORY_CONTEXT_MAX_STORIES:
+            break
+        block_len = len(_story_block(active[i])) + 1  # +1: the join separator
+        if keep and chars + block_len > MEMORY_CONTEXT_MAX_CHARS:
+            break
+        keep.add(i)
+        chars += block_len
+    return [active[i] for i in sorted(keep)]
+
+
+def _render_story_context(memory, header, footer):
+    """Shared renderer for the two memory-context blocks (they were
+    near-identical copies — CLEANUP_SPEC 3.2 consolidation). Applies the
+    context budget and logs the rendered size (3.3) so growth stays visible
+    in every digest log on the unattended server."""
+    active = [s for s in memory.get("stories", []) if s.get("status") == "active"]
+    if not active:
+        return ""
+
+    selected = _select_stories_for_context(active)
+    lines = [
+        header,
+        f"Last updated: {memory.get('last_updated', 'never')}",
+        "",
+    ]
+    for story in selected:
+        lines.append(_story_block(story))
+    lines.append(footer)
+    text = "\n".join(lines)
+    print(f"  Memory context: {len(text):,} chars / {len(selected)} of "
+          f"{len(active)} active stories")
+    return text
+
+
 def get_memory_context():
     """Return the current memory as a string for the digest prompt.
 
     Renders the SAME per-story block as the v1 version (topic / tracking
     since / summary / data points / sources) — the digest prompt sees no
     format change from Stage 5. Timelines are for the reply router, not here.
+    Bounded by the context budget (CLEANUP_SPEC 3.2) — a no-op until the
+    store outgrows it.
     """
-    memory = _load_memory()
-    active = [s for s in memory.get("stories", []) if s.get("status") == "active"]
-    if not active:
-        return ""
-
-    lines = [
+    return _render_story_context(
+        _load_memory(),
         "CROSS-DIGEST MEMORY — Stories you've been tracking across previous digests:",
-        f"Last updated: {memory.get('last_updated', 'never')}",
-        "",
-    ]
-
-    for story in active:
-        lines.append(f"• {story['topic']} (tracking since {story.get('first_seen', '?')})")
-        lines.append(f"  Summary: {story.get('summary', '')}")
-        for dp in story.get("key_data_points") or []:
-            lines.append(f"    - {dp}")
-        if story.get("sources"):
-            lines.append(f"  Sources: {', '.join(story['sources'])}")
-        lines.append("")
-
-    lines.append(
         "Reference prior context where relevant. Note how today's information "
         "updates or changes previous analysis. When citing data from memory, "
         "attribute it to the ORIGINAL source (e.g. Grant's, Bloomberg), not to "
-        "this memory system."
+        "this memory system.",
     )
-
-    return "\n".join(lines)
 
 
 def get_substack_memory_context():
@@ -251,36 +311,16 @@ def get_substack_memory_context():
 
     Same per-story block as get_memory_context but with a header that scopes
     it to the Substack subscriptions — this block is appended ONLY to the full
-    variant's prompt (TEAM_DIGEST_SPEC §1), never the team one.
+    variant's prompt (TEAM_DIGEST_SPEC §1), never the team one. Same budget.
     """
-    memory = _load_memory(SUBSTACK_MEMORY_FILE)
-    active = [s for s in memory.get("stories", []) if s.get("status") == "active"]
-    if not active:
-        return ""
-
-    lines = [
+    return _render_story_context(
+        _load_memory(SUBSTACK_MEMORY_FILE),
         "TRACKED SUBSTACK STORYLINES — from the paid Substack subscriptions "
         "(these appear only in this digest, never the team one):",
-        f"Last updated: {memory.get('last_updated', 'never')}",
-        "",
-    ]
-
-    for story in active:
-        lines.append(f"• {story['topic']} (tracking since {story.get('first_seen', '?')})")
-        lines.append(f"  Summary: {story.get('summary', '')}")
-        for dp in story.get("key_data_points") or []:
-            lines.append(f"    - {dp}")
-        if story.get("sources"):
-            lines.append(f"  Sources: {', '.join(story['sources'])}")
-        lines.append("")
-
-    lines.append(
         "Reference prior context where relevant. When citing this data, "
         "attribute it to the ORIGINAL publication (e.g. PETITION, "
-        "SemiAnalysis), not to this tracking layer."
+        "SemiAnalysis), not to this tracking layer.",
     )
-
-    return "\n".join(lines)
 
 
 # ======================================================================
@@ -289,7 +329,13 @@ def get_substack_memory_context():
 
 def _story_index_for_prompt(memory):
     """Compact index the model updates against — id/status/dates/topic/summary
-    per active story, plus resolved topics so they aren't recreated as new."""
+    per active story, plus resolved-story IDS so they aren't recreated as new.
+
+    Resolved stories render as ids ONLY (CLEANUP_SPEC 3.1): the ids are topic
+    slugs ("hormuz-escalation"), so recognizability survives, and the resolved
+    tail — which grows forever once the 30-day aging starts resolving stories
+    (~2026-07-30, exactly when nobody is watching) — stops re-sending a topic
+    line per dead story on every single update. Revert = re-append the topic."""
     lines = ["STORY INDEX (active — update these by id):"]
     resolved = []
     for s in memory.get("stories", []):
@@ -298,7 +344,7 @@ def _story_index_for_prompt(memory):
             lines.append(f"  {s['id']} | last updated {s.get('last_updated', '?')} | "
                          f"{s.get('topic', '')} :: {summary}")
         else:
-            resolved.append(f"  {s['id']} — {s.get('topic', '')}")
+            resolved.append(f"  {s['id']}")
     if resolved:
         lines.append("\nRESOLVED STORIES (do NOT recreate these as new):")
         lines.extend(resolved)

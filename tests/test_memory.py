@@ -266,6 +266,83 @@ def test_match_stories_unique_topic_word_matches_alone(mem_files):
     assert matched[0]["topic"].startswith("Wynn Resorts")
 
 
+# --- Context budget (CLEANUP_SPEC 3.2) + resolved ids-only index (3.1) ---
+
+def _budget_story(i, last_updated, topic=None):
+    return {"id": f"s{i}", "topic": topic or f"Story {i}", "status": "active",
+            "first_seen": "2026-07-01", "last_updated": last_updated,
+            "entities": [], "summary": f"Summary {i}.", "key_data_points": [],
+            "sources": ["FT"], "timeline": []}
+
+
+def _write_store(tmp_path, monkeypatch, stories):
+    mem_file = tmp_path / "memory.json"
+    monkeypatch.setattr(memory, "MEMORY_FILE", mem_file)
+    mem_file.write_text(json.dumps(
+        {"version": 2, "last_updated": "2026-07-14", "stories": stories}),
+        encoding="utf-8")
+    return mem_file
+
+
+def test_context_under_budget_renders_all_in_store_order(tmp_path, monkeypatch):
+    # store order 0,1,2 but recency order 1,2,0 — under budget, EVERY story
+    # renders and the output keeps STORE order (byte-identity with the
+    # pre-budget renderer; also the cross-variant cache determinism condition)
+    _write_store(tmp_path, monkeypatch, [
+        _budget_story(0, "2026-07-01"),
+        _budget_story(1, "2026-07-14"),
+        _budget_story(2, "2026-07-08"),
+    ])
+    ctx = memory.get_memory_context()
+    assert ctx.find("Story 0") < ctx.find("Story 1") < ctx.find("Story 2")
+    assert memory.get_memory_context() == ctx  # deterministic across calls
+
+
+def test_context_story_budget_drops_stalest_first(tmp_path, monkeypatch):
+    monkeypatch.setattr(memory, "MEMORY_CONTEXT_MAX_STORIES", 2)
+    _write_store(tmp_path, monkeypatch, [
+        _budget_story(0, "2026-07-01"),   # stalest -> dropped
+        _budget_story(1, "2026-07-14"),
+        _budget_story(2, "2026-07-08"),
+    ])
+    ctx = memory.get_memory_context()
+    assert "Story 0" not in ctx
+    assert "Story 1" in ctx and "Story 2" in ctx
+    assert ctx.find("Story 1") < ctx.find("Story 2")  # survivors in store order
+    # header/footer intact around the trimmed body
+    assert ctx.startswith("CROSS-DIGEST MEMORY")
+    assert "attribute it to the ORIGINAL source" in ctx
+
+
+def test_context_char_budget_keeps_at_least_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(memory, "MEMORY_CONTEXT_MAX_CHARS", 10)  # absurdly small
+    _write_store(tmp_path, monkeypatch, [
+        _budget_story(0, "2026-07-01"),
+        _budget_story(1, "2026-07-14"),
+    ])
+    ctx = memory.get_memory_context()
+    assert "Story 1" in ctx      # the most recent always survives
+    assert "Story 0" not in ctx
+
+
+def test_context_size_log_line(tmp_path, monkeypatch, capsys):
+    _write_store(tmp_path, monkeypatch, [_budget_story(0, "2026-07-14")])
+    memory.get_memory_context()
+    out = capsys.readouterr().out
+    assert "Memory context:" in out and "1 of 1 active stories" in out
+
+
+def test_story_index_resolved_ids_only(mem_files):
+    # CLEANUP_SPEC 3.1: the resolved tail sends ids (topic slugs), not topics
+    m = memory._load_memory()
+    text = memory._story_index_for_prompt(m)
+    resolved_part = text.split("RESOLVED STORIES")[1]
+    assert "hormuz-escalation" in resolved_part
+    assert "Hormuz escalation" not in resolved_part
+    # active stories keep their full index line
+    assert "Wynn Resorts Moody's downgrade / Boston leverage ::" in text
+
+
 # --- Substack store (TEAM_DIGEST_SPEC Stage 3) ---
 
 def test_store_isolation(mem_files, tmp_path, monkeypatch):

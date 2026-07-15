@@ -5,6 +5,36 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Cleanup Stage 3 — memory bounds (CLEANUP_SPEC 3.1–3.3) (2026-07-15)
+
+`ruff` clean, `pytest` **333** green (+6). No Claude spend; the one
+model-visible change (3.1, Sonnet delta input only) rides along on the next
+natural run — watch its delta for resolved-story re-creation.
+
+- **3.2 — self-activating context budget (replaces the review's
+  park-and-watch tripwire, which the 2026-07-31 deadline broke):** the two
+  near-duplicate context renderers consolidated into `_render_story_context`
+  + `_story_block`; selection is most-recently-updated within
+  `MEMORY_CONTEXT_MAX_STORIES = 60` / `MEMORY_CONTEXT_MAX_CHARS = 45_000`,
+  RENDERING keeps store order, stable-sorted (deterministic — the
+  cross-variant prompt cache requires byte-equal contexts). Budgets sit above
+  the live stores (51/39,491 main, 28/25,060 substack — re-measured at
+  implementation), so day-one output is **verified byte-identical on the real
+  store** (exact char counts + determinism checked live; format pins green).
+  When a store outgrows the budget, stalest-updated stories drop first — the
+  ones the 30-day aging would resolve days later anyway. No watcher needed.
+- **3.1 — resolved stories → ids-only in the Sonnet story index** (the
+  §14.F.F3-4 specified fix; trigger observed: memory-pass input 10,344 →
+  11,816 tokens 7/09→7/14). Saves ~nothing today (4 resolved / ~278 chars) —
+  it is the forever-bound on the resolved tail, which starts growing when
+  aging begins (~7/30, post-handoff). Ids are topic slugs, so the
+  don't-recreate semantics survive; revert = re-append the topic.
+- **3.3 — per-run size log:** "Memory context: N chars / M of K active
+  stories" prints on every render — growth is visible in every digest log on
+  the unattended server (and gives OPERATIONS.md a checkable number).
+
+---
+
 ## Cleanup Stage 2 — correctness guards (CLEANUP_SPEC 2.1–2.5) (2026-07-15)
 
 `ruff` clean, `pytest` **327** green at stage close (+13). Free rebuild + eval gate
