@@ -20,6 +20,7 @@
 | §2.3 Cost reduction | ✅ CLOSED (audit below; residual savings ride along with the memory track) |
 | §3.F1 Server-deploy readiness (§7.2) | 🔄 **all F1a CODE fixes DONE 2026-07-09**; ✅ **OAuth publish + durable production token DONE 2026-07-10** (7/14 deadline cleared); ✅ **Abnormal allowlist CONFIRMED by IT 2026-07-13** (the bot is allowed for Outlook inboxes org-wide — covers acohen + jtramontano; re-verify only if a non-Outlook recipient is ever added); the server EXISTS. Remaining: the on-box install (secrets incl. the new token.json + fresh substack_cookie.txt + substack_memory.json; env.bat must carry `DIGEST_TO_TEAM` + `SUBSTACK_EMAIL`; `setup_tasks.ps1` as admin; headless Playwright check; the 13D skip drill; O4 backups) |
 | §3.F2 PDF-extraction review (3.3) | ✅ **DONE 2026-07-09** — the aggressive rules were the damage (96% of 5,852 fires glued real words; 99% of PDF chunks corrupted), not the rescue (0 fragmentation in the corpus); `_clean_pdf_text` trimmed, index rebuilt clean, eval identical; pypdf bump ungated but deferred |
+| Second-pass cleanup (`CLEANUP_SPEC.md`) | ✅ **DONE 2026-07-15** — 5 stages + audit + index-side self-artifact filter, all committed; tests 307 → **336**; chunk_id dupes 208 → 0; eval baseline **0.897/1.0/0.937 zero misses**; TEAM boundary code-enforced; @acorninv.com-only receiving policy; deploy checklist (§5) + OPERATIONS.md shipped. Live watches: the §5 first-run watch list |
 
 ---
 
@@ -277,7 +278,8 @@ Monitoring continues for free via the `cost.py` per-run summaries in every log.
 | ~~Then~~ | ✅ Efficiency batch **BUILT 2026-07-09** (stages 1–4 per §2.2); interim O4 cancelled (server available); E3 gated on the 7/10 run |
 | ~~Then~~ | ✅ **The 2026-07-10 Friday live run — GREEN, $1.58, checklist 9/9** (whole 7/09 batch validated; first live v2 memory delta; first-ever weekly summary sent — operator eyeball pending; **E3 ruled SKIP → efficiency track closed**; WILTW 7/09 not posted at run time — **miss accepted**, self-healing on the server schedule). ~$4.50 credit remains. Detail in WORKLOG |
 | ~~Then~~ | ✅ **OAuth production publish + fresh consent — DONE 2026-07-10** (7/14 deadline cleared; durable production token.json minted + verified as the bot; it's the token the server gets) |
-| **Next** | **§7.2 server deploy** (F1 on-box checklist; F1a code all done) — the project's "done" |
+| ~~Then~~ | ✅ **Second-pass cleanup DONE 2026-07-15** (CLEANUP_SPEC — 5 stages + follow-ups; tests 336; eval 0.897/1.0/0.937; watch list in §5) |
+| **Next** | **§7.2 server deploy** (the §5 checklist; F1a code all done) — the project's "done". **Operator's last work day 2026-07-31: pick the date now, maximize soak** |
 | ~~Unblocked, anytime~~ | ✅ **F2 DONE 2026-07-09** (3.3 PDF review — clean rules trimmed, index rebuilt; see track table) |
 
 **Budget thread:** ~$11.7 remained after 7/2; the accrual week spends ~$5–7 → ~$5–6 left at
@@ -341,3 +343,48 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
       email arrives.
 - [ ] Hand `OPERATIONS.md` to jared; walk him through the three manual fixes
       (13D re-login, cookie paste, credit top-up) and who owns console.anthropic.com billing.
+
+### First-run watch list (post-cleanup, added 2026-07-15)
+
+The 2026-07-15 cleanup (CLEANUP_SPEC) changed run behavior in ways only a real run
+exercises. Apply to the NEXT natural run wherever it happens — the next manual dev
+run or the first server run (where it doubles as post-deploy verification). All
+checks read `logs\digest_<date>.log` + state files; $0.
+
+1. **Resolved-story re-creation — THE ride-along (live watch through ~mid-August).**
+   The Sonnet memory index now lists resolved stories as bare id slugs (3.1). After
+   the run: read `Memory delta applied: X updated, Y new, Z resolved -> N active`,
+   then check `memory.json` stories with `first_seen` = the run date. **Bad:** a
+   "new" story that is a resolved story restated (e.g. a fresh
+   `strait-of-hormuz-tensions` beside resolved `hormuz-escalation`). **Normal:**
+   topical overlap with a genuinely NEW development. Exposure grows from ~7/30–31
+   when the 30-day aging resolves its first batch (today only 4 stories are
+   resolved). Revert = re-append the topic in `memory._story_index_for_prompt`
+   (one line, named in the code comment).
+2. **Memory size log:** `Memory context: N chars / M of K active stories` prints
+   ~3× per team-active run — the substack store first (~28 stories), then the main
+   store (~51) ONCE PER VARIANT; **the two main-store lines must be identical**
+   (cache determinism, visible in the log). Good: M == K (budget dormant), K
+   roughly flat; from ~7/30 expect `Memory: aged N stale story(ies)` lines and K
+   drifting down. **First time M < K:** the budget activated — eyeball that digest
+   once for lost long-arc "tracking since…" context. **Bad:** K climbing toward 60
+   with NO aging lines by early August → the §14.F store-archival idea becomes real.
+3. **Self-artifact skips:** if anyone replied to a digest in the last 24h, the
+   fetch phase logs `Skipping self/digest artifact: …` and
+   `archive/<date>/emails.json` contains no bot-sent / digest-subject entries
+   (midday skips silently). A digest-subject email reaching the archive = the
+   filter missed a variant; report it.
+4. **"Team config missing" must NOT appear** (red alert in the sent email /
+   WARNING in the log). If it does: the environment lost `DIGEST_TO_TEAM` — that
+   run deliberately skipped digest indexing + the memory update; fix env.bat and
+   the next run self-heals. At deploy, this alert IS the proof-of-wrong-env.
+5. **O3:** the next recorded run is the 6th → the zero-streak monitor ARMS. The
+   new `substack_fulltext` count appears (≈ substack minus preview-only pubs;
+   can't signal until it accrues its own history). `market_data` should read 6
+   again (the 7/14 one-of-six was a verified transient Yahoo flake); 3 straight
+   low runs now fire the new floor alert — that's the feature, not a false alarm.
+6. **Boringly identical:** fetch phase ~as before; both variants send; `Cache:
+   pass 1 wrote / pass 2 read` engages (team writes, full reads); index appends;
+   PACER commits after send; ~$2/day cost line. Retrieval-eval baseline for ANY
+   future comparison: **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
+   (`tools/eval_results/2026-07-15_post_index_filter.json`).

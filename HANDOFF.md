@@ -25,7 +25,7 @@ low-risk improvements.
 **Status (current):** **LIVE-validated end-to-end** on the bot identity (2026-06-30), run daily
 through a **six-day accrual week (2026-06-30 → 07-09, 6/6 runs green, ~$6.45)**, and the whole
 2026-07-09 batch **live-validated by the 2026-07-10 run (GREEN, $1.58, checklist 9/9)**; `ruff`
-clean, `pytest` **334** green (2026-07-15). The **cost refactor is complete** (2026-07-01; see
+clean, `pytest` **336** green (2026-07-15). The **cost refactor is complete** (2026-07-01; see
 §11 / §14 + `WORKLOG`).
 **✅ The CLEANUP/REFACTOR TRACK is COMPLETE (2026-07-10; `CLEANUP_REFACTOR_SPEC.md`, all 9
 stages, $0 Claude spend, tests 180 → 227).** Highlights: dead code out (write-only FRED
@@ -130,8 +130,8 @@ reply-bot Gmail query was reworked to two separate `subject:` terms so reply mat
 survives it). **F3 golden-set refresh:** 26 → **29** questions (the stale relative-time item
 date-anchored); eval re-baselined **hit@1 0.862 / hit@3 0.966 / hit@5 1.0 / MRR 0.917, zero
 misses** (snapshot `2026-07-14_f3_refresh`). Detail in §13 + WORKLOG 2026-07-14.
-**✅ 2026-07-15 — SECOND-PASS CLEANUP COMPLETE (`CLEANUP_SPEC.md`, 5 stages, $0 spend,
-tests 307 → 334).** Highlights: the post-activation TEAM leak guard is CODE-ENFORCED
+**✅ 2026-07-15 — SECOND-PASS CLEANUP COMPLETE (`CLEANUP_SPEC.md`, 5 stages + two
+same-day follow-ups, $0 spend, tests 307 → 336).** Highlights: the post-activation TEAM leak guard is CODE-ENFORCED
 (missing `DIGEST_TO_TEAM` ⇒ warn + in-email alert + digest chunks un-indexed + memory
 frozen; escape hatch in config.py); chunk_id collisions fixed (79 dup ids → 0; rebuild +
 eval **metric-identical** 0.862/0.966/1.0/0.917); the reply allow-list is config-driven
@@ -146,9 +146,14 @@ checklist (NEXT_STEPS §5)** and **OPERATIONS.md** (the jared-facing runbook). T
 self-ingested 7/14 reply artifacts were resolved 2026-07-15 the archive-preserving way
 (operator-chosen over a scrub): `search._chunks_for_date` now skips self-artifact emails
 at INDEX time (`config.is_self_artifact`, shared with the fetch guard), the day was
-re-indexed, and the archive file stays byte-untouched as the raw record.
+re-indexed, and the archive file stays byte-untouched as the raw record. The artifacts
+had been suppressing real sources — **the eval baseline IMPROVED and is now hit@1 0.897 /
+hit@3 1.0 / MRR 0.937, zero misses** (`2026-07-15_post_index_filter.json`).
 Per-stage detail in WORKLOG 2026-07-14/15. **The operator's last work day is 2026-07-31 —
-pick the §7.2 deploy date now** (checklist ready; soak time is the scarce resource).
+pick the §7.2 deploy date now** (checklist ready; soak time is the scarce resource), and
+apply the **first-run watch list (NEXT_STEPS §5)** to the next natural run — especially
+the resolved-story re-creation ride-along and the memory size log (live watches through
+~mid-August; aging starts ~7/30).
 
 > ➡️ **Group B cost A/B — DONE 2026-07-01 (quality verdict: keep all four calls on Opus).**
 > The permissioned A/B (~$1.89) ran all four embedded/secondary calls through Opus 4.8 and Sonnet 4.6 on

@@ -5,6 +5,40 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
+## Current state (2026-07-15, end of session — cleanup track closed; deploy is all that remains)
+
+**The second-pass cleanup (`CLEANUP_SPEC.md`) is COMPLETE** — 5 stages + the
+audit-gap and index-side-filter follow-ups, all committed ("cleanup spec stage
+1..5" + two follow-up commits). `ruff` clean, `pytest` **336** green;
+retrieval-eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
+(`2026-07-15_post_index_filter.json` — improved over 0.862/0.966/0.917: the
+self-ingested reply artifacts had been suppressing real sources); **$0 Claude
+spend across the whole track.** Durable outcomes: the TEAM privacy boundary is
+code-enforced end-to-end (post-activation env guard + index-side digest skip +
+fetch/index self-artifact filters); the receiving side is **@acorninv.com
+only** (bot removed as recipient — self-ingestion loop killed); reply access is
+config-driven (answerable = exactly the digest recipients; full tier =
+jtramontano alone); memory contexts are budget-bounded (byte-identical today)
+with a per-run size log; chunk_ids unique (were 208 dup chunks); O3 arms next
+run and now catches partial failures + substack full-text collapse; deploy +
+cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
+
+**REMAINING (in order):**
+1. **Pick the §7.2 deploy date and execute the NEXT_STEPS §5 checklist** — the
+   operator's LAST WORK DAY is 2026-07-31; every earlier day of unattended soak
+   counts (the accrual-week precedent: live operation surfaced ~8 failure modes
+   nothing else did).
+2. **Apply the first-run watch list (NEXT_STEPS §5 subsection)** to the next
+   natural run — especially the resolved-story re-creation ride-along (memory
+   3.1) and the memory size log; both stay live watches through ~mid-August
+   (the 30-day aging fires its first resolutions ~7/30).
+3. **Push** — the branch is ahead of origin (operator pushes).
+4. Optional, parked in HANDOFF §14.G: the F7 weekly-diet `count_tokens`
+   quantification (standing $0-call permission); the F22 HANDOFF consolidation
+   as its own later docs pass.
+
+---
+
 ## Index-side self-artifact filter — the Stage-2 residual RESOLVED, archive untouched (2026-07-15)
 
 Operator-approved follow-up (chosen over scrubbing the archive, for fidelity:
