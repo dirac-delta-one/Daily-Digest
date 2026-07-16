@@ -246,9 +246,28 @@ def _fmt_change_cell(chg, pct, unit, label):
     return f'<span style="color: {color}; font-weight: 600;">{text}</span>'
 
 
-def build_market_table_html(data):
-    """The Market Snapshot table (S&P, VIX, WTI, DXY, BTC)."""
-    return _build_yahoo_table(data, "market", "Market Snapshot")
+# FRED rows (by label) mirrored into the Market Snapshot in ADDITION to their
+# own snapshot section (jared 2026-07-16: 20Y UST in Market AND Rates).
+# Yahoo has no 20Y index ticker, so the row comes from macro_data's fetch.
+MARKET_FRED_EXTRAS = ("20Y UST",)
+
+
+def build_market_table_html(data, fred_data=None):
+    """The Market Snapshot table (S&P, VIX, WTI, DXY, BTC + the FRED extras
+    above when `fred_data` — macro_data's fetch result — is provided)."""
+    extra_rows, footnote_suffix = "", ""
+    if fred_data:
+        import macro_data
+        extras = [r for r in fred_data if r.get("label") in MARKET_FRED_EXTRAS]
+        if extras:
+            extra_rows = macro_data.table_rows_html(extras)
+            ids = ", ".join(f"{r['series_id']} ({r['date']})" for r in extras
+                            if r.get("series_id") and r.get("date"))
+            if ids:
+                footnote_suffix = f" | FRED: {ids}"
+    return _build_yahoo_table(data, "market", "Market Snapshot",
+                              extra_rows_html=extra_rows,
+                              footnote_suffix=footnote_suffix)
 
 
 def build_private_credit_html(data):
@@ -287,7 +306,7 @@ def table_rows_html(rows):
     return html
 
 
-def _build_yahoo_table(data, section, title):
+def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix=""):
     """Render one section's rows as an HTML table with 1D / 1W / 1M columns."""
     data = [r for r in data if r.get("section") == section]
     if not data:
@@ -309,7 +328,7 @@ def _build_yahoo_table(data, section, title):
     for dt, tickers in sources_seen.items():
         suffix = f", as of {dt}" if dt else ""
         footnote_parts.append(f"Yahoo Finance: {' '.join(tickers)}{suffix}")
-    footnote = " | ".join(footnote_parts)
+    footnote = " | ".join(footnote_parts) + footnote_suffix
     footnote_html = (
         f'<p style="font-size: 10px; color: #aaa; margin: 4px 0 0; line-height: 1.3;">'
         f'{footnote}</p>\n'
@@ -329,6 +348,7 @@ def _build_yahoo_table(data, section, title):
         f'<th {th} text-align: right;">1M</th>'
         f'</tr>\n'
         f'{rows}'
+        f'{extra_rows_html}'
         '</table>\n'
         f'{footnote_html}'
         '</div>\n'

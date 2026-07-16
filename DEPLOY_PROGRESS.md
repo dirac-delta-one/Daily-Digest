@@ -67,6 +67,11 @@ Produces complete digests (Gmail ✅, WILTW ✅ from 7/16, Substack ✅) to the 
 (dev `env.bat`: `DIGEST_TO=jtramontano,acohen`; `DIGEST_TO_TEAM=apain,acohen`), ~$1.5–2.6/run.
 **Dev is the authoritative state during the interim — do NOT run the server in parallel.**
 
+**No reply monitor runs anywhere during the interim (operator decision 2026-07-15: accept the
+gap).** Jared's daemon died with his decommission; the server's starts at cutover step 6. Note:
+the daemon's Gmail query is `is:unread newer_than:1d`, so interim replies are NOT answered late —
+they're never answered. If a digest reply arrives Wed–Fri, answer it by hand (or ignore).
+
 ## Monday 7/20 — cutover (in this exact order)
 0. **Sync CODE to the server** (added 2026-07-15, later session): the digest-format updates
    (anti-repetition prompt, snapshot redesign, market-data 1M-lookback bugfix — see WORKLOG) landed

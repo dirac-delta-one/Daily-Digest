@@ -311,21 +311,13 @@ def build_credit_table_html(data, yahoo_data=None):
     )
 
 
-def _build_fred_table(data, title, extra_rows_html="", footnote_suffix=""):
-    """Render FRED rows as an HTML table with 1D / 1W / 1M columns."""
-    if not data and not extra_rows_html:
-        return ""
-
-    rows = ""
-    footnote_parts = []
-    for item in data:
+def table_rows_html(rows):
+    """Bare <tr> rows for the given FRED items — also embedded by
+    market_data's Market Snapshot table (its 20Y UST row is FRED data)."""
+    html = ""
+    for item in rows:
         label = item["label"]
         unit = item["unit"]
-        series_id = item.get("series_id", "")
-        data_date = item.get("date", "")
-
-        if series_id and data_date:
-            footnote_parts.append(f"{series_id} ({data_date})")
 
         val_str = _fmt_val(label, item["value"], unit)
         cell_1d = _fmt_change_cell(item["chg_1d"], unit, label)
@@ -333,7 +325,7 @@ def _build_fred_table(data, title, extra_rows_html="", footnote_suffix=""):
         cell_1m = _fmt_change_cell(item["chg_1m"], unit, label)
 
         td = 'style="padding: 3px 8px; font-size: 12px; border-bottom: 1px solid #eee;'
-        rows += (
+        html += (
             f'<tr>'
             f'<td {td}">{label}</td>'
             f'<td {td} text-align: right; font-weight: 600;">{val_str}</td>'
@@ -342,6 +334,21 @@ def _build_fred_table(data, title, extra_rows_html="", footnote_suffix=""):
             f'<td {td} text-align: right;">{cell_1m}</td>'
             f'</tr>\n'
         )
+    return html
+
+
+def _build_fred_table(data, title, extra_rows_html="", footnote_suffix=""):
+    """Render FRED rows as an HTML table with 1D / 1W / 1M columns."""
+    if not data and not extra_rows_html:
+        return ""
+
+    rows = table_rows_html(data)
+    footnote_parts = []
+    for item in data:
+        series_id = item.get("series_id", "")
+        data_date = item.get("date", "")
+        if series_id and data_date:
+            footnote_parts.append(f"{series_id} ({data_date})")
 
     footnote_html = ""
     if footnote_parts or footnote_suffix:

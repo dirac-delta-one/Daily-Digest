@@ -1532,7 +1532,7 @@ def main():
     # --- Build pre-formatted HTML sections (shared by both variants) ---
     alerts_html = build_alerts_html(triggered_alerts)
     team_alerts_html = build_alerts_html(team_alerts)
-    market_html = build_market_table_html(market_data)
+    market_html = build_market_table_html(market_data, macro_data)  # macro rows: the 20Y UST mirror
     rates_html = build_rates_table_html(macro_data)
     credit_html = build_credit_table_html(macro_data, market_data)
     private_html = build_private_credit_html(market_data)

@@ -98,6 +98,20 @@ def test_credit_table_merges_fred_and_yahoo_rows():
     assert "S&P 500" not in out       # non-credit Yahoo row excluded
 
 
+def test_market_table_embeds_fred_extras():
+    # jared 2026-07-16: 20Y UST appears in Market Snapshot AND Rates Snapshot
+    yahoo = [_yahoo_row("S&P 500", "market", ticker="^GSPC")]
+    fred = [_fred_row("20Y UST", "rates", value=5.09, series_id="DGS20"),
+            _fred_row("2Y UST", "rates", series_id="DGS2")]
+    out = market_data.build_market_table_html(yahoo, fred)
+    assert "20Y UST" in out and "5.09%" in out
+    assert "DGS20" in out            # FRED provenance in the footnote
+    assert "2Y UST" not in out       # only the listed extras, not all rates
+    # without fred_data the table is unchanged (no FRED row, no FRED footnote)
+    plain = market_data.build_market_table_html(yahoo)
+    assert "20Y UST" not in plain and "FRED" not in plain
+
+
 def test_yahoo_section_tables_filter_by_section():
     data = [_yahoo_row("S&P 500", "market", ticker="^GSPC"),
             _yahoo_row("ARCC (Ares Capital)", "private", ticker="ARCC"),

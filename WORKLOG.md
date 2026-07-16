@@ -42,6 +42,20 @@ cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
 
 ---
 
+## 20Y UST mirrored into the Market Snapshot (2026-07-16)
+
+Operator request (jared): 20Y Treasury in the Market Snapshot IN ADDITION to the Rates Snapshot.
+Yahoo has no 20Y index ticker, so the Market table embeds the FRED `DGS20` row — the reverse of
+the credit table's Yahoo-row embedding: new `macro_data.table_rows_html` (extracted from
+`_build_fred_table`), `market_data.MARKET_FRED_EXTRAS = ("20Y UST",)` +
+`build_market_table_html(data, fred_data=None)`, FRED provenance appended to the table footnote.
+Also today: **first live run with the new format — GREEN** ($1.78; all six snapshot tables
+rendered; 0 cross-section near-dupes at the J≥0.30 scan that caught 1–2/day before; §7 Bloomberg
+correctly shrank to non-covered items; TEAM leak scan clean; none of the 7 new memory stories is a
+resolved-story restatement). **Next-run watches:** memory budget activates (64 active > 60 — expect
+`60 of 64` and eyeball once); WILTW 7/16 posts late-Thursday → Friday run picks it up. `ruff`
+clean, pytest **354**.
+
 ## Digest-format updates: anti-repetition prompt + snapshot redesign + a latent market-data bug (2026-07-15, later session)
 
 Two operator-requested format changes (jared's feedback), plus a real bug found while validating.
