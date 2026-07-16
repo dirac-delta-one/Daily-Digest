@@ -10,39 +10,43 @@ section renders its own snapshot table (Gold dropped, per the same request).
 
 import time
 
-# Yahoo Finance tickers -> (label, unit_type, section)
+# Yahoo Finance tickers -> (label, unit_type, section, metric)
 # section: "market" / "private" / "ai" render their own tables;
 #          "credit" rows are embedded in macro_data's Corporate Credit table.
+# metric: the measure shown in the table's Metric column (jared 2026-07-16 —
+# a value alone doesn't say whether it's a yield, spread, or price).
 YAHOO_TICKERS = {
     # --- Market Snapshot ---
-    "^GSPC":     ("S&P 500",              "dollar", "market"),
-    "^VIX":      ("VIX",                  "index",  "market"),
-    "CL=F":      ("WTI Crude",            "dollar", "market"),
-    "DX-Y.NYB":  ("DXY",                  "index",  "market"),
-    "BTC-USD":   ("BTC",                  "dollar", "market"),
-    # --- Corporate Credit Snapshot (Yahoo rows; OAS rows are FRED) ---
-    "IGLB":      ("IGLB (Long-Term IG)",  "dollar", "credit"),
-    "IGIB":      ("IGIB (Intermediate IG)", "dollar", "credit"),
+    "^GSPC":     ("S&P 500",              "dollar", "market",  "Index"),
+    "^VIX":      ("VIX",                  "index",  "market",  "Index"),
+    "CL=F":      ("WTI Crude",            "dollar", "market",  "Price"),
+    "DX-Y.NYB":  ("DXY",                  "index",  "market",  "Index"),
+    "BTC-USD":   ("BTC",                  "dollar", "market",  "Price"),
+    # (IGLB/IGIB moved to ishares_data.py 2026-07-16 — jared wanted their
+    #  spread, not price; the fund-reported Portfolio OAS is scraped from
+    #  ishares.com and rendered in the Corporate Credit Snapshot.)
     # --- Private Credit Snapshot ---
-    "^RUT":      ("Russell 2000",         "index",  "private"),
-    "ARCC":      ("ARCC (Ares Capital)",  "dollar", "private"),
-    "OTF":       ("OTF (Blue Owl Tech)",  "dollar", "private"),
-    "BKLN":      ("BKLN (Senior Loan ETF)", "dollar", "private"),
+    "^RUT":      ("Russell 2000",         "index",  "private", "Index"),
+    "ARCC":      ("ARCC (Ares Capital)",  "dollar", "private", "Share price"),
+    "OTF":       ("OTF (Blue Owl Tech)",  "dollar", "private", "Share price"),
+    "BKLN":      ("BKLN (Senior Loan)",   "dollar", "private", "ETF price"),
     # (BKLN trailing yield is appended as a derived row in fetch_market_data)
     # --- AI Snapshot ---
-    "^IXIC":     ("Nasdaq Composite",     "index",  "ai"),
-    "000660.KS": ("SK Hynix (KRW)",       "won",    "ai"),
-    "ORCL":      ("Oracle",               "dollar", "ai"),
-    "CRWV":      ("CoreWeave",            "dollar", "ai"),
+    "^IXIC":     ("Nasdaq Composite",     "index",  "ai",      "Index"),
+    "SPCX":      ("SpaceX",               "dollar", "ai",      "Share price"),
+    "000660.KS": ("SK Hynix",             "won",    "ai",      "Share price (KRW)"),
+    "ORCL":      ("Oracle",               "dollar", "ai",      "Share price"),
+    "CRWV":      ("CoreWeave",            "dollar", "ai",      "Share price"),
 }
 
 # BBG-DATA-LICENSE WISHLIST (jared 2026-07-15; none has a free source — add
 # these rows if a Bloomberg Data License / terminal feed ever lands):
 #   Private Credit: S&P BDC index (SPBDCUP), BCRED '32 G-spread,
 #                   ARCC '32 G-spread
-#   AI:             SpaceX equity mark, SpaceX '56 G-spread,
-#                   Oracle '66 G-spread, QTS G-spread,
+#   AI:             SpaceX '56 G-spread, Oracle '66 G-spread, QTS G-spread,
 #                   CoreWeave '32 bond price, Core Scientific '31 bond price
+#   (SpaceX EQUITY came off this list 2026-07-16: it IPO'd June 12, 2026 as
+#    Nasdaq SPCX — now a normal Yahoo row above.)
 
 
 def _close_series(frame, tickers):
@@ -103,7 +107,7 @@ def fetch_market_data():
         except Exception as e:
             print(f"  Yahoo retry failed: {e}")
 
-    for ticker, (label, unit, section) in YAHOO_TICKERS.items():
+    for ticker, (label, unit, section, metric) in YAHOO_TICKERS.items():
         try:
             series = series_by_ticker.get(ticker)
             if series is None:
@@ -148,6 +152,7 @@ def fetch_market_data():
                 "value": current,
                 "unit": unit,
                 "section": section,
+                "metric": metric,
                 "chg_1d": chg_1d, "pct_1d": pct_1d,
                 "chg_1w": chg_1w, "pct_1w": pct_1w,
                 "chg_1m": chg_1m, "pct_1m": pct_1m,
@@ -167,10 +172,11 @@ def fetch_market_data():
             if y < 1:  # Yahoo sometimes returns a fraction (0.0659) vs 6.59
                 y *= 100
             results.append({
-                "label": "BKLN Trailing Yield",
+                "label": "BKLN (Senior Loan)",
                 "value": float(y),
                 "unit": "pct",
                 "section": "private",
+                "metric": "12M dist. yield",
                 "chg_1d": None, "pct_1d": None,
                 "chg_1w": None, "pct_1w": None,
                 "chg_1m": None, "pct_1m": None,
@@ -246,10 +252,11 @@ def _fmt_change_cell(chg, pct, unit, label):
     return f'<span style="color: {color}; font-weight: 600;">{text}</span>'
 
 
-# FRED rows (by label) mirrored into the Market Snapshot in ADDITION to their
-# own snapshot section (jared 2026-07-16: 20Y UST in Market AND Rates).
-# Yahoo has no 20Y index ticker, so the row comes from macro_data's fetch.
-MARKET_FRED_EXTRAS = ("20Y UST",)
+# Non-Yahoo rows (by series_id) mirrored into the Market Snapshot in ADDITION
+# to their own snapshot section (jared 2026-07-16: 20Y UST in Market AND
+# Rates; HYG/LQD OAS in Market AND Corporate Credit). The rows come from the
+# combined macro_data + ishares_data fetch lists digest passes in.
+MARKET_FRED_EXTRAS = ("DGS20", "ISHARES:HYG", "ISHARES:LQD")
 
 
 def build_market_table_html(data, fred_data=None):
@@ -258,7 +265,7 @@ def build_market_table_html(data, fred_data=None):
     extra_rows, footnote_suffix = "", ""
     if fred_data:
         import macro_data
-        extras = [r for r in fred_data if r.get("label") in MARKET_FRED_EXTRAS]
+        extras = [r for r in fred_data if r.get("series_id") in MARKET_FRED_EXTRAS]
         if extras:
             extra_rows = macro_data.table_rows_html(extras)
             ids = ", ".join(f"{r['series_id']} ({r['date']})" for r in extras
@@ -282,11 +289,13 @@ def build_ai_html(data):
 
 def table_rows_html(rows):
     """Bare <tr> rows for the given items — also embedded by macro_data's
-    Corporate Credit table (its IGLB/IGIB rows are Yahoo data)."""
+    Corporate Credit table (its IGLB/IGIB rows are Yahoo data).
+    Columns: name | metric | value | 1D | 1W | 1M (jared 2026-07-16)."""
     html = ""
     for item in rows:
         label = item["label"]
         unit = item["unit"]
+        metric = item.get("metric", "")
 
         val_str = _fmt_value(label, item["value"], unit)
         cell_1d = _fmt_change_cell(item["chg_1d"], item["pct_1d"], unit, label)
@@ -297,6 +306,7 @@ def table_rows_html(rows):
         html += (
             f'<tr>'
             f'<td {td}">{label}</td>'
+            f'<td {td} color: #888;">{metric}</td>'
             f'<td {td} text-align: right; font-weight: 600;">{val_str}</td>'
             f'<td {td} text-align: right;">{cell_1d}</td>'
             f'<td {td} text-align: right;">{cell_1w}</td>'
@@ -341,6 +351,7 @@ def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix
         f'margin: 0 0 12px;">{title}</h2>\n'
         '<table style="border-collapse: collapse; width: 100%;">\n'
         f'<tr>'
+        f'<th {th} text-align: left;">Name</th>'
         f'<th {th} text-align: left;">Metric</th>'
         f'<th {th} text-align: right;">Level</th>'
         f'<th {th} text-align: right;">1D</th>'
@@ -362,8 +373,10 @@ def format_market_data_for_prompt(data):
 
     lines = ["MARKET DATA SNAPSHOT (Yahoo Finance):"]
     for item in data:
-        label = item["label"]
-        val_str = _fmt_value(label, item["value"], item["unit"])
+        # Label + metric so short row names stay unambiguous in the prompt
+        # (e.g. "BKLN (Senior Loan) ETF price" vs "... 12M dist. yield").
+        label = f"{item['label']} {item.get('metric', '')}".strip()
+        val_str = _fmt_value(item["label"], item["value"], item["unit"])
 
         parts = [f"{label}: {val_str}"]
         if item["chg_1d"] is not None:

@@ -310,8 +310,8 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
       in on the box — see the Cutover step below).
       Do **NOT** copy `credentials_JARED.json` (dev-machine backup only).
 - [ ] Copy state: `memory.json`, `substack_memory.json`, `wiltw_cache.json`,
-      `pacer_seen.json`, `source_counts.json`, the whole `archive/` tree (incl.
-      `index.faiss` + `chunk_metadata.json`), and `digests/`.
+      `ishares_oas_cache.json`, `pacer_seen.json`, `source_counts.json`, the whole
+      `archive/` tree (incl. `index.faiss` + `chunk_metadata.json`), and `digests/`.
 - [ ] Create `env.bat` on the box: `ANTHROPIC_API_KEY`, `FRED_API_KEY`,
       `SUBSTACK_EMAIL`, **`DIGEST_TO_TEAM`** (required post-activation — the 2.1 guard
       warns+alerts+freezes indexing/memory if missing). `DIGEST_TO` stays UNSET in
@@ -362,8 +362,8 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
 
 **Post-deploy:**
 - [ ] O4 backups (scheduled copy off-box or to a second disk): `archive/`,
-      `memory.json`, `substack_memory.json`, `wiltw_cache.json`, `pacer_seen.json`,
-      `source_counts.json`, `digests/`, the two index files.
+      `memory.json`, `substack_memory.json`, `wiltw_cache.json`, `ishares_oas_cache.json`,
+      `pacer_seen.json`, `source_counts.json`, `digests/`, the two index files.
 - [ ] Watchdog drill: `run_alert.py digest --check-completed --test` → "(TEST drill)"
       email arrives.
 - [ ] Hand `OPERATIONS.md` to jared; walk him through the three manual fixes

@@ -39,15 +39,15 @@ def test_macro_change_bps_conversion():
 
 # --- 2026-07-15 snapshot redesign ---
 
-def _fred_row(label, section, unit="rate", value=4.5, series_id="X"):
+def _fred_row(label, section, unit="rate", value=4.5, series_id="X", metric="Yield"):
     return {"label": label, "unit": unit, "section": section, "value": value,
-            "series_id": series_id, "date": "2026-07-15",
+            "series_id": series_id, "date": "2026-07-15", "metric": metric,
             "chg_1d": None, "chg_1w": None, "chg_1m": None}
 
 
-def _yahoo_row(label, section, unit="dollar", value=50.0, ticker="TICK"):
+def _yahoo_row(label, section, unit="dollar", value=50.0, ticker="TICK", metric="Price"):
     return {"label": label, "unit": unit, "section": section, "value": value,
-            "source": f"Yahoo Finance: {ticker}", "as_of": "2026-07-15",
+            "source": f"Yahoo Finance: {ticker}", "as_of": "2026-07-15", "metric": metric,
             "chg_1d": None, "pct_1d": None, "chg_1w": None, "pct_1w": None,
             "chg_1m": None, "pct_1m": None}
 
@@ -85,14 +85,15 @@ def test_rates_table_renders_only_rates_rows():
 
 
 def test_credit_table_merges_fred_and_yahoo_rows():
-    fred = [_fred_row("HY OAS", "credit", "spread", 272.0),
+    fred = [_fred_row("HY", "credit", "spread", 272.0, metric="Index OAS"),
             _fred_row("2Y UST", "rates")]
-    yahoo = [_yahoo_row("IGLB (Long-Term IG)", "credit", ticker="IGLB"),
+    yahoo = [_yahoo_row("IGLB (Long-Term IG)", "credit", ticker="IGLB",
+                        metric="ETF price"),
              _yahoo_row("S&P 500", "market", ticker="^GSPC")]
     out = macro_data.build_credit_table_html(fred, yahoo)
     assert "Corporate Credit Snapshot" in out
-    assert "HY OAS" in out
-    assert "IGLB (Long-Term IG)" in out
+    assert "Index OAS" in out         # metric column populated
+    assert "IGLB (Long-Term IG)" in out and "ETF price" in out
     assert "ICE BofA" in out          # OAS provenance footnote
     assert "2Y UST" not in out        # rates row excluded
     assert "S&P 500" not in out       # non-credit Yahoo row excluded
@@ -106,7 +107,7 @@ def test_market_table_embeds_fred_extras():
     out = market_data.build_market_table_html(yahoo, fred)
     assert "20Y UST" in out and "5.09%" in out
     assert "DGS20" in out            # FRED provenance in the footnote
-    assert "2Y UST" not in out       # only the listed extras, not all rates
+    assert "2Y UST<" not in out      # only the listed extras (DGS20), not DGS2
     # without fred_data the table is unchanged (no FRED row, no FRED footnote)
     plain = market_data.build_market_table_html(yahoo)
     assert "20Y UST" not in plain and "FRED" not in plain
@@ -114,9 +115,10 @@ def test_market_table_embeds_fred_extras():
 
 def test_yahoo_section_tables_filter_by_section():
     data = [_yahoo_row("S&P 500", "market", ticker="^GSPC"),
-            _yahoo_row("ARCC (Ares Capital)", "private", ticker="ARCC"),
-            _yahoo_row("BKLN Trailing Yield", "private", unit="pct", value=6.59,
-                       ticker="BKLN"),
+            _yahoo_row("ARCC (Ares Capital)", "private", ticker="ARCC",
+                       metric="Share price"),
+            _yahoo_row("BKLN (Senior Loan)", "private", unit="pct", value=6.59,
+                       ticker="BKLN", metric="12M dist. yield"),
             _yahoo_row("CoreWeave", "ai", ticker="CRWV")]
     market = market_data.build_market_table_html(data)
     private = market_data.build_private_credit_html(data)

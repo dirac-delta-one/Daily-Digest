@@ -16,7 +16,7 @@ import datetime
 
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
-# FRED series -> (label, unit_type, section)
+# FRED series -> (label, unit_type, section, metric)
 # "spread"    -> FRED returns percentage, x100 for bps; change in bps
 # "rate"      -> X.XX%; change in bps (x100)
 # "breakeven" -> X.XX%; change in bps (x100)
@@ -24,37 +24,39 @@ FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 # "cpi"       -> index level; change as +X.X
 # "index"     -> plain number; change as +X.XX
 # section: "rates" / "credit" -> that snapshot table; "prompt" -> prompt only.
+# metric: the measure shown in the table's Metric column (jared 2026-07-16 —
+# a value alone doesn't say whether it's a yield, spread, or price).
 FRED_SERIES = {
     # --- Rates Snapshot ---
-    "DGS2":          ("2Y UST",        "rate",      "rates"),
-    "DGS10":         ("10Y UST",       "rate",      "rates"),
-    "DGS20":         ("20Y UST",       "rate",      "rates"),
-    "DGS30":         ("30Y UST",       "rate",      "rates"),
-    "T10YIE":        ("10Y Breakeven", "breakeven", "rates"),
-    "DFII10":        ("10Y Real Rate", "rate",      "rates"),
-    "DFII30":        ("30Y Real Rate", "rate",      "rates"),
-    "SOFR":          ("SOFR",          "rate",      "rates"),
-    # (derived, inserted in fetch: 2s20s Spread after 30Y UST; 30Y Breakeven
-    #  = DGS30 - DFII30 before 30Y Real Rate; 2s10s Spread stays prompt-only)
+    "DGS2":          ("2Y UST",   "rate",      "rates", "Yield"),
+    "DGS10":         ("10Y UST",  "rate",      "rates", "Yield"),
+    "DGS20":         ("20Y UST",  "rate",      "rates", "Yield"),
+    "DGS30":         ("30Y UST",  "rate",      "rates", "Yield"),
+    "T10YIE":        ("10Y",      "breakeven", "rates", "Breakeven inflation"),
+    "DFII10":        ("10Y",      "rate",      "rates", "Real yield (TIPS)"),
+    "DFII30":        ("30Y",      "rate",      "rates", "Real yield (TIPS)"),
+    "SOFR":          ("SOFR",     "rate",      "rates", "Overnight rate"),
+    # (derived, inserted in fetch: 2s20s after DGS30; 30Y breakeven
+    #  = DGS30 - DFII30 after DFII10; 2s10s stays prompt-only)
     # --- Corporate Credit Snapshot (ICE BofA index OAS — the free analogs of
     #     the Bloomberg LF98/LUAC/LU3A/LU1A/LUBA/BCBA/BCBH/BCAU OAS tickers) ---
-    "BAMLH0A0HYM2":  ("HY OAS",        "spread",    "credit"),
-    "BAMLC0A0CM":    ("IG OAS",        "spread",    "credit"),
-    "BAMLC0A1CAAA":  ("AAA OAS",       "spread",    "credit"),
-    "BAMLC0A3CA":    ("A OAS",         "spread",    "credit"),
-    "BAMLC0A4CBBB":  ("BBB OAS",       "spread",    "credit"),
-    "BAMLH0A1HYBB":  ("BB OAS",        "spread",    "credit"),
-    "BAMLH0A2HYB":   ("B OAS",         "spread",    "credit"),
-    "BAMLH0A3HYC":   ("CCC OAS",       "spread",    "credit"),
-    # BBG-DATA-LICENSE WISHLIST (jared 2026-07-15; no free source — add to the
-    # Corporate Credit Snapshot if a Bloomberg Data License ever lands):
-    #   HYG G-spread, LQD G-spread (ETF basket G-spreads).
+    "BAMLH0A0HYM2":  ("HY",   "spread", "credit", "Index OAS"),
+    "BAMLC0A0CM":    ("IG",   "spread", "credit", "Index OAS"),
+    "BAMLC0A1CAAA":  ("AAA",  "spread", "credit", "Index OAS"),
+    "BAMLC0A3CA":    ("A",    "spread", "credit", "Index OAS"),
+    "BAMLC0A4CBBB":  ("BBB",  "spread", "credit", "Index OAS"),
+    "BAMLH0A1HYBB":  ("BB",   "spread", "credit", "Index OAS"),
+    "BAMLH0A2HYB":   ("B",    "spread", "credit", "Index OAS"),
+    "BAMLH0A3HYC":   ("CCC",  "spread", "credit", "Index OAS"),
+    # BBG-DATA-LICENSE UPGRADE (jared 2026-07-15/16): true G-spreads for
+    # HYG/LQD/IGLB/IGIB if a Bloomberg Data License ever lands — until then
+    # all four ship as fund-reported portfolio OAS via ishares_data.py.
     # --- Prompt-only (the retired Macro Dashboard's other series) ---
-    "T5YIE":         ("5Y Breakeven Inflation", "breakeven", "prompt"),
-    "ICSA":          ("Initial Jobless Claims", "count",     "prompt"),
-    "CPIAUCSL":      ("CPI (monthly)",          "cpi",       "prompt"),
-    "DTWEXBGS":      ("Trade-Weighted Dollar",  "index",     "prompt"),
-    "DFEDTARU":      ("Fed Funds Upper",        "rate",      "prompt"),
+    "T5YIE":         ("5Y",                     "breakeven", "prompt", "Breakeven inflation"),
+    "ICSA":          ("Initial Jobless Claims", "count",     "prompt", "Weekly count"),
+    "CPIAUCSL":      ("CPI (monthly)",          "cpi",       "prompt", "Index level"),
+    "DTWEXBGS":      ("Trade-Weighted Dollar",  "index",     "prompt", "Index"),
+    "DFEDTARU":      ("Fed Funds Upper",        "rate",      "prompt", "Rate"),
 }
 
 # Raw series stashed during fetch to compute the derived rows below.
@@ -81,7 +83,7 @@ def fetch_macro_data():
     results = []
     raw_rates = {}
 
-    for series_id, (label, unit, section) in FRED_SERIES.items():
+    for series_id, (label, unit, section, metric) in FRED_SERIES.items():
         try:
             data = fred.get_series(series_id, observation_start=start)
             data = data.dropna()
@@ -142,6 +144,7 @@ def fetch_macro_data():
                 "label": label,
                 "unit": unit,
                 "section": section,
+                "metric": metric,
                 "value": current,
                 "date": current_date,
                 "chg_1d": chg_1d,
@@ -155,25 +158,25 @@ def fetch_macro_data():
     # Derived rows: A - B per horizon. unit "spread" -> value/changes in bps
     # (x100); unit "breakeven" -> value in %, changes as decimal diffs (the
     # formatters x100 to bps), matching the fetched rate/breakeven rows.
-    for label, a_id, b_id, unit, section, after_label in (
-        ("2s20s Spread",  "DGS20", "DGS2",   "spread",    "rates",  "30Y UST"),
-        ("30Y Breakeven", "DGS30", "DFII30", "breakeven", "rates",  "10Y Real Rate"),
-        ("2s10s Spread",  "DGS10", "DGS2",   "spread",    "prompt", None),
+    for label, metric, a_id, b_id, unit, section, after_id in (
+        ("2s20s", "Curve spread",        "DGS20", "DGS2",   "spread",    "rates",  "DGS30"),
+        ("30Y",   "Breakeven inflation", "DGS30", "DFII30", "breakeven", "rates",  "DFII10"),
+        ("2s10s", "Curve spread",        "DGS10", "DGS2",   "spread",    "prompt", None),
     ):
         row = _derived_row(label, raw_rates.get(a_id), raw_rates.get(b_id),
-                           unit=unit, section=section,
+                           unit=unit, section=section, metric=metric,
                            series_id=f"DERIVED:{a_id}-{b_id}")
         if row is None:
             continue
         insert_idx = next((i + 1 for i, r in enumerate(results)
-                           if r["label"] == after_label), len(results))
+                           if r["series_id"] == after_id), len(results))
         results.insert(insert_idx, row)
 
     print(f"  Got {len(results)} FRED series (incl. derived).")
     return results
 
 
-def _derived_row(label, a, b, *, unit, section, series_id):
+def _derived_row(label, a, b, *, unit, section, series_id, metric=""):
     """A - B across current/1D/1W/1M from two stashed raw series (both in %).
     "spread" scales values AND changes to bps; anything else keeps % values
     with decimal-diff changes (formatters convert those to bps). Returns None
@@ -195,6 +198,7 @@ def _derived_row(label, a, b, *, unit, section, series_id):
         "label": label,
         "unit": unit,
         "section": section,
+        "metric": metric,
         "value": value,
         "date": a["date"],
         "chg_1d": round(value - _diff("prev_1d"), 4) if _diff("prev_1d") is not None else None,
@@ -259,7 +263,9 @@ def format_macro_for_prompt(data):
 
     lines = ["FRED MACRO DATA (current | 1D | 1W | 1M):"]
     for item in data:
-        label = item["label"]
+        # Label + metric so short row names stay unambiguous in the prompt
+        # (e.g. "10Y Breakeven inflation" vs "10Y Real yield (TIPS)").
+        label = f"{item['label']} {item.get('metric', '')}".strip()
         unit = item["unit"]
         val_str = _fmt_val(label, item["value"], unit)
 
@@ -302,22 +308,27 @@ def build_credit_table_html(data, yahoo_data=None):
                            for r in credit_rows if r.get("source"))
         if tickers:
             extra_footnote = f" | Yahoo Finance: {tickers}"
+    credit_rows = [r for r in data if r.get("section") == "credit"]
+    suffix = " — OAS = ICE BofA index option-adjusted spreads"
+    if any(str(r.get("series_id", "")).startswith("ISHARES:") for r in credit_rows):
+        suffix += "; Portfolio OAS rows = fund-reported (ishares.com)"
     return _build_fred_table(
-        [r for r in data if r.get("section") == "credit"],
+        credit_rows,
         "Corporate Credit Snapshot",
         extra_rows_html=extra_rows,
-        footnote_suffix=(" — OAS = ICE BofA index option-adjusted spreads"
-                         f"{extra_footnote}"),
+        footnote_suffix=f"{suffix}{extra_footnote}",
     )
 
 
 def table_rows_html(rows):
     """Bare <tr> rows for the given FRED items — also embedded by
-    market_data's Market Snapshot table (its 20Y UST row is FRED data)."""
+    market_data's Market Snapshot table (its 20Y UST row is FRED data).
+    Columns: name | metric | value | 1D | 1W | 1M (jared 2026-07-16)."""
     html = ""
     for item in rows:
         label = item["label"]
         unit = item["unit"]
+        metric = item.get("metric", "")
 
         val_str = _fmt_val(label, item["value"], unit)
         cell_1d = _fmt_change_cell(item["chg_1d"], unit, label)
@@ -328,6 +339,7 @@ def table_rows_html(rows):
         html += (
             f'<tr>'
             f'<td {td}">{label}</td>'
+            f'<td {td} color: #888;">{metric}</td>'
             f'<td {td} text-align: right; font-weight: 600;">{val_str}</td>'
             f'<td {td} text-align: right;">{cell_1d}</td>'
             f'<td {td} text-align: right;">{cell_1w}</td>'
@@ -364,8 +376,9 @@ def _build_fred_table(data, title, extra_rows_html="", footnote_suffix=""):
         f'margin: 0 0 12px;">{title}</h2>\n'
         '<table style="border-collapse: collapse; width: 100%;">\n'
         f'<tr>'
-        f'<th {th} text-align: left;">Series</th>'
-        f'<th {th} text-align: right;">Current</th>'
+        f'<th {th} text-align: left;">Name</th>'
+        f'<th {th} text-align: left;">Metric</th>'
+        f'<th {th} text-align: right;">Level</th>'
         f'<th {th} text-align: right;">1D</th>'
         f'<th {th} text-align: right;">1W</th>'
         f'<th {th} text-align: right;">1M</th>'

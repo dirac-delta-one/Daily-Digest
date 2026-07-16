@@ -326,11 +326,16 @@ What remains is only what a future session might still act on.)*
 
 ### A. Conditional — do only if a real problem appears (no evidence yet)
 - **BBG-Data-License snapshot rows (2026-07-15, jared)** — snapshot items with NO free source,
-  wanted if a Bloomberg Data License ever lands: HYG/LQD G-spreads, S&P BDC index (SPBDCUP),
-  BCRED '32 / ARCC '32 G-spreads, SpaceX equity + '56 G-spread, Oracle '66 G-spread, QTS
+  wanted if a Bloomberg Data License ever lands: **HYG/LQD/IGLB/IGIB reported G-spreads**
+  (2026-07-16 — all four shipped as fund-reported portfolio OAS scraped from ishares.com
+  instead; see `ishares_data.py`; the BBG upgrade would swap OAS → G-spread), S&P BDC index
+  (SPBDCUP — publisher page is bot-blocked, 403; BIZD proxy declined),
+  BCRED '32 / ARCC '32 G-spreads, SpaceX '56 G-spread, Oracle '66 G-spread, QTS
   G-spread, CoreWeave '32 + Core Scientific '31 bond prices. In-code comment blocks mark the
   slots (`market_data.YAHOO_TICKERS`, `macro_data.FRED_SERIES` credit section). Bond-level data
-  = TRACE ($9k/yr, rejected 2026-07-13); SpaceX is private (DXYZ proxy declined).
+  = TRACE ($9k/yr, rejected 2026-07-13; FINRA's free per-CUSIP web lookup judged too fragile to
+  scrape). SpaceX EQUITY came off the list 2026-07-16 — it IPO'd June 12, 2026 (Nasdaq: SPCX)
+  and is now a normal Yahoo row in the AI Snapshot.
 - **`_assemble_digest_html` string-match insertion** — revisit only **if** archived digests show
   real section misplacement; the fix risks the tuned `SYSTEM_PROMPT` (§6). *(The numbering-collision
   member of this family was already fixed 2026-07-14 — appended sections are unnumbered.)*

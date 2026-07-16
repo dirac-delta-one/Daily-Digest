@@ -45,6 +45,7 @@ from macro_data import (
     fetch_macro_data, build_rates_table_html, build_credit_table_html,
     format_macro_for_prompt,
 )
+from ishares_data import fetch_ishares_oas, format_ishares_for_prompt
 from memory import (
     get_memory_context, update_memory,
     get_substack_memory_context, update_substack_memory,
@@ -456,7 +457,8 @@ def _build_source_prompt(*, emails, sec_filings, market_data,
                          rating_actions=None, fund_results=None,
                          wiltw=None,
                          research_articles=None, treasury_auctions=None,
-                         cot_data=None, fed_bs=None, bank_failures=None):
+                         cot_data=None, fed_bs=None, bank_failures=None,
+                         ishares_oas=None):
     """Build the TEAM-shareable source material text for the Opus prompt.
 
     Keyword-only (Phase 3.1): with 15 same-typed source arguments, positional
@@ -536,6 +538,12 @@ def _build_source_prompt(*, emails, sec_filings, market_data,
     macro_text = format_macro_for_prompt(macro_data)
     if macro_text:
         prompt += "\n\n" + "=" * 40 + "\n" + macro_text + "\n" + "=" * 40
+
+    # iShares fund-reported OAS (IGLB/IGIB — credit snapshot rows)
+    if ishares_oas:
+        ishares_text = format_ishares_for_prompt(ishares_oas)
+        if ishares_text:
+            prompt += "\n\n" + "=" * 40 + "\n" + ishares_text + "\n" + "=" * 40
 
     # Earnings calendar
     earnings_text = format_earnings_for_prompt(earnings)
@@ -674,6 +682,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           wiltw=None,
                           research_articles=None, treasury_auctions=None,
                           cot_data=None, fed_bs=None, bank_failures=None,
+                          ishares_oas=None,
                           substack_memory_context=None, cost_label=""):
     """Send all sources to Claude for digest generation (2-pass).
 
@@ -700,6 +709,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     cot_data = cot_data or []
     fed_bs = fed_bs or []
     bank_failures = bank_failures or []
+    ishares_oas = ishares_oas or []
 
     # Substack-via-email boundary (2026-07-15): paid Substack newsletters also
     # arrive as inbox email (e.g. PETITION from petition@substack.com). They are
@@ -737,6 +747,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
         cot_data=cot_data,
         fed_bs=fed_bs,
         bank_failures=bank_failures,
+        ishares_oas=ishares_oas,
     )
 
     # Build the content array for Claude's messages API
@@ -1246,6 +1257,8 @@ SOURCE_FETCHERS = [
      fetch_fed_balance_sheet),
     ("bank_failures", "Checking FDIC for bank failures...", "FDIC check",
      fetch_failed_banks),
+    ("ishares_oas", "Fetching iShares fund OAS...", "iShares OAS",
+     fetch_ishares_oas),
 ]
 
 MAX_FETCH_WORKERS = 6
@@ -1369,6 +1382,7 @@ def main():
     cot_data = fetched["cot_data"]
     fed_bs = fetched["fed_bs"]
     bank_failures = fetched["bank_failures"]
+    ishares_oas = fetched["ishares_oas"]
 
     # --- Check if anything to digest ---
     if not emails and not substack_articles and not sec_filings and not news_articles:
@@ -1429,6 +1443,7 @@ def main():
         cot_data=cot_data,
         fed_bs=fed_bs,
         bank_failures=bank_failures,
+        ishares_oas=ishares_oas,
     )
 
     team_digest_html = team_source_text = None
@@ -1532,9 +1547,11 @@ def main():
     # --- Build pre-formatted HTML sections (shared by both variants) ---
     alerts_html = build_alerts_html(triggered_alerts)
     team_alerts_html = build_alerts_html(team_alerts)
-    market_html = build_market_table_html(market_data, macro_data)  # macro rows: the 20Y UST mirror
+    # mirror rows: 20Y UST (FRED) + HYG/LQD OAS (iShares) into Market Snapshot
+    market_html = build_market_table_html(market_data, macro_data + ishares_oas)
     rates_html = build_rates_table_html(macro_data)
-    credit_html = build_credit_table_html(macro_data, market_data)
+    # iShares fund-reported OAS rows render after the FRED index OAS rows
+    credit_html = build_credit_table_html(macro_data + ishares_oas, market_data)
     private_html = build_private_credit_html(market_data)
     ai_html = build_ai_html(market_data)
     earnings_html = build_earnings_html(earnings)

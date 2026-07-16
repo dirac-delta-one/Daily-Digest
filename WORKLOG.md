@@ -42,6 +42,60 @@ cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
 
 ---
 
+## SpaceX equity added to the AI Snapshot — it IPO'd (2026-07-16, follow-up 3)
+
+Operator caught a stale assumption: SpaceX is no longer private — it **IPO'd June 12, 2026 on
+Nasdaq as SPCX** ($135 offer, ~$1.77T — largest IPO ever; post-dates the assistant's knowledge
+cutoff, verified via web + Yahoo). `SPCX` added to `YAHOO_TICKERS` (AI section, "Share price",
+$135.94 live at add time, 21 trading days of history — the 1M change reaches back exactly to the
+IPO, which only works because of today's `>= 21` off-by-one fix). Removed "SpaceX equity" from
+the BBG wishlist (code comment + HANDOFF §14.A); the SpaceX **'56 G-spread** stays on it
+(bond-level). pytest **362** green.
+
+## HYG/LQD added to the iShares OAS fetch — credit table + Market Snapshot mirror (2026-07-16, follow-up 2)
+
+Operator asked whether other BBG-wishlist items were recoverable from alternative sources.
+Findings: **HYG (250.05 bps) and LQD (82.00 bps)** report the same page-embedded portfolio OAS as
+IGLB/IGIB — added to `ishares_data.FUNDS` (operator decision: BOTH the Corporate Credit table AND
+a Market Snapshot mirror via `MARKET_FRED_EXTRAS`, which now carries FRED + iShares series ids;
+digest passes `macro_data + ishares_oas` as the mirror source list). **Still unavailable:** S&P
+BDC index (publisher page bot-blocked, 403); bond-level items (FINRA's free per-CUSIP lookup =
+fragile JS scraping + DIY G-spread math — declined); SpaceX (private). Credit footnote now reads
+"Portfolio OAS rows = fund-reported (ishares.com)". Live-verified both tables; pytest **362**.
+
+## IGLB/IGIB: price rows replaced with fund-reported Portfolio OAS (2026-07-16, follow-up)
+
+Jared wanted the IGLB/IGIB rows changed to **reported G-spread**. Double-checked: no free ETF
+G-spread source exists (the iShares characteristics data has no G-spread field — it's a Bloomberg
+analytic; stays on the §14.A BBG wishlist). Shipped the operator-approved substitute instead: the
+**Option Adjusted Spread each fund reports on its own ishares.com product page** (verified live:
+IGLB 94.54 bps, IGIB 86.28 bps, as-of Jul 15 2026 — embedded HTML-escaped JSON, plain GET, no
+auth). New module **`ishares_data.py`** (fetch → macro-shaped credit rows, metric "Portfolio OAS"
++ prompt formatter); registry row `ishares_oas` (O3-counted automatically); rows render after the
+FRED index-OAS rows in the Corporate Credit Snapshot with an ishares.com footnote credit; IGLB/
+IGIB removed from `YAHOO_TICKERS`. **Change columns accrue:** the site shows only the current
+value, so 1D/1W/1M come from a local history cache (`ishares_oas_cache.json`, gitignored, pruned
+at 60 days, keyed by the site's as-of date — same-day reruns don't self-compare). 1D populates
+from day 2, 1W after a week, 1M after a month; added to the deploy copy + O4 backup lists.
+Fallback if iShares ever blocks scraping: FRED's ICE BofA maturity-bucket OAS
+(`BAMLC7A0C1015Y`/`BAMLC8A0C15PY` ≈ IGLB; `BAMLC3A0C57Y`/`BAMLC4A0C710Y` ≈ IGIB) — free, daily,
+with history. 8 new tests (parse/history/rows/failure); pytest **362** green.
+
+## Snapshot tables gained a Metric column (2026-07-16, follow-up)
+
+Operator feedback in two rounds: (1) table values ("272 bps", "5.09%", "$48.95") didn't say WHAT
+metric each row reports; (2) packing the metric into the name column read as crowded — make it a
+separate column between the name and 1D. Final shape: **Name | Metric | Level/Current | 1D | 1W |
+1M** in every snapshot table. Rows carry a `metric` field (in `YAHOO_TICKERS` / `FRED_SERIES`
+tuples + the derived/BKLN-yield rows): Yield, Curve spread, Breakeven inflation, Real yield
+(TIPS), Overnight rate, Index OAS, ETF price, Share price (KRW), 12M dist. yield, Index, Price.
+Names reverted to clean instruments ("HY", "10Y", "ARCC (Ares Capital)"); the prompt formatters
+emit "label + metric" so the short names stay unambiguous to Opus ("10Y Breakeven inflation" vs
+"10Y Real yield (TIPS)"). Robustness: `MARKET_FRED_EXTRAS` and the derived-row insertion anchors
+now key on `series_id` (labels are no longer unique). No formatter/monitor keys on labels
+(verified: only the VIX/BTC/S&P/"Claims" switches, all untouched). pytest **354** green;
+live-verified rates order + preview emailed to acohen.
+
 ## 20Y UST mirrored into the Market Snapshot (2026-07-16)
 
 Operator request (jared): 20Y Treasury in the Market Snapshot IN ADDITION to the Rates Snapshot.
