@@ -85,6 +85,16 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
 - Known slow burn (developer item, not urgent): the search index grows daily
   and will get gradually slower after several months (~2026 Q4 at current
   rates); a developer should revisit per HANDOFF §14 when replies feel slow.
+- **Off-box backup (O4):** every weekday ~09:45 the day's DATA — `archive\`,
+  `digests\`, `memory.json`, the caches, and the search index — is copied to
+  OneDrive at `…\OneDrive - Acorn Investment\DailyDigest-Backup\` (data ONLY —
+  no passwords, keys, or logins are ever copied). This is the safety copy if the
+  server's disk ever fails. **It only works while the server stays logged in
+  (locked is fine)** so OneDrive keeps syncing; if the box is ever fully signed
+  out, the backup stops uploading and a "backup FAILED" alert fires. **To restore
+  after a disk loss:** set the project up fresh per `README.md`, then copy the
+  contents of `DailyDigest-Backup\` back into the project folder (the secrets are
+  NOT in the backup — re-supply those per `MAINTENANCE.md §2`).
 
 ## If something breaks beyond the three fixes above
 

@@ -187,8 +187,8 @@ def check_completed(label, test=False):
 
 def main():
     label = next((a for a in sys.argv[1:] if not a.startswith("--")), "digest")
-    if label not in ("digest", "midday", "reply_monitor"):
-        print(f"Unknown label '{label}' — expected digest | midday | reply_monitor")
+    if label not in ("digest", "midday", "reply_monitor", "backup"):
+        print(f"Unknown label '{label}' — expected digest | midday | reply_monitor | backup")
         return 2
 
     if "--check-completed" in sys.argv:

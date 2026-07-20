@@ -88,6 +88,11 @@ $tasks = @(
     @{ Name = "MiddayAlert"; Bat = "run_midday.bat"
        Trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $weekdays -At 13:00
        Settings = $runOnceSettings },
+    # O4 off-box backup (2026-07-20): 09:45, after the 08:00 digest has written the
+    # day's state. Copies STATE ONLY into a OneDrive subfolder (run_backup.bat) -> off-box.
+    @{ Name = "Backup"; Bat = "run_backup.bat"
+       Trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $weekdays -At 09:45
+       Settings = $runOnceSettings },
     @{ Name = "ReplyMonitor"; Bat = "run_reply_monitor.bat"
        Trigger = New-ScheduledTaskTrigger -AtStartup
        Settings = $daemonSettings }

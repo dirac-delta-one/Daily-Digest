@@ -24,10 +24,18 @@ digest already delivered from the box, the reply daemon polling. First automated
   cache engaged, no "Team config missing", both memory stores updated.
 
 **REMAINING (post-deploy hardening + handoff — none blocks the live system):**
-1. **Watchdog drill** — `run_alert.py digest --check-completed --test` (route to acohen via a
-   shell `DIGEST_TO` override, or warn jared first — it emails the production recipient).
-2. **O4 off-box backups** — scheduled copy of `archive/`, both memory stores, the caches,
-   `digests/`, the two index files.
+1. **Watchdog drill** — ✅ DONE 7/20 (`run_alert.py digest --check-completed --test`, routed to
+   acohen via a shell `DIGEST_TO` override; the "(TEST drill) MISSING" email arrived — the
+   failure-alert path works).
+2. **O4 off-box backups** — ✅ BUILT (2026-07-20): `run_backup.bat` robocopies STATE ONLY
+   (`archive/` + both memory stores + caches + `digests/` + the two index files; NO secrets —
+   validated) into `%OneDriveCommercial%\DailyDigest-Backup`, which OneDrive syncs off-box to
+   Acorn's cloud (works because the server is kept logged-in-and-locked, so OneDrive.exe runs).
+   Registered as a 5th task (weekdays 09:45) in `setup_tasks.ps1`; `backup` added as a
+   `run_alert` label so a failed/aborted backup alerts. **PENDING: push → pull → re-run
+   `setup_tasks.ps1 -StoredPassword` on the server to register the Backup task** (then re-Start
+   ReplyMonitor if the re-register stops it). Repo NOT in OneDrive (checked) — so the live app
+   isn't at sync-corruption risk and no secrets are auto-uploaded; only the backup subfolder syncs.
 3. **Hand `OPERATIONS.md` to jared** — the three manual fixes + the Gmail Alerts note.
 4. **Push the two 2026-07-20 commits** (`6793009` stored-password fallback + this docs entry) —
    operator pushes; then the server `git pull` is already done for `6793009`, pull again for the docs.
