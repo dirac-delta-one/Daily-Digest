@@ -328,6 +328,14 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
 > the briefing and off the `MAX_EMAILS`/body budget. Kept narrow on purpose: GitHub
 > security/sign-in/2FA mail (other senders) still lands in the inbox. Filters live on the
 > account, so nothing to re-create on the server — just don't delete the filter.
+>
+> **Second filter (added 2026-07-17): Google account security mail → "Gmail Alerts" label,
+> skipping the inbox.** The 7/16–17 MFA-lockout burst (9 `no-reply@accounts.google.com`
+> alerts) was ingested as digest source email — the sent 7/17 FULL digest even carried a
+> "possible account-compromise attempt" note Opus wrote from them. Trade-off accepted
+> (reverses the keep-security-mail-visible lean above for GOOGLE alerts only): the digest
+> no longer surfaces bot-account compromise attempts; OPERATIONS.md points jared at the
+> "Gmail Alerts" label instead. Same rule: account-side, nothing to re-create, don't delete.
 
 **On-box validation:**
 - [ ] `.\check.bat` green (ruff + the full 353-test suite).

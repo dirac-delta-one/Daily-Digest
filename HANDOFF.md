@@ -33,14 +33,18 @@ refactor/cleanup track is closed (see the table below). **Jared's instance is de
 dedicated server will be the ONLY instance.**
 
 **The deploy is mid-flight → read `DEPLOY_PROGRESS.md` for the LIVE status and the exact resume
-steps.** In brief (2026-07-15): the server (Windows, user `ShawnArmstrong`) is staged on Python 3.12
-with deps, the transferred state, a new-OAuth-client `credentials.json`, and `env.bat` — but is
-**blocked ~48h** on a Google MFA-lockout before `token.json` can be minted. The **dev laptop covers
-interim runs Thu 7/16 + Fri 7/17**, then **Monday 7/20 cutover** (re-sync state → mint token →
-manual run → `setup_tasks.ps1`) and **Tue 7/21 first automation**. The **operator's last work day is
-2026-07-31**, so soak time is tight — resume promptly. Apply the **first-run watch list
-(`NEXT_STEPS_SPEC.md §5`)** to the first real server run (esp. the resolved-story re-creation
-ride-along, the memory size log, and the Substack-via-email boundary, watch-item #7).
+steps.** In brief (2026-07-20, cutover morning): the server (Windows, user `ShawnArmstrong`) is
+staged on Python 3.12 with deps, transferred state, a new-OAuth-client `credentials.json`, and
+`env.bat`. The **interim dev runs are COMPLETE** (Thu 7/16 + Fri 7/17, both GREEN; dev state final
+through Friday). **Two gates before the server's validation run:** (1) the **Anthropic credit is
+exhausted** — top up first; (2) the **Google MFA lockout extended to 72h and has NOT cleared** —
+`token.json` therefore arrives via **Plan B** (copy the dev `credentials.json`+`token.json` pair
+over a non-email channel; see DEPLOY_PROGRESS step 3) rather than a fresh mint. Then: state
+re-sync → 13D recheck → manual run → `setup_tasks.ps1`, first automation the next weekday morning.
+The **operator's last work day is 2026-07-31**, so soak time is tight — resume promptly. Apply the
+**first-run watch list (`NEXT_STEPS_SPEC.md §5`)** to the first real server run (the memory budget
+now actively trims — `M of 73 active` is expected; the resolved-story re-creation ride-along and
+the Substack-via-email boundary both passed live on 7/17 but stay on watch).
 
 **Closed tracks (detail is in `WORKLOG.md` under the dated entry):**
 

@@ -73,6 +73,15 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
 - Asking questions: **reply to any digest email** from your work address —
   the bot answers you in-thread within ~5 minutes. Team members can reply to
   their digests the same way.
+- **Bot-account security emails live in a "Gmail Alerts" folder**, not the
+  inbox: Google's account emails about MFA/2-Step Verification and sign-in
+  alerts for `acorn.research.bot@gmail.com` are auto-filtered there (filter
+  added 2026-07-17 — they were being read into the digest as "source emails").
+  Because they skip the inbox, the digest will NOT surface them — so if you
+  ever suspect something is off with the bot account (an unexpected sign-in,
+  a recovery-info change), log into the bot's Gmail and check the **Gmail
+  Alerts** label directly. The filter lives on the Google account itself
+  (nothing to set up on the server) — just don't delete it.
 - Known slow burn (developer item, not urgent): the search index grows daily
   and will get gradually slower after several months (~2026 Q4 at current
   rates); a developer should revisit per HANDOFF §14 when replies feel slow.

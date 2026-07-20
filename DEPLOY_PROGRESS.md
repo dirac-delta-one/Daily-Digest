@@ -5,17 +5,27 @@
 > checklist), `OPERATIONS.md` (operator runbook), `MAINTENANCE.md` (secrets/failure modes).
 > **Mark this DONE / delete it once the server is live and has soaked cleanly.**
 
-## STATUS: IN PROGRESS — blocked on a ~48h Google lockout
+## STATUS: CUTOVER DAY (Mon 2026-07-20) — two gates, then execute the steps below
 - **Target server:** dedicated always-on Windows box, user `ShawnArmstrong`, repo at
   `C:\Users\ShawnArmstrong\code\Daily-Digest` (cloned from `main` @ merge `1a64778`).
-- **Blocker:** enabling MFA on the bot Google account triggered a ~48h lockout of *interactive*
-  sign-in. Existing refresh tokens still work (dev laptop confirmed), but the server's `token.json`
-  can't be minted (needs interactive consent) until it clears.
-- **Timeline:** dev laptop covers interim runs **Thu 7/16 + Fri 7/17** → **cutover Mon 7/20** →
-  **first automation Tue 7/21**. (Lockout is "48h" from ~7/15, so it may clear as early as Fri 7/17
-  — you *could* cut over Friday for less interim/re-sync; Monday is the chosen conservative date.)
+- **GATE 1 — Anthropic credit is EXHAUSTED** (hit $0 on the 7/17 run's last call; the team weekly
+  wrap failed 400 and was deliberately not regenerated). **Top up at console.anthropic.com
+  (bot account) BEFORE step 5** — the manual run dies at pass 1 otherwise. Expected burn
+  ~$45–55/month.
+- **GATE 2 — the Google MFA lockout has NOT cleared** (extended 48h → **72h** by repeated
+  sign-in attempts; still locked Mon ~9:45 AM). Interactive consent is blocked, so the server
+  `token.json` cannot be minted the planned way → use **Plan B in step 3** (copy the dev
+  laptop's token pair; needs NO interactive sign-in). Refresh tokens are unaffected (the 7/16
+  + 7/17 dev runs prove it). Do NOT keep retrying sign-ins — each attempt can extend the window;
+  when it does clear, make the first attempt from the DEV machine (a trusted device), and if any
+  browser still holds a live bot session, generate **backup codes** from it (also the fix for
+  the MFA-must-be-team-owned item).
+- **Interim runs: COMPLETE.** Thu 7/16 GREEN $1.78; Fri 7/17 GREEN $3.72 (both variants + FULL
+  weekly; WILTW 2026-07-16 fetched + cached; memory budget's first activation, clean; details in
+  WORKLOG 2026-07-17→20). Dev state is FINAL through Fri 7/17 — no weekend runs.
 - **Jared is decommissioned** — no longer running his own instance. The server will be the ONLY
   instance, so the "exactly one digest / one reply daemon" cutover concern is already satisfied.
+  Dev's only scheduled task (MorningDigest) is confirmed Disabled.
 
 ## Key decisions / gotchas this session (2026-07-15)
 - **Python 3.12, not 3.13.** The server shipped with 3.13; we installed **3.12.7** and built the
@@ -52,45 +62,51 @@
   `DIGEST_TO` intentionally unset. ANSI-encoded; verified it loads.
 - Free smokes pass: `news.py` (150 articles), `search.py` (index search)
 
-## Blocked on the 48h lockout ⏳
-- `token.json` — needs interactive Gmail consent as the bot.
-- `substack_cookie.txt` — OTP auto-renew reads the bot inbox, so it needs the token first; it
-  self-renews on the first server run.
-
-## Interim runs — DEV LAPTOP only (Thu 7/16 + Fri 7/17)
-Dev (`KimCohen`, `C:\Users\KimCohen\Desktop\git-repos\Daily-Digest`) is fully staged and its token
-still works (lockout only blocks interactive login). Each weekday morning:
-```
-run_digest.bat
-```
-Produces complete digests (Gmail ✅, WILTW ✅ from 7/16, Substack ✅) to the real recipients
-(dev `env.bat`: `DIGEST_TO=jtramontano,acohen`; `DIGEST_TO_TEAM=apain,acohen`), ~$1.5–2.6/run.
-**Dev is the authoritative state during the interim — do NOT run the server in parallel.**
-
-**No reply monitor runs anywhere during the interim (operator decision 2026-07-15: accept the
-gap).** Jared's daemon died with his decommission; the server's starts at cutover step 6. Note:
-the daemon's Gmail query is `is:unread newer_than:1d`, so interim replies are NOT answered late —
-they're never answered. If a digest reply arrives Wed–Fri, answer it by hand (or ignore).
+## Interim runs — ✅ COMPLETE (Thu 7/16 + Fri 7/17, dev laptop)
+Both GREEN to the real recipients (dev `env.bat`: `DIGEST_TO=jtramontano,acohen`;
+`DIGEST_TO_TEAM=apain,acohen`): 7/16 $1.78; 7/17 $3.72 incl. WILTW 2026-07-16 ($0.87, now
+cached — the server's first run gets it free) and the FULL weekly wrap. The 7/17 run's LAST
+call (team weekly) failed on the exhausted credit — accepted, not regenerated (GATE 1 above).
+The reply-monitor gap (no daemon anywhere since 7/15) continues until cutover step 6; interim
+replies were never answered (`newer_than:1d` query — they won't be answered late either).
+Heads-up for jared if he asks: the 7/17 FULL digest's "possible account-compromise attempt"
+note was Opus reading the operator's own MFA-lockout alert emails — not a compromise; those
+alerts now auto-file to the "Gmail Alerts" label (filter added 7/17, see NEXT_STEPS §5).
 
 ## Monday 7/20 — cutover (in this exact order)
-0. **Sync CODE to the server** (added 2026-07-15, later session): the digest-format updates
-   (anti-repetition prompt, snapshot redesign, market-data 1M-lookback bugfix — see WORKLOG) landed
-   on `ava-updates` AFTER the `1a64778` merge the server cloned. Merge `ava-updates` → `main`,
-   push, then `git pull` on the server — otherwise the server runs the old format.
-1. **Stop running on dev** (its state is now final through Friday).
+0. **Sync CODE to the server**: the digest-format updates (anti-repetition prompt, snapshot
+   redesign, market-data 1M-lookback bugfix, iShares OAS, SPCX — see WORKLOG) landed on
+   `ava-updates` AFTER the `1a64778` merge the server cloned (~35 commits). Merge
+   `ava-updates` → `main`, push, then `git pull` on the server — otherwise the server runs the
+   old format. *(Steps 0, 2, and 4 need no Gmail token — they can run before the gates clear.)*
+1. **Stop running on dev** — ✅ effectively done (state final through Fri 7/17; task Disabled).
 2. **Re-sync state dev → server:** rebuild the state zip on dev (`archive\` + `memory.json` +
-   `substack_memory.json` + the `*_cache.json`/`pacer_seen.json`/`source_counts.json` + `digests\`
-   — same as the 2026-07-15 transfer; it's **secrets-free**, so extracting it on the server
-   overwrites the stale 7/15 state but leaves the server's `token.json` / `credentials.json` /
-   13D session / `env.bat` untouched) → email to bot → download + extract on the server.
-3. **Mint `token.json` on the server** (lockout cleared):
-   `.\.venv\Scripts\python -c "import digest; digest.get_gmail_service()"` → log in as bot → authorize.
-4. **Recheck 13D on the server** — if the dev login collided, re-login:
-   `.\.venv\Scripts\python thirteen_d.py --login` (needs Jared's creds).
-5. **Server manual run** — `run_digest.bat` = Monday's digest **and** the validation run. Substack
-   self-renews (OTP from the now-readable inbox). Verify: both variants deliver; first-run watch-list
-   (esp. the Substack-email boundary, watch-item #7); sane cost line; **Anthropic account has credit**
-   (top up if needed — expected burn ~$45–55/mo).
+   `substack_memory.json` + the `*_cache.json` (incl. `wiltw_cache.json` + `ishares_oas_cache.json`)
+   /`pacer_seen.json`/`source_counts.json` + `digests\` — same as the 2026-07-15 transfer; it's
+   **secrets-free**, so extracting it on the server overwrites the stale 7/15 state but leaves the
+   server's `token.json` / `credentials.json` / 13D session / `env.bat` untouched) → email to bot
+   → download + extract on the server.
+3. **Get a working `token.json` onto the server — two routes:**
+   - **Plan A (only if the MFA lockout has cleared):** mint fresh on the box —
+     `.\.venv\Scripts\python -c "import digest; digest.get_gmail_service()"` → log in as bot →
+     authorize (uses the server's NEW OAuth client already staged there).
+   - **Plan B (lockout still active — README-sanctioned, no interactive sign-in):** copy the DEV
+     laptop's `credentials.json` **and** `token.json` TOGETHER to the server (the durable
+     production token is bound to ITS OAuth client — the pair must match; the dev pair replaces
+     the server's staged `credentials.json`). Transfer over a **non-email** channel only (USB /
+     corporate file share / password-manager secure send — the 7/15 secrets-never-emailed
+     guardrail stands; the bot-Gmail zip is for the secrets-free state only). The server then
+     authenticates by refresh alone. The server's unused new OAuth client stays in Cloud Console
+     — **delete NEITHER client** (deleting one revokes its tokens).
+4. **Recheck 13D on the server** — the 7/17 dev WILTW fetch used the DEV session and may have
+   collided if 13D is single-session. If WILTW errors, re-login:
+   `.\.venv\Scripts\python thirteen_d.py --login` (needs Jared's creds; the save guard refuses
+   to persist a not-logged-in state).
+5. **Server manual run** — **GATE 1 first: confirm the Anthropic credit top-up is done.** Then
+   `run_digest.bat` = Monday's digest **and** the validation run. Substack self-renews (OTP from
+   the now-readable inbox). Verify: both variants deliver; first-run watch-list; WILTW comes from
+   the synced cache (no download); `Memory context: … of 73 active` line sane (budget now trims —
+   expected); sane cost line.
 6. **`setup_tasks.ps1` as administrator** — registers the 4 tasks (Morning 08:00 / Watchdog 09:00 /
    Midday 13:00 / ReplyMonitor at startup) + sets `DIGEST_UNATTENDED=1` machine-wide. **Only after
    step 5 passes** — without a working token the tasks just fail, and the failure alert itself needs

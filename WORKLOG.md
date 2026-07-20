@@ -5,7 +5,88 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-15, end of session — cleanup track closed; deploy is all that remains)
+## Current state (2026-07-20, cutover morning — interim runs complete; two gates before the server run)
+
+**The interim dev-laptop runs are COMPLETE and GREEN** (Thu 7/16 $1.78 + Fri 7/17 $3.72 — full
+detail in the 2026-07-17→20 entry below). Dev state is final through Friday 7/17; no weekend runs
+(the dev MorningDigest task is confirmed Disabled; no reply monitor exists anywhere). `ruff` clean,
+**pytest 362** green re-verified 7/17.
+
+**TODAY (Mon 7/20) is cutover day — `DEPLOY_PROGRESS.md` has the step-by-step. Two gates:**
+1. **Anthropic credit is EXHAUSTED** (hit $0 on the 7/17 run's final call — the team weekly wrap
+   failed 400 and was deliberately not regenerated). **Top up at console.anthropic.com BEFORE the
+   server manual run** — without it the run dies at pass 1.
+2. **The Google MFA lockout has NOT cleared** (extended 48h → 72h by repeated sign-in attempts;
+   still locked as of Mon ~9:45 AM). The server `token.json` can't be minted interactively →
+   **Plan B: copy the dev laptop's `credentials.json` + `token.json` PAIR to the server via a
+   non-email channel** (README-sanctioned; the token is bound to its OAuth client so the pair
+   travels together). Steps that need NO token can run now: merge/pull code, state re-sync,
+   13D recheck.
+3. **Merge `ava-updates` → `main` + push still pending** (cutover step 0 — the server cloned
+   `main` @ `1a64778`, ~35 commits behind).
+
+Live watches: memory active-count growing fast (57→64→73; budget trimming since 7/17 — first
+natural aging batch ~7/30 is the decision point, operator still present); resolved-story
+re-creation ride-along continues (clean so far).
+
+---
+
+## Interim runs 7/16–7/17 GREEN; credit exhausted; Gmail-alerts filter; MFA lockout extended (2026-07-17, written 2026-07-20)
+
+**Fri 7/17 interim run (manual `run_digest.bat`, ~12:43–12:52) — GREEN, exit 0, $3.72 (12 calls).**
+Both variants delivered (FULL → jtramontano+acohen; TEAM → apain+acohen); FULL weekly wrap
+generated, saved (`digests/weekly_2026-07-17.html`), and sent. First-run watch list results:
+- **WILTW resumed:** 2026-07-16 report fetched via the dev 13D session, Opus-summarized ($0.87,
+  the day's cost driver), cached under `2026-07-16`, PDF archived + indexed. O3 recorded
+  `wiltw = 1` — its first nonzero data point, so the O3 WILTW blind spot (MAINTENANCE §4) is
+  closed going forward. ⚠️ The dev fetch may have collided with the SERVER's 13D session if 13D
+  is single-session — recheck on the box (cutover step 4).
+- **Memory context budget ACTIVATED for the first time** (as predicted 7/16): `44,700 chars /
+  58 of 64 active stories` — 6 stalest dropped; the two main-store lines byte-identical and the
+  cross-variant cache held perfectly (team pass 1 wrote 65,482 tok; full pass 1 paid **37**
+  uncached tokens + wrote only its 20,103-tok substack tail).
+- **Substack-via-email boundary live-exercised** (watch item #7): `Excluded 1 Substack-origin
+  email(s)` logged; team digest clean.
+- **No resolved-story re-creation** (item #1): 9 new stories, none restating the 8 resolved ids.
+- Deterministic ordering held: PACER commit + O2 completion marker written after the last send
+  (12:51:32); index +1,183 → 9,449 vectors; memory delta 19 updated / 9 new → **73 active**;
+  substack store → 34 active; alerts 2/7 both variants; no "Team config missing"; no self-artifacts.
+
+**CREDIT EXHAUSTED on the run's FINAL Claude call:** the TEAM weekly wrap failed
+`400 — credit balance is too low`. Non-fatal by design (try/except → exit 0), so **no failure
+alert was emailed** — the only signals were the log line and apain's missing team weekly.
+Operator decision: do NOT regenerate the team weekly. **Top-up is a hard blocker before the
+Monday server run** (any Claude call fails until then; a digest run would crash at pass 1 —
+that WOULD fire the failure alert, whose Gmail-only path still works).
+
+**Google security alerts were being ingested as digest source email** (found investigating the
+lockout): 5 on 7/16 + 4 on 7/17 from `no-reply@accounts.google.com` / `no-reply@google.com`
+(the operator's own MFA-lockout attempts). The sent 7/17 FULL digest carried an Opus note —
+"possible account-compromise attempt, worth verifying" — correct editorial behavior, but system
+noise (heads-up for jared: that was the operator fighting the lockout, not a compromise).
+**Operator decision (2026-07-17): Gmail filter → "Gmail Alerts" label, skipping the inbox**
+(both sender domains). Trade-off accepted: the digest no longer surfaces bot-account compromise
+alerts; OPERATIONS.md points jared at the label instead (that doc + NEXT_STEPS §5 updated —
+the filter is account-side, nothing to re-create on the server).
+
+**MFA lockout extended 48h → 72h** — repeated interactive sign-in attempts reset the window;
+still locked Mon 7/20 morning. Mitigations recorded: stop retrying (each attempt can extend);
+first post-expiry attempt from the dev machine (a device Google trusts for this account), not
+the server; if any browser still holds a live bot session, generate **backup codes** from it
+(also satisfies the MFA-must-be-team-owned item). **Plan B for the cutover, README-sanctioned:**
+copy the dev `credentials.json` + `token.json` pair to the server over a non-email channel
+(USB / corporate share / password-manager send — never the bot-Gmail zip, per the 7/15
+secrets-never-emailed guardrail). The server then authenticates by refresh alone; its unused
+new OAuth client stays in Cloud Console (delete neither client).
+
+**Memory-growth data point + decision:** active stories 57 → 64 → 73 across three runs; the
+context budget is now actively trimming. The **archival-to-side-bank idea was considered and
+DEFERRED** (operator + review, 2026-07-17): it's the wrong lever for ACTIVE-count growth (only
+8 resolved stories exist; archival tidies the resolved tail), it would weaken the resolved-ids
+anti-recreation guard unless archived ids stay in the Sonnet index, and deploy week is the worst
+time for a model-visible memory change. Decision point: **~7/30, when the 30-day aging gets its
+first natural batch** (operator still present). Cheaper levers if aging doesn't bend the curve:
+`STALE_DAYS` 30→~21, or a stricter "materially advances" bar in the delta prompt.
 
 **The second-pass cleanup (`CLEANUP_SPEC.md`) is COMPLETE** — 5 stages + the
 audit-gap and index-side-filter follow-ups, all committed ("cleanup spec stage
