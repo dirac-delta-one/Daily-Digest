@@ -5,7 +5,88 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-15, end of session — cleanup track closed; deploy is all that remains)
+## Current state (2026-07-20, cutover morning — interim runs complete; two gates before the server run)
+
+**The interim dev-laptop runs are COMPLETE and GREEN** (Thu 7/16 $1.78 + Fri 7/17 $3.72 — full
+detail in the 2026-07-17→20 entry below). Dev state is final through Friday 7/17; no weekend runs
+(the dev MorningDigest task is confirmed Disabled; no reply monitor exists anywhere). `ruff` clean,
+**pytest 362** green re-verified 7/17.
+
+**TODAY (Mon 7/20) is cutover day — `DEPLOY_PROGRESS.md` has the step-by-step. Two gates:**
+1. **Anthropic credit is EXHAUSTED** (hit $0 on the 7/17 run's final call — the team weekly wrap
+   failed 400 and was deliberately not regenerated). **Top up at console.anthropic.com BEFORE the
+   server manual run** — without it the run dies at pass 1.
+2. **The Google MFA lockout has NOT cleared** (extended 48h → 72h by repeated sign-in attempts;
+   still locked as of Mon ~9:45 AM). The server `token.json` can't be minted interactively →
+   **Plan B: copy the dev laptop's `credentials.json` + `token.json` PAIR to the server via a
+   non-email channel** (README-sanctioned; the token is bound to its OAuth client so the pair
+   travels together). Steps that need NO token can run now: merge/pull code, state re-sync,
+   13D recheck.
+3. **Merge `ava-updates` → `main` + push still pending** (cutover step 0 — the server cloned
+   `main` @ `1a64778`, ~35 commits behind).
+
+Live watches: memory active-count growing fast (57→64→73; budget trimming since 7/17 — first
+natural aging batch ~7/30 is the decision point, operator still present); resolved-story
+re-creation ride-along continues (clean so far).
+
+---
+
+## Interim runs 7/16–7/17 GREEN; credit exhausted; Gmail-alerts filter; MFA lockout extended (2026-07-17, written 2026-07-20)
+
+**Fri 7/17 interim run (manual `run_digest.bat`, ~12:43–12:52) — GREEN, exit 0, $3.72 (12 calls).**
+Both variants delivered (FULL → jtramontano+acohen; TEAM → apain+acohen); FULL weekly wrap
+generated, saved (`digests/weekly_2026-07-17.html`), and sent. First-run watch list results:
+- **WILTW resumed:** 2026-07-16 report fetched via the dev 13D session, Opus-summarized ($0.87,
+  the day's cost driver), cached under `2026-07-16`, PDF archived + indexed. O3 recorded
+  `wiltw = 1` — its first nonzero data point, so the O3 WILTW blind spot (MAINTENANCE §4) is
+  closed going forward. ⚠️ The dev fetch may have collided with the SERVER's 13D session if 13D
+  is single-session — recheck on the box (cutover step 4).
+- **Memory context budget ACTIVATED for the first time** (as predicted 7/16): `44,700 chars /
+  58 of 64 active stories` — 6 stalest dropped; the two main-store lines byte-identical and the
+  cross-variant cache held perfectly (team pass 1 wrote 65,482 tok; full pass 1 paid **37**
+  uncached tokens + wrote only its 20,103-tok substack tail).
+- **Substack-via-email boundary live-exercised** (watch item #7): `Excluded 1 Substack-origin
+  email(s)` logged; team digest clean.
+- **No resolved-story re-creation** (item #1): 9 new stories, none restating the 8 resolved ids.
+- Deterministic ordering held: PACER commit + O2 completion marker written after the last send
+  (12:51:32); index +1,183 → 9,449 vectors; memory delta 19 updated / 9 new → **73 active**;
+  substack store → 34 active; alerts 2/7 both variants; no "Team config missing"; no self-artifacts.
+
+**CREDIT EXHAUSTED on the run's FINAL Claude call:** the TEAM weekly wrap failed
+`400 — credit balance is too low`. Non-fatal by design (try/except → exit 0), so **no failure
+alert was emailed** — the only signals were the log line and apain's missing team weekly.
+Operator decision: do NOT regenerate the team weekly. **Top-up is a hard blocker before the
+Monday server run** (any Claude call fails until then; a digest run would crash at pass 1 —
+that WOULD fire the failure alert, whose Gmail-only path still works).
+
+**Google security alerts were being ingested as digest source email** (found investigating the
+lockout): 5 on 7/16 + 4 on 7/17 from `no-reply@accounts.google.com` / `no-reply@google.com`
+(the operator's own MFA-lockout attempts). The sent 7/17 FULL digest carried an Opus note —
+"possible account-compromise attempt, worth verifying" — correct editorial behavior, but system
+noise (heads-up for jared: that was the operator fighting the lockout, not a compromise).
+**Operator decision (2026-07-17): Gmail filter → "Gmail Alerts" label, skipping the inbox**
+(both sender domains). Trade-off accepted: the digest no longer surfaces bot-account compromise
+alerts; OPERATIONS.md points jared at the label instead (that doc + NEXT_STEPS §5 updated —
+the filter is account-side, nothing to re-create on the server).
+
+**MFA lockout extended 48h → 72h** — repeated interactive sign-in attempts reset the window;
+still locked Mon 7/20 morning. Mitigations recorded: stop retrying (each attempt can extend);
+first post-expiry attempt from the dev machine (a device Google trusts for this account), not
+the server; if any browser still holds a live bot session, generate **backup codes** from it
+(also satisfies the MFA-must-be-team-owned item). **Plan B for the cutover, README-sanctioned:**
+copy the dev `credentials.json` + `token.json` pair to the server over a non-email channel
+(USB / corporate share / password-manager send — never the bot-Gmail zip, per the 7/15
+secrets-never-emailed guardrail). The server then authenticates by refresh alone; its unused
+new OAuth client stays in Cloud Console (delete neither client).
+
+**Memory-growth data point + decision:** active stories 57 → 64 → 73 across three runs; the
+context budget is now actively trimming. The **archival-to-side-bank idea was considered and
+DEFERRED** (operator + review, 2026-07-17): it's the wrong lever for ACTIVE-count growth (only
+8 resolved stories exist; archival tidies the resolved tail), it would weaken the resolved-ids
+anti-recreation guard unless archived ids stay in the Sonnet index, and deploy week is the worst
+time for a model-visible memory change. Decision point: **~7/30, when the 30-day aging gets its
+first natural batch** (operator still present). Cheaper levers if aging doesn't bend the curve:
+`STALE_DAYS` 30→~21, or a stricter "materially advances" bar in the delta prompt.
 
 **The second-pass cleanup (`CLEANUP_SPEC.md`) is COMPLETE** — 5 stages + the
 audit-gap and index-side-filter follow-ups, all committed ("cleanup spec stage
@@ -24,10 +105,11 @@ run and now catches partial failures + substack full-text collapse; deploy +
 cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
 
 **REMAINING (in order):**
-1. **Pick the §7.2 deploy date and execute the NEXT_STEPS §5 checklist** — the
-   operator's LAST WORK DAY is 2026-07-31; every earlier day of unattended soak
-   counts (the accrual-week precedent: live operation surfaced ~8 failure modes
-   nothing else did).
+1. **Finish the §7.2 server deploy — IN PROGRESS (started 2026-07-15; see
+   `DEPLOY_PROGRESS.md`).** Staged on the box; blocked ~48h on a Google MFA lockout.
+   Dev laptop covers interim runs (Thu/Fri), Monday 7/20 cutover, Tue 7/21 first
+   automation. Operator's LAST WORK DAY is 2026-07-31 — resume promptly (the
+   accrual-week precedent: live operation surfaced ~8 failure modes nothing else did).
 2. **Apply the first-run watch list (NEXT_STEPS §5 subsection)** to the next
    natural run — especially the resolved-story re-creation ride-along (memory
    3.1) and the memory size log; both stay live watches through ~mid-August
@@ -38,6 +120,159 @@ cutover checklist (NEXT_STEPS §5) and OPERATIONS.md (the jared runbook) exist.
 4. Optional, parked in HANDOFF §14.G: the F7 weekly-diet `count_tokens`
    quantification (standing $0-call permission); the F22 HANDOFF consolidation
    as its own later docs pass.
+
+---
+
+## SpaceX equity added to the AI Snapshot — it IPO'd (2026-07-16, follow-up 3)
+
+Operator caught a stale assumption: SpaceX is no longer private — it **IPO'd June 12, 2026 on
+Nasdaq as SPCX** ($135 offer, ~$1.77T — largest IPO ever; post-dates the assistant's knowledge
+cutoff, verified via web + Yahoo). `SPCX` added to `YAHOO_TICKERS` (AI section, "Share price",
+$135.94 live at add time, 21 trading days of history — the 1M change reaches back exactly to the
+IPO, which only works because of today's `>= 21` off-by-one fix). Removed "SpaceX equity" from
+the BBG wishlist (code comment + HANDOFF §14.A); the SpaceX **'56 G-spread** stays on it
+(bond-level). pytest **362** green.
+
+## HYG/LQD added to the iShares OAS fetch — credit table + Market Snapshot mirror (2026-07-16, follow-up 2)
+
+Operator asked whether other BBG-wishlist items were recoverable from alternative sources.
+Findings: **HYG (250.05 bps) and LQD (82.00 bps)** report the same page-embedded portfolio OAS as
+IGLB/IGIB — added to `ishares_data.FUNDS` (operator decision: BOTH the Corporate Credit table AND
+a Market Snapshot mirror via `MARKET_FRED_EXTRAS`, which now carries FRED + iShares series ids;
+digest passes `macro_data + ishares_oas` as the mirror source list). **Still unavailable:** S&P
+BDC index (publisher page bot-blocked, 403); bond-level items (FINRA's free per-CUSIP lookup =
+fragile JS scraping + DIY G-spread math — declined); SpaceX (private). Credit footnote now reads
+"Portfolio OAS rows = fund-reported (ishares.com)". Live-verified both tables; pytest **362**.
+
+## IGLB/IGIB: price rows replaced with fund-reported Portfolio OAS (2026-07-16, follow-up)
+
+Jared wanted the IGLB/IGIB rows changed to **reported G-spread**. Double-checked: no free ETF
+G-spread source exists (the iShares characteristics data has no G-spread field — it's a Bloomberg
+analytic; stays on the §14.A BBG wishlist). Shipped the operator-approved substitute instead: the
+**Option Adjusted Spread each fund reports on its own ishares.com product page** (verified live:
+IGLB 94.54 bps, IGIB 86.28 bps, as-of Jul 15 2026 — embedded HTML-escaped JSON, plain GET, no
+auth). New module **`ishares_data.py`** (fetch → macro-shaped credit rows, metric "Portfolio OAS"
++ prompt formatter); registry row `ishares_oas` (O3-counted automatically); rows render after the
+FRED index-OAS rows in the Corporate Credit Snapshot with an ishares.com footnote credit; IGLB/
+IGIB removed from `YAHOO_TICKERS`. **Change columns accrue:** the site shows only the current
+value, so 1D/1W/1M come from a local history cache (`ishares_oas_cache.json`, gitignored, pruned
+at 60 days, keyed by the site's as-of date — same-day reruns don't self-compare). 1D populates
+from day 2, 1W after a week, 1M after a month; added to the deploy copy + O4 backup lists.
+Fallback if iShares ever blocks scraping: FRED's ICE BofA maturity-bucket OAS
+(`BAMLC7A0C1015Y`/`BAMLC8A0C15PY` ≈ IGLB; `BAMLC3A0C57Y`/`BAMLC4A0C710Y` ≈ IGIB) — free, daily,
+with history. 8 new tests (parse/history/rows/failure); pytest **362** green.
+
+## Snapshot tables gained a Metric column (2026-07-16, follow-up)
+
+Operator feedback in two rounds: (1) table values ("272 bps", "5.09%", "$48.95") didn't say WHAT
+metric each row reports; (2) packing the metric into the name column read as crowded — make it a
+separate column between the name and 1D. Final shape: **Name | Metric | Level/Current | 1D | 1W |
+1M** in every snapshot table. Rows carry a `metric` field (in `YAHOO_TICKERS` / `FRED_SERIES`
+tuples + the derived/BKLN-yield rows): Yield, Curve spread, Breakeven inflation, Real yield
+(TIPS), Overnight rate, Index OAS, ETF price, Share price (KRW), 12M dist. yield, Index, Price.
+Names reverted to clean instruments ("HY", "10Y", "ARCC (Ares Capital)"); the prompt formatters
+emit "label + metric" so the short names stay unambiguous to Opus ("10Y Breakeven inflation" vs
+"10Y Real yield (TIPS)"). Robustness: `MARKET_FRED_EXTRAS` and the derived-row insertion anchors
+now key on `series_id` (labels are no longer unique). No formatter/monitor keys on labels
+(verified: only the VIX/BTC/S&P/"Claims" switches, all untouched). pytest **354** green;
+live-verified rates order + preview emailed to acohen.
+
+## 20Y UST mirrored into the Market Snapshot (2026-07-16)
+
+Operator request (jared): 20Y Treasury in the Market Snapshot IN ADDITION to the Rates Snapshot.
+Yahoo has no 20Y index ticker, so the Market table embeds the FRED `DGS20` row — the reverse of
+the credit table's Yahoo-row embedding: new `macro_data.table_rows_html` (extracted from
+`_build_fred_table`), `market_data.MARKET_FRED_EXTRAS = ("20Y UST",)` +
+`build_market_table_html(data, fred_data=None)`, FRED provenance appended to the table footnote.
+Also today: **first live run with the new format — GREEN** ($1.78; all six snapshot tables
+rendered; 0 cross-section near-dupes at the J≥0.30 scan that caught 1–2/day before; §7 Bloomberg
+correctly shrank to non-covered items; TEAM leak scan clean; none of the 7 new memory stories is a
+resolved-story restatement). **Next-run watches:** memory budget activates (64 active > 60 — expect
+`60 of 64` and eyeball once); WILTW 7/16 posts late-Thursday → Friday run picks it up. `ruff`
+clean, pytest **354**.
+
+## Digest-format updates: anti-repetition prompt + snapshot redesign + a latent market-data bug (2026-07-15, later session)
+
+Two operator-requested format changes (jared's feedback), plus a real bug found while validating.
+`ruff` clean, **pytest 353** (349 → 353). $0 Claude spend — all validation was offline tests +
+free Yahoo/FRED fetches rendered to a local HTML file.
+
+**1. Cross-section repetition (commit `5ee7397`).** Jared flagged the digest as repetitive across
+sections. Measured on the sent 7/14 + 7/15 digests: near-verbatim restatements ($CRWV in §3 AND §7
+at 0.67 token-Jaccard; $HCA in §1 AND §3), and §5 Contrarian re-narrating stories from §1/§2 (4 of
+5 bullets on 7/15). Three prompt-only fixes (no template/HTML change, so the §6 string-match
+assembly and team/full cache sharing are untouched): a NO-REPETITION-ACROSS-SECTIONS rule in
+`SYSTEM_PROMPT` (one home section per story; later sections give only a genuinely-new angle in one
+line; TL;DR exempt); §7 Bloomberg restricted to items NOT already covered in §1–6; a repetition
+check added to the pass-2 review instruction. **Live watch on the next run:** confirm consolidation
+happened and Opus didn't over-consolidate (§5's new-angle value should survive).
+
+**2. Snapshot section redesign (jared's spec).** Old layout: Market Snapshot / Macro Dashboard /
+Fed BS / Treasury Auctions tables. New layout: **Market** (S&P, VIX, WTI, DXY, BTC — Gold dropped)
+→ **Rates** (2Y/10Y/20Y/30Y, 2s20s, 10Y+30Y breakevens, 10Y+30Y reals, SOFR — FRED, incl. new
+DGS20/DFII10/DFII30 + derived rows) → **Corporate Credit** (HY/IG/AAA/A/BBB/BB/B/CCC OAS via the
+FRED ICE BofA series — the free analogs of the Bloomberg LF98/LUAC/… tickers jared listed — plus
+Yahoo IGLB/IGIB rows) → **Private Credit** (RTY, ARCC, OTF, BKLN + its trailing yield) → **AI**
+(Nasdaq, SK Hynix, Oracle, CoreWeave) → **Fed BS** (moved to bottom of snapshots) → earnings
+calendar. Macro Dashboard + Treasury Auctions tables REMOVED, but their data still feeds the Opus
+prompt (operator decision — §2 prose keeps citing CPI/claims/auctions);
+`build_macro_table_html`/`build_auctions_table_html` deleted as dead code (repo convention).
+Mechanics: FRED series + Yahoo tickers carry a `section` tag; `macro_data._build_fred_table` /
+`market_data._build_yahoo_table` render per-section; the credit table embeds Yahoo rows via
+`market_data.table_rows_html`. `_assemble_digest_html` re-pinned (params + order) in
+`test_assemble_digest.py`; new formatting/section tests in `test_market_macro.py`.
+**BBG-DATA-LICENSE WISHLIST (no free source — operator wants these if a license ever lands;
+in-code comments at the section definitions):** HYG/LQD G-spreads; S&P BDC index (SPBDCUP);
+BCRED '32 + ARCC '32 G-spreads; SpaceX equity + '56 G-spread; Oracle '66 G-spread; QTS G-spread;
+CoreWeave '32 + Core Scientific '31 bond prices. (Bond-level data = TRACE, evaluated and rejected
+at $9k/yr on 2026-07-13; SpaceX is private — DXYZ proxy considered and declined.)
+
+**3. Latent off-by-one in `market_data` 1M lookback — FOUND + FIXED.** `if len(series) >= 20:
+series.iloc[-21]` throws IndexError at exactly 20 rows, and the per-ticker silent except then
+drops the ENTIRE row. On 2026-07-15 a `period="1mo"` download returned exactly 20 US trading
+days, so **every US-listed ticker (including S&P 500) silently vanished** — the bug predates the
+redesign and would have hit the original 6-ticker table the same day. Guard corrected to `>= 21`
+(the `>= 15` fallback covers 15–20). Found because the redesign's validation render came back 6
+rows instead of 16; a loud-except instrumented run pinpointed the line. Also added: one
+unthreaded retry pass for tickers whose batch download comes back empty (defense against Yahoo
+partial-batch failures — cheap, no-op when nothing is missing).
+
+**O3 note for the next run:** `market_data` counts jump 6 → ~16 and `macro_data` ~12 → 24
+(new series + deriveds). Increases can't fire the zero-streak/floor alerts, but don't be
+surprised by the new baseline in `source_counts.json`.
+
+**Deploy implication:** these commits are on `ava-updates` only. The server cloned `main` @
+`1a64778` — **merge to main + pull on the server BEFORE the Monday 7/20 cutover** (step added to
+`DEPLOY_PROGRESS.md`).
+
+## Server deployment STARTED — staged on the box, blocked on a 48h Google lockout (2026-07-15)
+
+Began the §7.2 deploy on the dedicated Windows server (user `ShawnArmstrong`,
+`C:\Users\ShawnArmstrong\code\Daily-Digest`, cloned from `main` @ `1a64778`). **Full live status +
+resume steps live in `DEPLOY_PROGRESS.md`** — this is the narrative.
+
+**Staged on the server:** Python **3.12.7** venv (the box shipped with 3.13; installed 3.12 to match
+the pinned env) + deps + Playwright; the ~9-day state transferred via a bot-Gmail zip and verified
+(`search.py` returns ranked hits → torch/faiss/embedder + the index all work on-box); a **new OAuth
+Desktop client**'s `credentials.json` (Google no longer allows re-downloading an existing client's
+secret); `env.bat` (Anthropic + FRED + `DIGEST_TO_TEAM=apain,acohen`; `DIGEST_TO` unset →
+jtramontano). Free smokes (news.py, search.py) pass.
+
+**Blocked:** enabling **MFA** on the bot Google account triggered a ~48h interactive-login lockout →
+can't mint the server `token.json` yet. Refresh tokens survive it (the dev laptop still reads/sends —
+probe-confirmed). The substack cookie waits on the token (OTP reads the inbox; self-renews first run).
+
+**Decisions:** Jared decommissioned (server = sole instance); recipients FULL→jtramontano /
+TEAM→apain+acohen (drop acohen at 7/31); secrets **regenerated on-box, never emailed** (a safety
+guardrail blocked bundling secrets for email — correctly); FRED key reused as a static value; 13D
+logged in on both server + dev (possible single-session collision → recheck Monday; needs Jared's
+paid creds). ⚠️ **MFA must be team-owned, not on acohen's device** (acohen leaves 7/31) or the team
+loses bot-account re-auth.
+
+**Plan:** dev laptop runs manually Thu 7/16 + Fri 7/17 (fully staged — token/13D/substack all valid);
+**Monday 7/20 cutover** (stop dev → re-sync state dev→server → mint token → manual run →
+`setup_tasks.ps1`); **Tue 7/21 first automation**. Dev is the authoritative state during the interim;
+the cutover re-sync makes the server continue from Friday's state, not the stale 7/15 snapshot.
 
 ---
 

@@ -160,54 +160,9 @@ def format_auctions_for_prompt(auctions):
     return "\n".join(lines)
 
 
-def build_auctions_table_html(auctions):
-    if not auctions:
-        return ""
-
-    rows = ""
-    for a in auctions:
-        term = a["security_term"]
-        date = a["auction_date"]
-        yld = f"{a['high_yield']:.3f}%" if a["high_yield"] else ""
-        btc = f"{a['bid_to_cover']:.2f}x" if a["bid_to_cover"] else ""
-
-        tail_str = ""
-        if a["tail_bps"] is not None:
-            color = "#c0392b" if a["tail_bps"] > 0 else "#27ae60"
-            tail_str = f'<span style="color: {color}; font-weight: 600;">{a["tail_bps"]:+.1f}</span>'
-
-        indirect = f"{a['indirect_pct']:.0f}%" if a["indirect_pct"] is not None else ""
-
-        rows += (
-            f'<tr>'
-            f'<td style="padding: 3px 8px; font-size: 12px; border-bottom: 1px solid #eee;">{term}</td>'
-            f'<td style="padding: 3px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{date}</td>'
-            f'<td style="padding: 3px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: right; font-weight: 600;">{yld}</td>'
-            f'<td style="padding: 3px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{btc}</td>'
-            f'<td style="padding: 3px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{tail_str}</td>'
-            f'<td style="padding: 3px 8px; font-size: 12px; border-bottom: 1px solid #eee; text-align: center;">{indirect}</td>'
-            f'</tr>\n'
-        )
-
-    html = (
-        '<div style="margin-bottom: 24px;">\n'
-        '<h2 style="font-size: 18px; border-bottom: 1px solid #ccc; padding-bottom: 6px; '
-        'margin: 0 0 12px;">Treasury Auctions</h2>\n'
-        '<table style="border-collapse: collapse; width: 100%;">\n'
-        '<tr>'
-        '<th style="padding: 3px 8px; font-size: 11px; color: #888; text-align: left; border-bottom: 2px solid #ccc;">Term</th>'
-        '<th style="padding: 3px 8px; font-size: 11px; color: #888; text-align: center; border-bottom: 2px solid #ccc;">Date</th>'
-        '<th style="padding: 3px 8px; font-size: 11px; color: #888; text-align: right; border-bottom: 2px solid #ccc;">Yield</th>'
-        '<th style="padding: 3px 8px; font-size: 11px; color: #888; text-align: center; border-bottom: 2px solid #ccc;">BTC</th>'
-        '<th style="padding: 3px 8px; font-size: 11px; color: #888; text-align: center; border-bottom: 2px solid #ccc;">Tail (bps)</th>'
-        '<th style="padding: 3px 8px; font-size: 11px; color: #888; text-align: center; border-bottom: 2px solid #ccc;">Indirect</th>'
-        '</tr>\n'
-        f'{rows}'
-        '</table>\n'
-        '<p style="font-size: 10px; color: #aaa; margin: 4px 0 0;">Source: Treasury Fiscal Data API</p>\n'
-        '</div>\n'
-    )
-    return html
+# build_auctions_table_html removed 2026-07-15 (jared's snapshot redesign):
+# the Treasury Auctions table no longer renders in the digest. The auction
+# data still feeds the Opus prompt via format_auctions_for_prompt above.
 
 
 if __name__ == "__main__":

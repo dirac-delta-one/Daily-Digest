@@ -291,6 +291,10 @@ where marked permissioned.
 
 ## 5. F1 — Server deploy + cutover checklist (added 2026-07-15, CLEANUP_SPEC 5.1)
 
+> **DEPLOY IN PROGRESS (started 2026-07-15) — see `DEPLOY_PROGRESS.md` for the LIVE status, the
+> interim dev-laptop runs, and the exact Monday-cutover resume steps. This section is the generic
+> checklist; `DEPLOY_PROGRESS.md` is the current state and supersedes it where they differ.**
+
 The F1 "deliverable: a checklist section appended to this spec when the work starts."
 Execute top to bottom on deploy day(s). Receiving-side policy (operator, 2026-07-14):
 recipients are **@acorninv.com addresses only**. Context: the operator's last work day is
@@ -306,8 +310,8 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
       in on the box — see the Cutover step below).
       Do **NOT** copy `credentials_JARED.json` (dev-machine backup only).
 - [ ] Copy state: `memory.json`, `substack_memory.json`, `wiltw_cache.json`,
-      `pacer_seen.json`, `source_counts.json`, the whole `archive/` tree (incl.
-      `index.faiss` + `chunk_metadata.json`), and `digests/`.
+      `ishares_oas_cache.json`, `pacer_seen.json`, `source_counts.json`, the whole
+      `archive/` tree (incl. `index.faiss` + `chunk_metadata.json`), and `digests/`.
 - [ ] Create `env.bat` on the box: `ANTHROPIC_API_KEY`, `FRED_API_KEY`,
       `SUBSTACK_EMAIL`, **`DIGEST_TO_TEAM`** (required post-activation — the 2.1 guard
       warns+alerts+freezes indexing/memory if missing). `DIGEST_TO` stays UNSET in
@@ -324,9 +328,17 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
 > the briefing and off the `MAX_EMAILS`/body budget. Kept narrow on purpose: GitHub
 > security/sign-in/2FA mail (other senders) still lands in the inbox. Filters live on the
 > account, so nothing to re-create on the server — just don't delete the filter.
+>
+> **Second filter (added 2026-07-17): Google account security mail → "Gmail Alerts" label,
+> skipping the inbox.** The 7/16–17 MFA-lockout burst (9 `no-reply@accounts.google.com`
+> alerts) was ingested as digest source email — the sent 7/17 FULL digest even carried a
+> "possible account-compromise attempt" note Opus wrote from them. Trade-off accepted
+> (reverses the keep-security-mail-visible lean above for GOOGLE alerts only): the digest
+> no longer surfaces bot-account compromise attempts; OPERATIONS.md points jared at the
+> "Gmail Alerts" label instead. Same rule: account-side, nothing to re-create, don't delete.
 
 **On-box validation:**
-- [ ] `.\check.bat` green (ruff + the full 334-test suite).
+- [ ] `.\check.bat` green (ruff + the full 353-test suite).
 - [ ] Free smoke: `python news.py`; a Gmail metadata-only call authenticates as the bot.
 - [ ] Run `setup_tasks.ps1` **as administrator** (registers MorningDigest 08:00 /
       Watchdog 09:00 / MiddayAlert 13:00 / ReplyMonitor at startup; sets
@@ -358,8 +370,8 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
 
 **Post-deploy:**
 - [ ] O4 backups (scheduled copy off-box or to a second disk): `archive/`,
-      `memory.json`, `substack_memory.json`, `wiltw_cache.json`, `pacer_seen.json`,
-      `source_counts.json`, `digests/`, the two index files.
+      `memory.json`, `substack_memory.json`, `wiltw_cache.json`, `ishares_oas_cache.json`,
+      `pacer_seen.json`, `source_counts.json`, `digests/`, the two index files.
 - [ ] Watchdog drill: `run_alert.py digest --check-completed --test` → "(TEST drill)"
       email arrives.
 - [ ] Hand `OPERATIONS.md` to jared; walk him through the three manual fixes

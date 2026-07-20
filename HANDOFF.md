@@ -6,8 +6,9 @@
 >
 > **Companion docs:** `WORKLOG.md` = the full dated narrative of every change ever made and why
 > (the archive — start here for the *why* behind anything below). `NEXT_STEPS_SPEC.md` = the
-> forward roadmap + the server-deploy/cutover checklist (§5). `OPERATIONS.md` = the jared-facing
-> runbook. Completed-track specs (`CLEANUP_SPEC.md`, `CLEANUP_REFACTOR_SPEC.md`,
+> forward roadmap + the server-deploy/cutover checklist (§5). **`DEPLOY_PROGRESS.md` = the LIVE
+> server-deploy status + resume steps — read it first while the deploy is mid-flight.**
+> `OPERATIONS.md` = the jared-facing runbook. Completed-track specs (`CLEANUP_SPEC.md`, `CLEANUP_REFACTOR_SPEC.md`,
 > `TEAM_DIGEST_SPEC.md`) remain for reference. This file was condensed 2026-07-15 (F22 pass);
 > the pre-condensation version with all superseded/DONE narrative is in git history.
 
@@ -24,23 +25,26 @@ Research Digest," archives all raw content to disk, and indexes it into a local 
 that powers an **email-reply Q&A bot**. Since 2026-07-13 each run produces **two variants** — a
 FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 
-**Current state — CODE-COMPLETE; only the server deploy remains.** Working and in daily production
-on *jared's* machine; refactored on the current machine (operator `acohen@acorninv.com`, Windows
-user `KimCohen`, branch `ava-updates`). `ruff` clean, `pytest` **336 green** (2026-07-15),
-retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
-(`tools/eval_results/2026-07-15_post_index_filter.json`). Every refactor/cleanup track is closed
-(see the table below). Daily runs are **stopped** on the dev laptop (scheduled task disabled);
-**~$4.50 API credit** remained at the last check (top up at deploy — console.anthropic.com is
-authoritative).
+**Current state — CODE-COMPLETE; the server deploy is IN PROGRESS (started 2026-07-15).** Code was
+refactored on the dev machine (operator `acohen@acorninv.com`, Windows user `KimCohen`, branch
+`ava-updates`); `ruff` clean, `pytest` **353 green**, retrieval eval baseline **hit@1 0.897 /
+hit@3 1.0 / MRR 0.937, zero misses** (`tools/eval_results/2026-07-15_post_index_filter.json`). Every
+refactor/cleanup track is closed (see the table below). **Jared's instance is decommissioned — the
+dedicated server will be the ONLY instance.**
 
-**The one remaining task = the §7.2 server deploy** — the project's definition of "done." Execute
-the checklist in **`NEXT_STEPS_SPEC.md §5`** (pre-deploy file copy → on-box validation → cutover
-with jared → post-deploy backups + `OPERATIONS.md` handoff). **The operator's last work day is
-2026-07-31 — pick the deploy date early so the unattended soak happens while a fixer still exists.**
-Also apply the **first-run watch list (`NEXT_STEPS_SPEC.md §5`)** to the next natural run (the
-2026-07-15 cleanup changed run behavior in ways only a live run exercises — chiefly the
-resolved-story re-creation ride-along and the memory size log; watches run through ~mid-August,
-aging starts ~7/30).
+**The deploy is mid-flight → read `DEPLOY_PROGRESS.md` for the LIVE status and the exact resume
+steps.** In brief (2026-07-20, cutover morning): the server (Windows, user `ShawnArmstrong`) is
+staged on Python 3.12 with deps, transferred state, a new-OAuth-client `credentials.json`, and
+`env.bat`. The **interim dev runs are COMPLETE** (Thu 7/16 + Fri 7/17, both GREEN; dev state final
+through Friday). **Two gates before the server's validation run:** (1) the **Anthropic credit is
+exhausted** — top up first; (2) the **Google MFA lockout extended to 72h and has NOT cleared** —
+`token.json` therefore arrives via **Plan B** (copy the dev `credentials.json`+`token.json` pair
+over a non-email channel; see DEPLOY_PROGRESS step 3) rather than a fresh mint. Then: state
+re-sync → 13D recheck → manual run → `setup_tasks.ps1`, first automation the next weekday morning.
+The **operator's last work day is 2026-07-31**, so soak time is tight — resume promptly. Apply the
+**first-run watch list (`NEXT_STEPS_SPEC.md §5`)** to the first real server run (the memory budget
+now actively trims — `M of 73 active` is expected; the resolved-story re-creation ride-along and
+the Substack-via-email boundary both passed live on 7/17 but stay on watch).
 
 **Closed tracks (detail is in `WORKLOG.md` under the dated entry):**
 
@@ -325,6 +329,17 @@ never worked, $9k/yr for a 2-issuer watchlist).
 What remains is only what a future session might still act on.)*
 
 ### A. Conditional — do only if a real problem appears (no evidence yet)
+- **BBG-Data-License snapshot rows (2026-07-15, jared)** — snapshot items with NO free source,
+  wanted if a Bloomberg Data License ever lands: **HYG/LQD/IGLB/IGIB reported G-spreads**
+  (2026-07-16 — all four shipped as fund-reported portfolio OAS scraped from ishares.com
+  instead; see `ishares_data.py`; the BBG upgrade would swap OAS → G-spread), S&P BDC index
+  (SPBDCUP — publisher page is bot-blocked, 403; BIZD proxy declined),
+  BCRED '32 / ARCC '32 G-spreads, SpaceX '56 G-spread, Oracle '66 G-spread, QTS
+  G-spread, CoreWeave '32 + Core Scientific '31 bond prices. In-code comment blocks mark the
+  slots (`market_data.YAHOO_TICKERS`, `macro_data.FRED_SERIES` credit section). Bond-level data
+  = TRACE ($9k/yr, rejected 2026-07-13; FINRA's free per-CUSIP web lookup judged too fragile to
+  scrape). SpaceX EQUITY came off the list 2026-07-16 — it IPO'd June 12, 2026 (Nasdaq: SPCX)
+  and is now a normal Yahoo row in the AI Snapshot.
 - **`_assemble_digest_html` string-match insertion** — revisit only **if** archived digests show
   real section misplacement; the fix risks the tuned `SYSTEM_PROMPT` (§6). *(The numbering-collision
   member of this family was already fixed 2026-07-14 — appended sections are unnumbered.)*

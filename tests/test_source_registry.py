@@ -13,7 +13,7 @@ EXPECTED_KEYS = [
     "sec_filings", "news_articles", "market_data", "macro_data", "earnings",
     "pacer_entries", "rating_actions", "fund_results",
     "research_articles", "treasury_auctions", "cot_data", "fed_bs",
-    "bank_failures",
+    "bank_failures", "ishares_oas",
 ]
 
 

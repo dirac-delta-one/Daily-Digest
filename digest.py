@@ -37,8 +37,15 @@ from html_utils import extract_gmail_body, parse_forwarded_from, strip_forward_h
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings
 from news import fetch_wsj_ft_articles
-from market_data import fetch_market_data, build_market_table_html, format_market_data_for_prompt
-from macro_data import fetch_macro_data, build_macro_table_html, format_macro_for_prompt
+from market_data import (
+    fetch_market_data, build_market_table_html, build_private_credit_html,
+    build_ai_html, format_market_data_for_prompt,
+)
+from macro_data import (
+    fetch_macro_data, build_rates_table_html, build_credit_table_html,
+    format_macro_for_prompt,
+)
+from ishares_data import fetch_ishares_oas, format_ishares_for_prompt
 from memory import (
     get_memory_context, update_memory,
     get_substack_memory_context, update_substack_memory,
@@ -50,7 +57,7 @@ from ratings import fetch_rating_actions, format_ratings_for_prompt
 from fund_tracking import fetch_fund_holdings, format_funds_for_prompt, build_funds_html
 from thirteen_d import fetch_wiltw
 from fed_research import fetch_research_articles, format_research_for_prompt
-from treasury_auctions import fetch_treasury_auctions, format_auctions_for_prompt, build_auctions_table_html
+from treasury_auctions import fetch_treasury_auctions, format_auctions_for_prompt
 from cftc_cot import fetch_cot_data, format_cot_for_prompt
 from fed_balance_sheet import (
     fetch_fed_balance_sheet, format_fed_bs_for_prompt, build_fed_bs_table_html, check_fed_stress,
@@ -323,7 +330,9 @@ or where two sources disagree with each other.
 Hyperlink the title to the source URL. No paragraph descriptions.
 
 7. **Bloomberg** — If any emails are from bloomberg.net, group them here. \
-Summarize each with headline and key data points. Keep tight.
+Summarize each with headline and key data points. Keep tight. Only items NOT already \
+covered in sections 1-6 — if a Bloomberg item earned a spot in an earlier section, it \
+lives there and must not be restated here. Omit this section if nothing is left.
 
 8. **Recent SEC Filings** — Filing content is included for each filing. \
 For 8-Ks, summarize the material event (what happened, key numbers, implications). \
@@ -351,6 +360,11 @@ material. If you are unsure of the issuer, cite the bare ticker (e.g. "$TCBK") r
 than guessing the company name.
 - If multiple sources discuss the same topic, synthesize them and note where they agree \
 or disagree.
+- NO REPETITION ACROSS SECTIONS. Each story or data point appears ONCE with full detail, \
+in its single best-fit section. If a later section has a genuinely NEW angle on a story \
+covered earlier (e.g. a contrarian take on a Top Takeaways item), give ONLY the new angle \
+in one line — do not restate the numbers or re-tell the story. The TL;DR is exempt \
+(compressing the day's top items is its job).
 - Tag each claim with its source in parentheses at the end, e.g. "(Grant's)" or "(Greenmantle)". \
 Be consistent — always at the end of the bullet, never woven into the sentence. \
 Only cite real sources: publication names (Grant's, FT, Bloomberg), SEC filing types, \
@@ -443,7 +457,8 @@ def _build_source_prompt(*, emails, sec_filings, market_data,
                          rating_actions=None, fund_results=None,
                          wiltw=None,
                          research_articles=None, treasury_auctions=None,
-                         cot_data=None, fed_bs=None, bank_failures=None):
+                         cot_data=None, fed_bs=None, bank_failures=None,
+                         ishares_oas=None):
     """Build the TEAM-shareable source material text for the Opus prompt.
 
     Keyword-only (Phase 3.1): with 15 same-typed source arguments, positional
@@ -523,6 +538,12 @@ def _build_source_prompt(*, emails, sec_filings, market_data,
     macro_text = format_macro_for_prompt(macro_data)
     if macro_text:
         prompt += "\n\n" + "=" * 40 + "\n" + macro_text + "\n" + "=" * 40
+
+    # iShares fund-reported OAS (IGLB/IGIB — credit snapshot rows)
+    if ishares_oas:
+        ishares_text = format_ishares_for_prompt(ishares_oas)
+        if ishares_text:
+            prompt += "\n\n" + "=" * 40 + "\n" + ishares_text + "\n" + "=" * 40
 
     # Earnings calendar
     earnings_text = format_earnings_for_prompt(earnings)
@@ -661,6 +682,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           wiltw=None,
                           research_articles=None, treasury_auctions=None,
                           cot_data=None, fed_bs=None, bank_failures=None,
+                          ishares_oas=None,
                           substack_memory_context=None, cost_label=""):
     """Send all sources to Claude for digest generation (2-pass).
 
@@ -687,6 +709,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     cot_data = cot_data or []
     fed_bs = fed_bs or []
     bank_failures = bank_failures or []
+    ishares_oas = ishares_oas or []
 
     # Substack-via-email boundary (2026-07-15): paid Substack newsletters also
     # arrive as inbox email (e.g. PETITION from petition@substack.com). They are
@@ -724,6 +747,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
         cot_data=cot_data,
         fed_bs=fed_bs,
         bank_failures=bank_failures,
+        ishares_oas=ishares_oas,
     )
 
     # Build the content array for Claude's messages API
@@ -807,9 +831,14 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "have been included but weren't.\n"
             "2. Check for any ERRORS — wrong numbers, misattributed sources, or mischaracterized "
             "arguments.\n"
-            "3. Check that every bullet has a source tag.\n"
-            "4. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
-            "and fixes any errors. Keep the exact same HTML template and formatting.\n\n"
+            "3. Check for REPETITION — the same story or data point restated in more than one "
+            "section. Keep the full detail in its single best-fit section; elsewhere keep at most "
+            "a one-line genuinely-new-angle reference (the TL;DR is exempt — compression is its "
+            "job).\n"
+            "4. Check that every bullet has a source tag.\n"
+            "5. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
+            "and fixes any errors and repetition. Keep the exact same HTML template and "
+            "formatting.\n\n"
             "If the draft was already comprehensive, return it mostly unchanged — don't pad it "
             "with filler.\n\n"
             "DRAFT DIGEST:\n"
@@ -974,16 +1003,20 @@ def build_news_html(articles):
     return html
 
 
-def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
+def _assemble_digest_html(digest_html, alerts_html, market_html, rates_html,
+                          credit_html, private_html, ai_html,
                           earnings_html, news_html, pacer_html,
-                          funds_html="",
-                          auctions_html="", fed_bs_html=""):
+                          funds_html="", fed_bs_html=""):
     """
     Assemble the final digest HTML by injecting pre-built sections
     into the Opus-generated digest.
+
+    Snapshot order (jared's 2026-07-15 redesign): Market, Rates, Corporate
+    Credit, Private Credit, AI, then Fed Balance Sheet at the bottom of the
+    snapshots; the earnings calendar follows them.
     """
     # Find the opening div and header end to insert pre-built sections
-    # Insert alerts + market + macro + earnings AFTER the header, BEFORE the TL;DR
+    # Insert alerts + the snapshot tables + earnings AFTER the header, BEFORE the TL;DR
     header_end = digest_html.find('</div>', digest_html.find('border-bottom: 3px double'))
     if header_end != -1:
         # Find the end of the header closing div
@@ -994,14 +1027,18 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, macro_html,
             pre_sections += alerts_html
         if market_html:
             pre_sections += market_html
-        if macro_html:
-            pre_sections += macro_html
-        if earnings_html:
-            pre_sections += earnings_html
+        if rates_html:
+            pre_sections += rates_html
+        if credit_html:
+            pre_sections += credit_html
+        if private_html:
+            pre_sections += private_html
+        if ai_html:
+            pre_sections += ai_html
         if fed_bs_html:
             pre_sections += fed_bs_html
-        if auctions_html:
-            pre_sections += auctions_html
+        if earnings_html:
+            pre_sections += earnings_html
 
         if pre_sections:
             digest_html = digest_html[:header_end] + "\n" + pre_sections + digest_html[header_end:]
@@ -1220,6 +1257,8 @@ SOURCE_FETCHERS = [
      fetch_fed_balance_sheet),
     ("bank_failures", "Checking FDIC for bank failures...", "FDIC check",
      fetch_failed_banks),
+    ("ishares_oas", "Fetching iShares fund OAS...", "iShares OAS",
+     fetch_ishares_oas),
 ]
 
 MAX_FETCH_WORKERS = 6
@@ -1343,6 +1382,7 @@ def main():
     cot_data = fetched["cot_data"]
     fed_bs = fetched["fed_bs"]
     bank_failures = fetched["bank_failures"]
+    ishares_oas = fetched["ishares_oas"]
 
     # --- Check if anything to digest ---
     if not emails and not substack_articles and not sec_filings and not news_articles:
@@ -1403,6 +1443,7 @@ def main():
         cot_data=cot_data,
         fed_bs=fed_bs,
         bank_failures=bank_failures,
+        ishares_oas=ishares_oas,
     )
 
     team_digest_html = team_source_text = None
@@ -1506,31 +1547,36 @@ def main():
     # --- Build pre-formatted HTML sections (shared by both variants) ---
     alerts_html = build_alerts_html(triggered_alerts)
     team_alerts_html = build_alerts_html(team_alerts)
-    market_html = build_market_table_html(market_data)
-    macro_html = build_macro_table_html(macro_data)
+    # mirror rows: 20Y UST (FRED) + HYG/LQD OAS (iShares) into Market Snapshot
+    market_html = build_market_table_html(market_data, macro_data + ishares_oas)
+    rates_html = build_rates_table_html(macro_data)
+    # iShares fund-reported OAS rows render after the FRED index OAS rows
+    credit_html = build_credit_table_html(macro_data + ishares_oas, market_data)
+    private_html = build_private_credit_html(market_data)
+    ai_html = build_ai_html(market_data)
     earnings_html = build_earnings_html(earnings)
     news_html = build_news_html(news_articles)
     pacer_html = build_pacer_html(pacer_entries)
     # No ratings section is pre-built here — Opus writes the §9 "Rating Actions" section itself from
     # the rating data (see SYSTEM_PROMPT), unlike other sources which pre-render their section.
+    # No macro/auctions table either (2026-07-15 snapshot redesign) — both still feed the prompt.
     funds_html = build_funds_html(fund_results)
-    auctions_html = build_auctions_table_html(treasury_auctions)
     fed_bs_html = build_fed_bs_table_html(fed_bs)
 
     # --- Assemble final digest(s) ---
     final_html = _assemble_digest_html(
-        digest_html, alerts_html, market_html, macro_html,
+        digest_html, alerts_html, market_html, rates_html,
+        credit_html, private_html, ai_html,
         earnings_html, news_html, pacer_html,
-        funds_html,
-        auctions_html, fed_bs_html,
+        funds_html, fed_bs_html,
     )
     team_final_html = None
     if team_active:
         team_final_html = _assemble_digest_html(
-            team_digest_html, team_alerts_html, market_html, macro_html,
+            team_digest_html, team_alerts_html, market_html, rates_html,
+            credit_html, private_html, ai_html,
             earnings_html, news_html, pacer_html,
-            funds_html,
-            auctions_html, fed_bs_html,
+            funds_html, fed_bs_html,
         )
 
     # --- Save daily digest(s) for weekly summary (each non-fatal on its own) ---
