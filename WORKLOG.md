@@ -5,29 +5,90 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-20, cutover morning — interim runs complete; two gates before the server run)
+## Current state (2026-07-20, cutover DONE — the server is LIVE and unattended)
 
-**The interim dev-laptop runs are COMPLETE and GREEN** (Thu 7/16 $1.78 + Fri 7/17 $3.72 — full
-detail in the 2026-07-17→20 entry below). Dev state is final through Friday 7/17; no weekend runs
-(the dev MorningDigest task is confirmed Disabled; no reply monitor exists anywhere). `ruff` clean,
-**pytest 362** green re-verified 7/17.
+**The §7.2 server deploy is COMPLETE.** The dedicated Windows box (`ShawnArmstrong`) is the sole
+instance, running unattended: all four scheduled tasks registered and Ready, today's production
+digest already delivered from the box, the reply daemon polling. First automated run is tomorrow
+(Tue 7/21) 08:00. Full sequence + the S4U finding in the 2026-07-20 cutover entry below.
 
-**TODAY (Mon 7/20) is cutover day — `DEPLOY_PROGRESS.md` has the step-by-step. Two gates:**
-1. **Anthropic credit is EXHAUSTED** (hit $0 on the 7/17 run's final call — the team weekly wrap
-   failed 400 and was deliberately not regenerated). **Top up at console.anthropic.com BEFORE the
-   server manual run** — without it the run dies at pass 1.
-2. **The Google MFA lockout has NOT cleared** (extended 48h → 72h by repeated sign-in attempts;
-   still locked as of Mon ~9:45 AM). The server `token.json` can't be minted interactively →
-   **Plan B: copy the dev laptop's `credentials.json` + `token.json` PAIR to the server via a
-   non-email channel** (README-sanctioned; the token is bound to its OAuth client so the pair
-   travels together). Steps that need NO token can run now: merge/pull code, state re-sync,
-   13D recheck.
-3. **Merge `ava-updates` → `main` + push still pending** (cutover step 0 — the server cloned
-   `main` @ `1a64778`, ~35 commits behind).
+**What's LIVE on the server:**
+- Code at `main` @ `6793009` (format work + interim docs + the `-StoredPassword` fallback);
+  state synced through Fri 7/17 (index 9,449→10,468 after the Monday run; memory 82 active).
+- Secrets in place via Plan B (dev token pair copied — no interactive mint; MFA lockout never
+  cleared and was routed around entirely). 13D session live (probe: no login redirect).
+- Four tasks under a **stored-password** principal (NOT S4U — see the finding below):
+  MorningDigest 08:00 / Watchdog 09:00 / MiddayAlert 13:00 / ReplyMonitor at startup.
+  `DIGEST_UNATTENDED=1` machine-wide.
+- Monday manual run GREEN, $2.03: both variants to production, WILTW cache hit, cross-variant
+  cache engaged, no "Team config missing", both memory stores updated.
 
-Live watches: memory active-count growing fast (57→64→73; budget trimming since 7/17 — first
-natural aging batch ~7/30 is the decision point, operator still present); resolved-story
-re-creation ride-along continues (clean so far).
+**REMAINING (post-deploy hardening + handoff — none blocks the live system):**
+1. **Watchdog drill** — `run_alert.py digest --check-completed --test` (route to acohen via a
+   shell `DIGEST_TO` override, or warn jared first — it emails the production recipient).
+2. **O4 off-box backups** — scheduled copy of `archive/`, both memory stores, the caches,
+   `digests/`, the two index files.
+3. **Hand `OPERATIONS.md` to jared** — the three manual fixes + the Gmail Alerts note.
+4. **Push the two 2026-07-20 commits** (`6793009` stored-password fallback + this docs entry) —
+   operator pushes; then the server `git pull` is already done for `6793009`, pull again for the docs.
+5. **Reconcile onto `ava-updates`** so the branches don't drift; delete the dev `state_sync` zip.
+6. **Unbuffered reply-monitor log** — DONE in code (`run_reply_monitor.bat` `-u`); the running
+   daemon picks it up on its next restart (reboot, or stop/start the ReplyMonitor task).
+
+Live watches (unchanged): memory active-count climbing (73→82 after the Monday run; budget
+trimming, rendered 59 of 73); first natural 30-day aging batch ~7/30 (operator still present);
+resolved-story re-creation ride-along clean so far.
+
+---
+
+## Server cutover COMPLETE — S4U failed on AzureAD, stored-password fallback (2026-07-20)
+
+Executed the §7.2 cutover on the server (`ShawnArmstrong`, `C:\Users\ShawnArmstrong\code\Daily-Digest`).
+The system is now LIVE and unattended. Sequence, in order:
+
+- **Code sync (step 0):** merged `ava-updates` → `main` (merge `00b0ab7`; pre-flight caught that
+  `origin/main`'s only "unique" commit was the 7/15 PR-merge `1a64778`, carrying no code — clean),
+  pushed, `git pull` on the server (fast-forward). `ruff` + **362 tests** green on `main`.
+- **State re-sync (step 2):** secrets-free zip (archive + both memory stores + caches +
+  `pacer_seen`/`source_counts` + digests; 32.5 MB) → moved via the bot Drive → extracted on the
+  box. Verified byte-for-byte against dev: index 9,449 chunks, 12 days (6/30→7/17), memory 73
+  active, 8 recorded runs, `wiltw_cache` carries 2026-07-16 (→ free WILTW hit Monday).
+- **Secrets (step 3), Plan B — MFA lockout never cleared, routed around:** the bot Google account
+  stayed MFA-locked (72h) the whole cutover; the operator DID get a live browser session (backup
+  codes generated; recovery phone confirmed = a teammate staying past 7/31, so Friday's
+  "recovery phone changed" alert was benign own-activity, not compromise). The durable production
+  token was NOT re-minted on the box — instead the dev `credentials.json` + `token.json` PAIR was
+  copied over (Drive, delete-after-download). Free Gmail smoke test: `authenticated as
+  acorn.research.bot@gmail.com`, no browser → Plan B confirmed: refresh-token auth works straight
+  through the lockout. `substack_cookie.txt` + `thirteen_d_session.json` (dev's known-good) copied
+  too; server `env.bat` deliberately NOT overwritten (its recipients are already production-correct).
+- **13D recheck (step 4):** headless Playwright probe loaded the copied session, navigated to the
+  latest report — no login redirect → session live on the box (also validated headless Playwright).
+- **Manual run (step 5), GATE cleared:** credit topped up first. `run_digest.bat` GREEN, $2.03:
+  both variants to production (FULL → jtramontano, TEAM → apain+acohen; one transient SSL send-retry
+  that recovered), WILTW 7/16 cache hit, cross-variant cache engaged (full pass 1 paid 37 uncached
+  tokens), no "Team config missing", memory 73→82 active, substack 34→36, index → 10,468, memory
+  render `59 of 73` (budget trimming as designed).
+
+**THE FINDING — S4U task launch fails on the AzureAD-joined server; use `-StoredPassword`:**
+`setup_tasks.ps1` (S4U principal) REGISTERED all four tasks fine, but the scheduler then silently
+**refused to launch** them — `Start-ScheduledTask` returned no error yet `LastRunTime` stayed at
+the `11/30/1999` sentinel with `LastTaskResult 267011` ("not yet run"), no process, no log. This is
+the AzureAD/S4U risk the script header always flagged, now confirmed live. Fix: added a
+**`-StoredPassword`** switch to `setup_tasks.ps1` (commit `6793009`) that re-registers the SAME
+`AzureAD\ShawnArmstrong` account with a stored password (prompted once via `Get-Credential`)
+instead of S4U — same run-whether-logged-on behavior, same user so the per-user Playwright/Chromium
++ HuggingFace caches stay valid (SYSTEM would lose those and break 13D). Re-ran
+`setup_tasks.ps1 -StoredPassword` (Shawn entered his password); the launch test then PASSED —
+ReplyMonitor → State `Running`, `LastRunTime` today, `LastTaskResult 267009` (running), log created.
+Since all four tasks share the principal, this proves the 08:00 MorningDigest will fire tomorrow.
+**Operational note for the next person: the server's tasks run under a stored password. If they
+ever need re-registering, use `setup_tasks.ps1 -StoredPassword` (needs Shawn's password), NOT the
+bare S4U default.**
+
+**Also this session:** found the reply-monitor daemon's log stays empty (Python block-buffers
+stdout to a file and the daemon never exits to flush) — fixed with `-u` in `run_reply_monitor.bat`
+(the other three wrappers exit and flush fine); the running daemon picks it up on its next restart.
 
 ---
 

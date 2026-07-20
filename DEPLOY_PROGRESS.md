@@ -5,7 +5,20 @@
 > checklist), `OPERATIONS.md` (operator runbook), `MAINTENANCE.md` (secrets/failure modes).
 > **Mark this DONE / delete it once the server is live and has soaked cleanly.**
 
-## STATUS: CUTOVER DAY (Mon 2026-07-20) — two gates, then execute the steps below
+## STATUS: ✅ CUTOVER COMPLETE — server LIVE and unattended (Mon 2026-07-20)
+
+The server is the sole instance and running unattended: all four tasks registered + Ready under a
+**stored-password** principal (S4U failed to launch on the AzureAD box — see the cutover entry in
+`WORKLOG.md` 2026-07-20), `DIGEST_UNATTENDED=1` machine-wide, today's production digest delivered
+from the box ($2.03, both variants), reply daemon polling. Code at `main` @ `6793009`; state synced
+through 7/17 (index 10,468 after the Monday run). **First automated run: Tue 7/21 08:00.** Both gates
+were cleared/routed: credit topped up; the MFA lockout never lifted, so the token arrived via Plan B
+(dev token pair copied — no interactive mint). **Remaining = post-deploy hardening only** (watchdog
+drill, O4 backups, hand OPERATIONS.md to jared, push the 7/20 commits + reconcile `ava-updates`);
+none blocks the live system. **Once these are done and the server has soaked cleanly, mark this file
+DONE / delete it.** The step-by-step below is retained as the record of what was executed.
+
+## (historical) CUTOVER DAY plan — two gates, then execute the steps below
 - **Target server:** dedicated always-on Windows box, user `ShawnArmstrong`, repo at
   `C:\Users\ShawnArmstrong\code\Daily-Digest` (cloned from `main` @ merge `1a64778`).
 - **GATE 1 — Anthropic credit is EXHAUSTED** (hit $0 on the 7/17 run's last call; the team weekly
