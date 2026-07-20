@@ -36,6 +36,16 @@ fall back to a stored-password principal — replace the $principal line with:
 #>
 param(
     [switch]$DryRun,
+    # AzureAD fallback (2026-07-20): on an AzureAD-joined box the S4U principal
+    # can register fine yet the scheduler silently refuses to launch the task
+    # (LastRunTime stays at the 11/30/1999 sentinel, LastTaskResult 267011
+    # "not yet run" — observed live on the ShawnArmstrong server). -StoredPassword
+    # re-registers the SAME account with a stored password instead of S4U (prompted
+    # once via Get-Credential), which the scheduler CAN log on. Same
+    # run-whether-logged-on behavior; runs as the same user, so the per-user
+    # Playwright/Chromium + HuggingFace caches the pipeline needs stay valid
+    # (running as SYSTEM would lose those and break 13D).
+    [switch]$StoredPassword,
     [string]$RepoPath = $PSScriptRoot
 )
 
@@ -46,7 +56,15 @@ $weekdays = "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
 
 # S4U = "run whether user is logged on or not" WITHOUT storing a password.
 # Session-0 execution means no console window a user could close mid-run.
+# (Skipped under -StoredPassword; see the param note.)
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType S4U -RunLevel Limited
+
+# Prompt for the account password ONCE when using the stored-password fallback.
+$cred = $null
+if ($StoredPassword -and -not $DryRun) {
+    $cred = Get-Credential -UserName $user `
+        -Message "Enter the $user account password (stored-password fallback for AzureAD S4U)"
+}
 
 $runOnceSettings = New-ScheduledTaskSettingsSet `
     -WakeToRun -StartWhenAvailable -RunOnlyIfNetworkAvailable `
@@ -75,7 +93,8 @@ $tasks = @(
        Settings = $daemonSettings }
 )
 
-Write-Host "DailyDigest task provisioning (repo: $RepoPath; principal: $user, S4U)"
+$mode = if ($StoredPassword) { "stored password" } else { "S4U" }
+Write-Host "DailyDigest task provisioning (repo: $RepoPath; principal: $user, $mode)"
 if ($DryRun) { Write-Host "-- DRY RUN: nothing will be registered or set --" }
 
 foreach ($t in $tasks) {
@@ -91,9 +110,19 @@ foreach ($t in $tasks) {
         continue
     }
 
-    Register-ScheduledTask -TaskName $t.Name -TaskPath $taskPath `
-        -Action $action -Trigger $t.Trigger -Principal $principal `
-        -Settings $t.Settings -Force | Out-Null
+    if ($StoredPassword) {
+        # Stored-password principal (AzureAD fallback): -User/-Password instead of
+        # -Principal. RunLevel Limited passed directly (it's a principal property
+        # the -User/-Password parameter set accepts).
+        Register-ScheduledTask -TaskName $t.Name -TaskPath $taskPath `
+            -Action $action -Trigger $t.Trigger `
+            -User $user -Password $cred.GetNetworkCredential().Password -RunLevel Limited `
+            -Settings $t.Settings -Force | Out-Null
+    } else {
+        Register-ScheduledTask -TaskName $t.Name -TaskPath $taskPath `
+            -Action $action -Trigger $t.Trigger -Principal $principal `
+            -Settings $t.Settings -Force | Out-Null
+    }
     Write-Host "  registered $taskPath$($t.Name)"
 }
 
