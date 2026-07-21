@@ -5,7 +5,11 @@
 > checklist), `OPERATIONS.md` (operator runbook), `MAINTENANCE.md` (secrets/failure modes).
 > **Mark this DONE / delete it once the server is live and has soaked cleanly.**
 
-## STATUS: ✅ CUTOVER COMPLETE — server LIVE and unattended (Mon 2026-07-20)
+## STATUS: ✅ CUTOVER COMPLETE + first unattended run GREEN (Tue 2026-07-21)
+
+**Update 2026-07-21:** the **first true automation cycle passed** — the 08:00 MorningDigest fired
+unattended and delivered both variants, and the 09:00 Watchdog stayed silent (operator confirmed no
+"DIGEST MISSING" email). See "Tuesday 7/21" below.
 
 The server (`ShawnArmstrong`) is the SOLE instance, running unattended. Live now: the four core
 tasks registered + Ready under a **stored-password** principal (S4U failed to launch on the AzureAD
@@ -16,18 +20,31 @@ Monday run). Both gates were cleared/routed: credit topped up; the MFA lockout n
 token arrived via **Plan B** (dev token pair copied — no interactive mint). Watchdog drill PASSED
 (routed to acohen). **First automated run: Tue 7/21 08:00.**
 
-### ⏩ RESUME HERE in a new conversation — pending rollout of today's commits
+### ⏩ RESUME HERE in a new conversation — two server TODOs for 2026-07-21
 
-Everything below is post-deploy hardening; **none blocks the live system.** Git state:
-`origin/main` is at `1f8f72a`; **one commit is unpushed** — `8066119` (O4 operator docs). The O4
-backup CODE (`1f8f72a`: `run_backup.bat` + the 5th task + the `backup` alert label) is already on
-`origin`, **but the Backup task is not yet REGISTERED on the server** (the server was last pulled
-around the `-u`/`-StoredPassword` commits; it needs a fresh pull + a re-register). To finish:
+Everything below is post-deploy hardening; **none blocks the live system.** Git state (2026-07-21):
+**push is DONE** — `origin/main` is at `3915ab3` (`8066119` O4 docs + the cold-start docs commit are
+pushed; working tree clean). The O4 backup CODE (`1f8f72a`: `run_backup.bat` + the 5th task + the
+`backup` alert label) is on `origin`, **but the Backup task is not yet REGISTERED on the server**
+(the server was last pulled around the `-u`/`-StoredPassword` commits; it needs a fresh pull +
+re-register).
 
-1. **Push:** from the dev laptop, `git push origin main` (agent pushes are auto-blocked, so the
-   operator pushes) — lands `8066119`.
-2. **Pull on the server:** `git pull origin main` (brings the O4 code `1f8f72a` if not already
-   there, plus the docs).
+**SERVER TODOs (2026-07-21):**
+
+**TODO #1 — pull the 7/21 run state off the box — ✅ DONE.** Server `memory.json` is
+`last_updated 2026-07-21`: **87 active / 8 resolved / 95 total** (dev laptop frozen at 7/17:
+73/8/81). Active trajectory 73 (7/17) → 82 (7/20) → 87 (7/21). Two `Memory context` main-store lines
+byte-identical (`45,246 chars / 58 of 82`); substack `32,991 / 36 of 36`; two-pass cost $0.88 (team)
++ $0.68 (full). **The pull also surfaced a bug:** pass 2 leaked its markdown edit-changelog into the
+sent TEAM digest — fixed on the dev laptop (WORKLOG 2026-07-21 "Pass-2 review changelog leaked…"),
+**pending commit + push + deploy.**
+
+**TODO #2 — register the O4 Backup task, now ALSO deploys the pass-2 fix** (finishes the O4 rollout):
+0. **Commit + push the pass-2 fix first** (dev laptop; agent pushes are blocked, so the operator
+   pushes) — so the server pull below picks it up.
+1. ~~Push (O4 docs)~~ ✅ done (`origin/main` @ `3915ab3`).
+2. **Pull on the server:** `git pull origin main` (brings the pass-2 fix + the O4 code `1f8f72a` if
+   not already there, plus the docs).
 3. **Re-run provisioning to register the new Backup task** — elevated, on the server:
    `powershell -ExecutionPolicy Bypass -File .\setup_tasks.ps1 -StoredPassword` (enter Shawn's
    password; expect **five** `registered` lines incl. `Backup`). Re-registering with `-Force` may
@@ -160,8 +177,11 @@ alerts now auto-file to the "Gmail Alerts" label (filter added 7/17, see NEXT_ST
    step 5 passes** — without a working token the tasks just fail, and the failure alert itself needs
    the token to send.
 
-## Tuesday 7/21 — first true automation
-- Confirm the 08:00 scheduled run fires + delivers both variants; the 09:00 watchdog stays silent.
+## Tuesday 7/21 — first true automation ✅ GREEN
+- ✅ The 08:00 scheduled run fired unattended and delivered **both variants** (operator confirmed).
+- ✅ The 09:00 Watchdog stayed **silent** — operator confirmed no "DIGEST MISSING" email in the bot
+  inbox (the marker was fresh, so the watchdog correctly did nothing).
+- Run numbers (memory active-count, cost) → **pending pull** off the server, TODO #1 above.
 
 ## Post-deploy
 - **O4 backups** — scheduled off-box copy of `archive\`, `memory.json`, `substack_memory.json`, the

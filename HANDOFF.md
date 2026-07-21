@@ -38,15 +38,21 @@ ran production from `main`; that's retired, the server tracks `main`, so **`main
 working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
 be deleted at will.
 
-**What remains → read `DEPLOY_PROGRESS.md` first (the live resume doc).** The system is live; the
-remainder is post-deploy hardening that does NOT block it. The O4 backup **code is on `origin/main`
-(`1f8f72a`)** but the **Backup task is not yet registered on the server**, and one docs commit
-(`8066119`) is unpushed. Rollout: push `8066119` → `git pull` on the server → re-run
-`setup_tasks.ps1 -StoredPassword` to register the 5th **Backup** task (and, if the re-register
-stops it, restart ReplyMonitor — it also picks up the `-u` log fix) → run the O4 backup once
-on-demand and confirm it uploaded to OneDrive → hand `OPERATIONS.md` to jared → delete the dev
-`state_sync` zip. **Operator's last work day is 2026-07-31**, so finish the soak while a fixer
-still exists.
+**What remains → read `DEPLOY_PROGRESS.md` first (the live resume doc).** The system is live and the
+**first unattended run passed (Tue 2026-07-21: 08:00 delivered both variants, 09:00 watchdog silent
+— operator-confirmed)**; the remainder is post-deploy hardening that does NOT block it. Git: the docs
+are **pushed** (`origin/main` @ `3915ab3`, working tree clean). The O4 backup **code is on `origin`
+(`1f8f72a`)** but the **Backup task is not yet registered on the server**. **Server TODOs:** (1) ✅ pulled the 7/21
+run state — live memory **87 active / 8 resolved / 95 total** (trajectory 73→82→87; dev laptop stays
+frozen at 7/17); the pull also surfaced a bug — **pass 2 leaked its markdown edit-changelog into the
+sent 7/21 TEAM digest**, now FIXED on the dev laptop (prompt + hardened `_strip_to_html`; `pytest`
+**364** green; WORKLOG 2026-07-21) but **pending commit + push + deploy**. (2) register the Backup
+task, which now ALSO deploys that fix: **commit + push the fix** → `git pull` on the server → re-run
+`setup_tasks.ps1 -StoredPassword` to register the 5th **Backup** task (and, if the re-register stops
+it, restart ReplyMonitor — it also picks up the `-u` log fix) → run the O4 backup once on-demand and
+confirm it uploaded to OneDrive. Then: hand `OPERATIONS.md` to jared → delete the dev `state_sync`
+zip → soak. **Operator's last work day is 2026-07-31**, so finish the soak while a fixer still
+exists.
 
 **Key operational facts a fresh session needs (all detailed in WORKLOG 2026-07-20):**
 - **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box

@@ -365,8 +365,10 @@ still exists (the accrual week surfaced ~8 failure modes only live operation rev
       persist anything that isn't genuinely logged in). Until this is done, WILTW
       is simply skipped and the digest still sends. The session lasts weeks–months;
       repeat this whenever the `wiltw` source-degradation alert fires.
-- [ ] Confirm the first unattended 08:00 run end-to-end: digests arrive, log clean,
-      09:00 watchdog stays silent.
+- [x] Confirm the first unattended 08:00 run end-to-end: digests arrive, log clean,
+      09:00 watchdog stays silent. **✅ 2026-07-21:** 08:00 delivered both variants; 09:00
+      watchdog silent (operator confirmed no "DIGEST MISSING" email). Log/cost numbers →
+      pending pull off the server (see `DEPLOY_PROGRESS.md` TODO #1).
 
 **Post-deploy:**
 - [ ] O4 backups (scheduled copy off-box or to a second disk): `archive/`,

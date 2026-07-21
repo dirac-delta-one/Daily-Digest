@@ -44,6 +44,32 @@ def test_strip_to_html_passthrough():
     assert digest._strip_to_html("no div at all") == "no div at all"
 
 
+def test_strip_to_html_drops_trailing_changelog():
+    # Regression for the 2026-07-21 team-digest leak: pass 2 appended a markdown
+    # "Changes made:" changelog AFTER the final </div>, which rode into the sent
+    # email as raw markdown. Note the changelog contains '>' ("Japan >$180B"),
+    # so a naive cut-at-last-'>' would keep most of it — matching the last
+    # closing tag is what makes this correct.
+    html = (
+        '<div style="font-family: Georgia;">'
+        "<ul><li>US to hit Canada with 50% tariffs on wide range of goods (FT)</li></ul>\n"
+        "</div>"
+    )
+    leaked = html + (
+        "\n\n**Changes made:**\n"
+        '- **Fixed error:** "Worth Reading" Greenmantle link pointed to the wrong URL.\n'
+        "- **Added missed detail:** ... Japan >$180B repatriation from 13D; Barings +184bp yield.\n"
+    )
+    assert digest._strip_to_html(leaked) == html
+
+
+def test_strip_to_html_keeps_non_div_closing_tag():
+    # The weekly wrap shares this helper; guard that a template ending in a tag
+    # other than </div> (with trailing chatter) is still returned intact.
+    html = "<div><table><tr><td>wrap</td></tr></table></div>"
+    assert digest._strip_to_html(html + "\n\nDone — hope that helps!") == html
+
+
 # --- save_weekly_digest ---
 
 def test_save_weekly_digest(tmp_path, monkeypatch):

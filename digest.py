@@ -10,6 +10,7 @@ This handles scanned PDFs, image-heavy reports, etc.
 
 import os
 import io
+import re
 import sys
 import base64
 import time
@@ -668,11 +669,25 @@ def _build_substack_block(substack_articles, substack_memory_context=None):
 
 
 def _strip_to_html(text):
-    """Drop any model preamble before the first <div — the emailed HTML must
-    start at the template (Opus occasionally prefixes a sentence of prose).
-    Used by digest pass 2 and the weekly summary; midday has its own copy."""
-    i = text.find("<div")
-    return text[i:] if i > 0 else text
+    """Isolate the emailed digest HTML from any model chatter around it.
+
+    Opus occasionally wraps the digest in prose in two places:
+    - a sentence of preamble BEFORE the opening <div, and
+    - (pass 2, nondeterministically) a markdown "Changes made:" changelog AFTER
+      the final </div> narrating the edits it made — this leaked into the sent
+      2026-07-21 team digest (WORKLOG 2026-07-21).
+
+    The email must be exactly the template: start at the first <div and end at
+    the last HTML closing tag, dropping any trailing chatter. A naive "cut at
+    the last '>'" is unsafe — changelog prose can contain '>' (e.g. the real
+    leak's "Japan >$180B repatriation"); matching the last closing tag avoids
+    that. Used by digest pass 2 and the weekly summary; midday has its own copy."""
+    start = text.find("<div")
+    if start < 0:
+        return text
+    html = text[start:]
+    closings = list(re.finditer(r"</[a-zA-Z][a-zA-Z0-9]*>", html))
+    return html[:closings[-1].end()] if closings else html
 
 
 def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
@@ -841,6 +856,9 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "formatting.\n\n"
             "If the draft was already comprehensive, return it mostly unchanged — don't pad it "
             "with filler.\n\n"
+            "Output ONLY the final digest HTML itself — begin at the opening <div> and end at "
+            "the final </div>. Do NOT append any preamble, sign-off, commentary, or summary/"
+            "changelog of the changes you made.\n\n"
             "DRAFT DIGEST:\n"
             "═══════════════════════════════════════\n"
             f"{draft}\n"
