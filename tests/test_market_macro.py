@@ -106,9 +106,11 @@ def test_market_table_embeds_fred_extras():
             _fred_row("2Y UST", "rates", series_id="DGS2")]
     out = market_data.build_market_table_html(yahoo, fred)
     assert "20Y UST" in out and "5.09%" in out
-    assert "DGS20" in out            # FRED provenance in the footnote
+    assert "Source: Yahoo Finance" in out   # minimal single-source footnote
+    assert "FRED" in out                     # FRED noted as a co-source (no id list)
+    assert "^GSPC" not in out                # raw tickers no longer enumerated
     assert "2Y UST<" not in out      # only the listed extras (DGS20), not DGS2
-    # without fred_data the table is unchanged (no FRED row, no FRED footnote)
+    # without fred_data: no FRED co-source in the footnote
     plain = market_data.build_market_table_html(yahoo)
     assert "20Y UST" not in plain and "FRED" not in plain
 

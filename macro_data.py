@@ -299,24 +299,23 @@ def build_rates_table_html(data):
 def build_credit_table_html(data, yahoo_data=None):
     """The Corporate Credit Snapshot: FRED ICE BofA OAS rows + the Yahoo IG
     ETF rows (IGLB/IGIB) from market_data, rendered as one table."""
-    extra_rows, extra_footnote = "", ""
+    extra_rows, source_suffix = "", ""
     if yahoo_data:
         import market_data
         credit_rows = [r for r in yahoo_data if r.get("section") == "credit"]
         extra_rows = market_data.table_rows_html(credit_rows)
-        tickers = " ".join(r["source"].replace("Yahoo Finance: ", "")
-                           for r in credit_rows if r.get("source"))
-        if tickers:
-            extra_footnote = f" | Yahoo Finance: {tickers}"
+        if any(r.get("source") for r in credit_rows):
+            source_suffix = " · Yahoo Finance"   # a source → before the date
     credit_rows = [r for r in data if r.get("section") == "credit"]
-    suffix = " — OAS = ICE BofA index option-adjusted spreads"
+    note = " · OAS = ICE BofA index option-adjusted spreads"   # a definition → after the date
     if any(str(r.get("series_id", "")).startswith("ISHARES:") for r in credit_rows):
-        suffix += "; Portfolio OAS rows = fund-reported (ishares.com)"
+        note += "; Portfolio OAS rows = fund-reported (ishares.com)"
     return _build_fred_table(
         credit_rows,
         "Corporate Credit Snapshot",
         extra_rows_html=extra_rows,
-        footnote_suffix=f"{suffix}{extra_footnote}",
+        footnote_suffix=source_suffix,
+        note_suffix=note,
     )
 
 
@@ -349,24 +348,24 @@ def table_rows_html(rows):
     return html
 
 
-def _build_fred_table(data, title, extra_rows_html="", footnote_suffix=""):
+def _build_fred_table(data, title, extra_rows_html="", footnote_suffix="", note_suffix=""):
     """Render FRED rows as an HTML table with 1D / 1W / 1M columns."""
     if not data and not extra_rows_html:
         return ""
 
     rows = table_rows_html(data)
-    footnote_parts = []
-    for item in data:
-        series_id = item.get("series_id", "")
-        data_date = item.get("date", "")
-        if series_id and data_date:
-            footnote_parts.append(f"{series_id} ({data_date})")
 
+    # Footnote — minimal: one source line + the latest "as of" across rows.
+    # (No per-series enumeration; the rows already name each series.)
+    dates = [item["date"] for item in data if item.get("date")]
+    latest = max(dates) if dates else ""
     footnote_html = ""
-    if footnote_parts or footnote_suffix:
+    if data or footnote_suffix or note_suffix:
+        footnote = ("Source: FRED" + footnote_suffix
+                    + (f", as of {latest}" if latest else "") + note_suffix)
         footnote_html = (
             '<p style="font-size: 10px; color: #aaa; margin: 4px 0 0; line-height: 1.3;">'
-            f'FRED: {", ".join(footnote_parts)}{footnote_suffix}</p>\n'
+            f'{footnote}</p>\n'
         )
 
     th = 'style="padding: 3px 8px; font-size: 11px; color: #888; border-bottom: 2px solid #ccc;'

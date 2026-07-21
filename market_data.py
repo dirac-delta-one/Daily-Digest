@@ -268,10 +268,7 @@ def build_market_table_html(data, fred_data=None):
         extras = [r for r in fred_data if r.get("series_id") in MARKET_FRED_EXTRAS]
         if extras:
             extra_rows = macro_data.table_rows_html(extras)
-            ids = ", ".join(f"{r['series_id']} ({r['date']})" for r in extras
-                            if r.get("series_id") and r.get("date"))
-            if ids:
-                footnote_suffix = f" | FRED: {ids}"
+            footnote_suffix = " · FRED"
     return _build_yahoo_table(data, "market", "Market Snapshot",
                               extra_rows_html=extra_rows,
                               footnote_suffix=footnote_suffix)
@@ -324,25 +321,17 @@ def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix
 
     rows = table_rows_html(data)
 
-    sources_seen = {}
-    for item in data:
-        source = item.get("source", "")
-        as_of = item.get("as_of", "")
-        if source:
-            ticker = source.replace("Yahoo Finance: ", "")
-            date_only = as_of.split(" ")[0] if as_of else ""
-            sources_seen.setdefault(date_only, []).append(ticker)
-
-    # Footnote
-    footnote_parts = []
-    for dt, tickers in sources_seen.items():
-        suffix = f", as of {dt}" if dt else ""
-        footnote_parts.append(f"Yahoo Finance: {' '.join(tickers)}{suffix}")
-    footnote = " | ".join(footnote_parts) + footnote_suffix
+    # Footnote — minimal: one source line + the latest "as of" across rows.
+    # (No per-ticker enumeration; the rows already name each instrument. This
+    # replaced a per-date grouping that produced a long, fragmented line when
+    # instruments carried different as-of timestamps.)
+    dates = [item["as_of"].split(" ")[0] for item in data if item.get("as_of")]
+    latest = max(dates) if dates else ""
+    footnote = "Source: Yahoo Finance" + footnote_suffix + (f", as of {latest}" if latest else "")
     footnote_html = (
-        f'<p style="font-size: 10px; color: #aaa; margin: 4px 0 0; line-height: 1.3;">'
+        '<p style="font-size: 10px; color: #aaa; margin: 4px 0 0; line-height: 1.3;">'
         f'{footnote}</p>\n'
-    ) if footnote else ""
+    )
 
     th = 'style="padding: 4px 8px; font-size: 11px; color: #888; border-bottom: 2px solid #ccc;'
     html = (
