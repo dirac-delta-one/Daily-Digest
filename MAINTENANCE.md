@@ -189,7 +189,7 @@ loss). Harmless; no action.
 | Monthly | Glance at the Anthropic credit balance; top up before it hits $0. |
 | When you touch the project | Add a few golden-set questions for new archive days, incl. cross-day ones (`NEXT_STEPS_SPEC.md §F3`) — the eval only stays meaningful if it compounds. |
 | At ~30–50k index vectors, or when replies feel slow | Work the index-growth ladder: (1) vectorized subset scan ✅ done → (2) date-windowed retrieval default → (3) prune old days from the live index → (4) IVF. Detail in `HANDOFF.md §5`. |
-| Post-deploy | Off-box backups of `archive/`, `memory.json`, `substack_memory.json`, the two index files, state JSONs, `digests/`. |
+| Continuous (automatic) since 2026-07-20 | **O4 off-box backup** — `run_backup.bat` (Backup task, weekdays 09:45) robocopies state-only into `%OneDriveCommercial%\DailyDigest-Backup`, synced off-box by OneDrive. Just watch for a "backup FAILED" alert; glance at the OneDrive web folder every few weeks to confirm it's actually uploading. Restore steps in `OPERATIONS.md` → "Backups & restore". |
 
 ---
 
@@ -211,8 +211,11 @@ loss). Harmless; no action.
 - **Module convention:** source fetchers expose `fetch_X()` / `format_X_for_prompt()` /
   `build_X_html()`. A new source is one module in that shape plus a row in `digest.py`'s fetch
   registry (pinned by `tests/test_source_registry.py` / `test_digest_prompt.py`).
-- **Commits:** work on a branch, not `main`. Keep the WORKLOG habit — a dated entry explaining what
-  changed and *why* is how the next person (or you, in six months) stays oriented.
+- **Commits:** `main` is the working/authoritative branch (since 2026-07-20 — the server tracks it;
+  the old `ava-updates` branch was retired with Jared's instance). Commit and deploy from `main`;
+  use a short-lived feature branch only for risky in-progress work. Keep the WORKLOG habit — a dated
+  entry explaining what changed and *why* is how the next person (or you, in six months) stays
+  oriented.
 
 ---
 

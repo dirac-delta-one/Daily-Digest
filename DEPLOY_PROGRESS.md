@@ -7,16 +7,51 @@
 
 ## STATUS: ✅ CUTOVER COMPLETE — server LIVE and unattended (Mon 2026-07-20)
 
-The server is the sole instance and running unattended: all four tasks registered + Ready under a
-**stored-password** principal (S4U failed to launch on the AzureAD box — see the cutover entry in
-`WORKLOG.md` 2026-07-20), `DIGEST_UNATTENDED=1` machine-wide, today's production digest delivered
-from the box ($2.03, both variants), reply daemon polling. Code at `main` @ `6793009`; state synced
-through 7/17 (index 10,468 after the Monday run). **First automated run: Tue 7/21 08:00.** Both gates
-were cleared/routed: credit topped up; the MFA lockout never lifted, so the token arrived via Plan B
-(dev token pair copied — no interactive mint). **Remaining = post-deploy hardening only** (watchdog
-drill, O4 backups, hand OPERATIONS.md to jared, push the 7/20 commits + reconcile `ava-updates`);
-none blocks the live system. **Once these are done and the server has soaked cleanly, mark this file
-DONE / delete it.** The step-by-step below is retained as the record of what was executed.
+The server (`ShawnArmstrong`) is the SOLE instance, running unattended. Live now: the four core
+tasks registered + Ready under a **stored-password** principal (S4U failed to launch on the AzureAD
+box — see below + WORKLOG 2026-07-20), `DIGEST_UNATTENDED=1` machine-wide, Monday's production
+digest delivered from the box ($2.03, both variants), the reply daemon polling (`Gmail
+authenticated.` confirmed). State synced through 7/17 (index 10,468 → memory 82 active after the
+Monday run). Both gates were cleared/routed: credit topped up; the MFA lockout never lifted, so the
+token arrived via **Plan B** (dev token pair copied — no interactive mint). Watchdog drill PASSED
+(routed to acohen). **First automated run: Tue 7/21 08:00.**
+
+### ⏩ RESUME HERE in a new conversation — pending rollout of today's commits
+
+Everything below is post-deploy hardening; **none blocks the live system.** Git state:
+`origin/main` is at `1f8f72a`; **one commit is unpushed** — `8066119` (O4 operator docs). The O4
+backup CODE (`1f8f72a`: `run_backup.bat` + the 5th task + the `backup` alert label) is already on
+`origin`, **but the Backup task is not yet REGISTERED on the server** (the server was last pulled
+around the `-u`/`-StoredPassword` commits; it needs a fresh pull + a re-register). To finish:
+
+1. **Push:** from the dev laptop, `git push origin main` (agent pushes are auto-blocked, so the
+   operator pushes) — lands `8066119`.
+2. **Pull on the server:** `git pull origin main` (brings the O4 code `1f8f72a` if not already
+   there, plus the docs).
+3. **Re-run provisioning to register the new Backup task** — elevated, on the server:
+   `powershell -ExecutionPolicy Bypass -File .\setup_tasks.ps1 -StoredPassword` (enter Shawn's
+   password; expect **five** `registered` lines incl. `Backup`). Re-registering with `-Force` may
+   stop the running ReplyMonitor → if so, `Start-ScheduledTask -TaskPath "\DailyDigest\" -TaskName
+   ReplyMonitor` again (it also picks up the `-u` log fix from the pull); confirm State `Running`
+   and that `logs\reply_monitor_<date>.log` now shows `Gmail authenticated.`.
+4. **Test O4 backup on-demand:** `Start-ScheduledTask -TaskPath "\DailyDigest\" -TaskName Backup`,
+   wait ~30s, then `Get-Content logs\backup_<date>.log -Tail 15` and confirm
+   `%OneDriveCommercial%\DailyDigest-Backup` populated — **and eyeball OneDrive on the web that it
+   actually UPLOADED** (the task confirms the local write, not the cloud sync).
+
+**Then the handoff/cleanup remainder:** hand `OPERATIONS.md` to jared (walk the three manual fixes +
+the Gmail-Alerts note + the new Backups & restore section); delete the dev-Desktop
+`state_sync_2026-07-20.zip`; optionally delete/ignore the retired `ava-updates` branch (see the
+branch note below). **Once the server has soaked cleanly for a few days, mark this file DONE /
+delete it.**
+
+### Branch: work on `main` now (`ava-updates` retired, 2026-07-20)
+
+`ava-updates` existed only to keep refactor work off `main` while **Jared ran the production digest
+from `main`**. Jared's instance is decommissioned and the server tracks `main`, so **`main` is now
+the working/authoritative branch — commit and deploy from `main`.** `ava-updates` is frozen/behind
+and should not be used; it can be deleted at will (nothing depends on it). The step-by-step plan
+below is retained as the record of what was executed on 7/20.
 
 ## (historical) CUTOVER DAY plan — two gates, then execute the steps below
 - **Target server:** dedicated always-on Windows box, user `ShawnArmstrong`, repo at

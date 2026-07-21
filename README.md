@@ -166,5 +166,6 @@ Account-bound — must exist on the machine; copy from a working install or rege
 | `WORKLOG.md` | developer | the full dated history of every change and why |
 | `ava_refactor.md` | owner | summary of what the refactor delivered, with metrics |
 
-**Project status:** code-complete and validated in live runs; the remaining task is the server
-deploy (`NEXT_STEPS_SPEC.md §5`).
+**Project status:** DEPLOYED & LIVE — running unattended on the dedicated Windows server since
+2026-07-20 (see `DEPLOY_PROGRESS.md`). Work happens on the `main` branch. Remaining work is
+post-deploy hardening/handoff only.

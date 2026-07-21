@@ -13,7 +13,8 @@ digest already delivered from the box, the reply daemon polling. First automated
 (Tue 7/21) 08:00. Full sequence + the S4U finding in the 2026-07-20 cutover entry below.
 
 **What's LIVE on the server:**
-- Code at `main` @ `6793009` (format work + interim docs + the `-StoredPassword` fallback);
+- Code on `main` (through the `-StoredPassword` fallback + the `-u` reply-log fix; the O4 backup
+  code `1f8f72a` is on `origin` but the Backup task isn't registered on the box yet — see REMAINING);
   state synced through Fri 7/17 (index 9,449→10,468 after the Monday run; memory 82 active).
 - Secrets in place via Plan B (dev token pair copied — no interactive mint; MFA lockout never
   cleared and was routed around entirely). 13D session live (probe: no login redirect).
@@ -23,29 +24,33 @@ digest already delivered from the box, the reply daemon polling. First automated
 - Monday manual run GREEN, $2.03: both variants to production, WILTW cache hit, cross-variant
   cache engaged, no "Team config missing", both memory stores updated.
 
-**REMAINING (post-deploy hardening + handoff — none blocks the live system):**
-1. **Watchdog drill** — ✅ DONE 7/20 (`run_alert.py digest --check-completed --test`, routed to
-   acohen via a shell `DIGEST_TO` override; the "(TEST drill) MISSING" email arrived — the
-   failure-alert path works).
-2. **O4 off-box backups** — ✅ BUILT (2026-07-20): `run_backup.bat` robocopies STATE ONLY
-   (`archive/` + both memory stores + caches + `digests/` + the two index files; NO secrets —
-   validated) into `%OneDriveCommercial%\DailyDigest-Backup`, which OneDrive syncs off-box to
-   Acorn's cloud (works because the server is kept logged-in-and-locked, so OneDrive.exe runs).
-   Registered as a 5th task (weekdays 09:45) in `setup_tasks.ps1`; `backup` added as a
-   `run_alert` label so a failed/aborted backup alerts. **PENDING: push → pull → re-run
-   `setup_tasks.ps1 -StoredPassword` on the server to register the Backup task** (then re-Start
-   ReplyMonitor if the re-register stops it). Repo NOT in OneDrive (checked) — so the live app
-   isn't at sync-corruption risk and no secrets are auto-uploaded; only the backup subfolder syncs.
-3. **Hand `OPERATIONS.md` to jared** — the three manual fixes + the Gmail Alerts note.
-4. **Push the two 2026-07-20 commits** (`6793009` stored-password fallback + this docs entry) —
-   operator pushes; then the server `git pull` is already done for `6793009`, pull again for the docs.
-5. **Reconcile onto `ava-updates`** so the branches don't drift; delete the dev `state_sync` zip.
-6. **Unbuffered reply-monitor log** — DONE in code (`run_reply_monitor.bat` `-u`); the running
-   daemon picks it up on its next restart (reboot, or stop/start the ReplyMonitor task).
+**BRANCH: work on `main` (2026-07-20).** `ava-updates` existed only to keep refactor work off
+`main` while Jared ran production from `main`; Jared's retired and the server tracks `main`, so
+**`main` is now the working/authoritative branch.** `ava-updates` is frozen/behind — don't use it;
+deletable at will.
 
-Live watches (unchanged): memory active-count climbing (73→82 after the Monday run; budget
-trimming, rendered 59 of 73); first natural 30-day aging batch ~7/30 (operator still present);
-resolved-story re-creation ride-along clean so far.
+**DONE this session (2026-07-20):** cutover (see the entry below); watchdog drill (routed to
+acohen, drill email arrived — failure-alert path works); O4 backup built (`run_backup.bat` +
+5th `Backup` task 09:45 + `backup` alert label; STATE ONLY, secrets excluded — validated; into
+`%OneDriveCommercial%\DailyDigest-Backup`); unbuffered reply-monitor log (`run_reply_monitor.bat`
+`-u`, live-confirmed after restart — `Gmail authenticated.` now visible); OPERATIONS.md gained a
+"Backups & restore" section. Repo confirmed NOT in OneDrive (no live-sync corruption, no secret
+auto-upload). `ruff` clean, `pytest` **362** green.
+
+**REMAINING — post-deploy rollout (none blocks the live system):**
+1. **Push + roll out O4 to the server.** `origin/main` = `1f8f72a`; one commit unpushed
+   (`8066119`, O4 docs). The O4 CODE is on origin but the **Backup task isn't registered on the
+   server yet** → push `8066119` → `git pull` on the server → re-run `setup_tasks.ps1
+   -StoredPassword` (registers the 5th task; restart ReplyMonitor if the -Force re-register stops
+   it) → `Start-ScheduledTask … Backup` once and confirm it uploaded to OneDrive on the web.
+2. **Hand `OPERATIONS.md` to jared** — the three manual fixes + Gmail-Alerts note + Backups & restore.
+3. **Cleanups** — delete the dev-Desktop `state_sync_2026-07-20.zip`; delete/ignore the retired
+   `ava-updates` branch.
+4. **Soak** — once the server runs clean for a few days, mark/delete `DEPLOY_PROGRESS.md`.
+
+Live watches (`NEXT_STEPS_SPEC.md §5`): memory active-count climbing (73→82 after the Monday run;
+budget trims, rendered 59 of 73 — M<N expected); first natural 30-day aging batch ~7/30 is the
+archival decision point (operator still present); resolved-story re-creation ride-along clean so far.
 
 ---
 

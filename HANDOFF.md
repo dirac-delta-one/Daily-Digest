@@ -25,26 +25,42 @@ Research Digest," archives all raw content to disk, and indexes it into a local 
 that powers an **email-reply Q&A bot**. Since 2026-07-13 each run produces **two variants** — a
 FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 
-**Current state — CODE-COMPLETE; the server deploy is IN PROGRESS (started 2026-07-15).** Code was
-refactored on the dev machine (operator `acohen@acorninv.com`, Windows user `KimCohen`, branch
-`ava-updates`); `ruff` clean, `pytest` **353 green**, retrieval eval baseline **hit@1 0.897 /
-hit@3 1.0 / MRR 0.937, zero misses** (`tools/eval_results/2026-07-15_post_index_filter.json`). Every
-refactor/cleanup track is closed (see the table below). **Jared's instance is decommissioned — the
-dedicated server will be the ONLY instance.**
+**Current state — DEPLOYED & LIVE (server cutover completed 2026-07-20).** The dedicated Windows
+server (`ShawnArmstrong`) is the SOLE instance, running unattended: four scheduled tasks Ready under
+a **stored-password** principal, `DIGEST_UNATTENDED=1` machine-wide, Monday's production digest
+delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **362 green**,
+retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
+(`tools/eval_results/2026-07-15_post_index_filter.json`). Operator `acohen@acorninv.com`; **Jared's
+instance is decommissioned.**
 
-**The deploy is mid-flight → read `DEPLOY_PROGRESS.md` for the LIVE status and the exact resume
-steps.** In brief (2026-07-20, cutover morning): the server (Windows, user `ShawnArmstrong`) is
-staged on Python 3.12 with deps, transferred state, a new-OAuth-client `credentials.json`, and
-`env.bat`. The **interim dev runs are COMPLETE** (Thu 7/16 + Fri 7/17, both GREEN; dev state final
-through Friday). **Two gates before the server's validation run:** (1) the **Anthropic credit is
-exhausted** — top up first; (2) the **Google MFA lockout extended to 72h and has NOT cleared** —
-`token.json` therefore arrives via **Plan B** (copy the dev `credentials.json`+`token.json` pair
-over a non-email channel; see DEPLOY_PROGRESS step 3) rather than a fresh mint. Then: state
-re-sync → 13D recheck → manual run → `setup_tasks.ps1`, first automation the next weekday morning.
-The **operator's last work day is 2026-07-31**, so soak time is tight — resume promptly. Apply the
-**first-run watch list (`NEXT_STEPS_SPEC.md §5`)** to the first real server run (the memory budget
-now actively trims — `M of 73 active` is expected; the resolved-story re-creation ride-along and
-the Substack-via-email boundary both passed live on 7/17 but stay on watch).
+**Branch: work on `main`.** `ava-updates` existed only to keep refactor work off `main` while Jared
+ran production from `main`; that's retired, the server tracks `main`, so **`main` is now the
+working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
+be deleted at will.
+
+**What remains → read `DEPLOY_PROGRESS.md` first (the live resume doc).** The system is live; the
+remainder is post-deploy hardening that does NOT block it. The O4 backup **code is on `origin/main`
+(`1f8f72a`)** but the **Backup task is not yet registered on the server**, and one docs commit
+(`8066119`) is unpushed. Rollout: push `8066119` → `git pull` on the server → re-run
+`setup_tasks.ps1 -StoredPassword` to register the 5th **Backup** task (and, if the re-register
+stops it, restart ReplyMonitor — it also picks up the `-u` log fix) → run the O4 backup once
+on-demand and confirm it uploaded to OneDrive → hand `OPERATIONS.md` to jared → delete the dev
+`state_sync` zip. **Operator's last work day is 2026-07-31**, so finish the soak while a fixer
+still exists.
+
+**Key operational facts a fresh session needs (all detailed in WORKLOG 2026-07-20):**
+- **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box
+  silently refused to *launch* the tasks; `setup_tasks.ps1 -StoredPassword` (needs Shawn's Windows
+  password) is the working path. Re-register that way, never the bare S4U default.
+- **The server's Gmail token is the dev laptop's copied token pair (Plan B)** — the MFA lockout was
+  never resolved, just routed around; refresh-token auth works through it. MFA is team-owned (backup
+  codes in the vault; recovery phone = a teammate staying past 7/31).
+- **O4 backup = state-only `robocopy` into `%OneDriveCommercial%\DailyDigest-Backup`** (weekday
+  09:45), which OneDrive syncs off-box; works because the server is kept logged-in-and-locked.
+- **Live watches (`NEXT_STEPS_SPEC.md §5`):** memory active-count climbing (82 after the Monday run;
+  budget trims — `M of N` with M<N is expected); first 30-day aging batch ~7/30 is the decision
+  point on archival (operator still present); resolved-story re-creation + Substack-via-email
+  boundary both passed live but stay on watch.
 
 **Closed tracks (detail is in `WORKLOG.md` under the dated entry):**
 
