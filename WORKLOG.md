@@ -7,24 +7,28 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ## Current state (2026-07-21, first unattended run GREEN — the server is LIVE)
 
-**The §7.2 server deploy is COMPLETE and the first true automation cycle has passed.** The dedicated
-Windows box (`ShawnArmstrong`) is the sole instance, running unattended: all four scheduled tasks
-registered and Ready, the reply daemon polling. **Tue 7/21 08:00 MorningDigest fired unattended and
-delivered BOTH variants; the 09:00 Watchdog stayed silent (operator confirmed no "DIGEST MISSING"
-email in the bot inbox).** This was the first run with nobody driving — the whole point of the
-dedicated server — and it passed. Full 7/20 cutover sequence + the S4U finding in the entry below.
+**The §7.2 server deploy is COMPLETE, the first unattended cycle passed, and all post-deploy rollout
+is done.** The dedicated Windows box (`ShawnArmstrong`) is the sole instance, running unattended:
+**all five** scheduled tasks registered and Ready (incl. the O4 `Backup`), the reply daemon polling,
+the pass-2 changelog-leak fix deployed and verified live. **Tue 7/21 08:00 MorningDigest fired
+unattended and delivered BOTH variants; the 09:00 Watchdog stayed silent (operator confirmed no
+"DIGEST MISSING" email).** This was the first run with nobody driving — the whole point of the
+dedicated server — and it passed. Only the multi-day **soak** remains. *(The `DEPLOY_PROGRESS.md`
+live-resume doc was retired/deleted 2026-07-21 — deploy done; its content is folded into this block +
+the 7/20/21 entries and preserved in git history.)* Full 7/20 cutover sequence + the S4U finding below.
 
 **What's LIVE on the server:**
-- Code on `main` (through the `-StoredPassword` fallback + the `-u` reply-log fix; the O4 backup
-  code `1f8f72a` is on `origin` but the Backup task isn't registered on the box yet — see REMAINING);
-  state synced through Fri 7/17 (index 9,449→10,468 after the Monday run; memory 82 active).
+- Code on `main` at `df29a59` — includes the `-StoredPassword` fallback, the `-u` reply-log fix,
+  the O4 backup code, **and the pass-2 changelog-leak fix (verified live on the box)**; memory 87
+  active after the 7/21 run.
 - Secrets in place via Plan B (dev token pair copied — no interactive mint; MFA lockout never
   cleared and was routed around entirely). 13D session live (probe: no login redirect).
-- Four tasks under a **stored-password** principal (NOT S4U — see the finding below):
-  MorningDigest 08:00 / Watchdog 09:00 / MiddayAlert 13:00 / ReplyMonitor at startup.
-  `DIGEST_UNATTENDED=1` machine-wide.
-- Monday manual run GREEN, $2.03: both variants to production, WILTW cache hit, cross-variant
-  cache engaged, no "Team config missing", both memory stores updated.
+- **Five** tasks under a **stored-password** principal (NOT S4U — see the finding below):
+  MorningDigest 08:00 / Watchdog 09:00 / MiddayAlert 13:00 / **Backup 09:45** / ReplyMonitor at
+  startup. `DIGEST_UNATTENDED=1` machine-wide. First on-demand O4 backup ran clean (54.9 MB,
+  `FAIL=0`) into `%OneDriveCommercial%\DailyDigest-Backup`.
+- Monday manual run GREEN, $2.03; Tue 7/21 first unattended run GREEN (both variants, watchdog
+  silent), two-pass $0.88 team + $0.68 full.
 
 **BRANCH: work on `main` (2026-07-20).** `ava-updates` existed only to keep refactor work off
 `main` while Jared ran production from `main`; Jared's retired and the server tracks `main`, so
@@ -39,28 +43,34 @@ acohen, drill email arrived — failure-alert path works); O4 backup built (`run
 "Backups & restore" section. Repo confirmed NOT in OneDrive (no live-sync corruption, no secret
 auto-upload). `ruff` clean, `pytest` **362** green.
 
-**SERVER TODOs (2026-07-21):**
-1. ✅ **DONE — pulled the 7/21 run state off the server** (numbers backfilled into the 7/21 GREEN-run
-   entry below: memory **87 active / 8 resolved / 95 total**; two-pass $0.88 team + $0.68 full; the
-   pull also surfaced the pass-2 changelog-leak bug — fixed, see its entry below).
-2. **Register the O4 Backup task on the server — now ALSO deploys the pass-2 fix.** Once the operator
-   commits + pushes the fix (dev pushes; agent pushes blocked), one server session does both: `git
-   pull` on the server (brings the pass-2 fix + the O4 code `1f8f72a`) → re-run `setup_tasks.ps1
-   -StoredPassword` (registers the 5th **Backup** task; restart ReplyMonitor if the -Force
-   re-register stops it — it also picks up the `-u` log fix) → `Start-ScheduledTask … Backup` once
-   and confirm it actually **uploaded to OneDrive on the web** (the task confirms the local write,
-   not the cloud sync).
+**SERVER TODOs (2026-07-21) — ✅ BOTH DONE:**
+1. ✅ Pulled the 7/21 run state (numbers in the GREEN-run entry below: memory **87 active / 8
+   resolved / 95 total**; two-pass $0.88 team + $0.68 full). The pull surfaced the pass-2
+   changelog-leak bug — fixed, see its entry below.
+2. ✅ **Pass-2 fix DEPLOYED + O4 Backup task registered.** Operator committed + pushed the fix
+   (`df29a59`); server `git pull` (fast-forward), `_strip_to_html` verified live on the box
+   (stripped a synthetic changelog). `setup_tasks.ps1 -StoredPassword` (needed an **elevated**
+   window — a non-elevated run hit `Register-ScheduledTask: Access is denied`) registered all
+   **five** tasks incl. `Backup`; ReplyMonitor stayed `Running`. First on-demand Backup ran clean —
+   6-block robocopy `FAIL=0`, **54.9 MB** into `%OneDriveCommercial%\DailyDigest-Backup` (`archive`
+   incl. the index, `digests`, `logs`, all state JSONs). *(Note: the backup set also includes
+   `logs\` — benign, non-secret, useful history; slightly broader than the "state-only" phrasing in
+   the specs.)* Server has **no `ruff`/`pytest`** in its venv (dev-only deps, not in
+   `requirements.txt`) — so `check.bat` can't run there; validate server code by importing the
+   module directly.
 
-**REMAINING — post-deploy rollout (none blocks the live system):**
-1. **Push — DONE.** `origin/main` is at `3915ab3` (`8066119` O4 docs + the cold-start docs commit
-   are pushed). Server-side rollout of O4 is TODO #2 above.
-2. **Hand `OPERATIONS.md` to jared** — the three manual fixes + Gmail-Alerts note + Backups & restore.
-3. **Cleanups** — delete the dev-Desktop `state_sync_2026-07-20.zip`; delete/ignore the retired
-   `ava-updates` branch.
-4. **Soak** — once the server runs clean for a few days, mark/delete `DEPLOY_PROGRESS.md`.
+**REMAINING — post-deploy (none blocks the live system):**
+1. ✅ **Cleanups DONE (2026-07-21):** dev-Desktop `state_sync_2026-07-20.zip` → Recycle Bin;
+   local `ava-updates` branch deleted (`40f7afe` confirmed already in `main`). **`origin/ava-updates`
+   still exists remotely** — delete with `git push origin --delete ava-updates` (operator; agent
+   pushes blocked) or just ignore it.
+2. ✅ **`OPERATIONS.md` handed to jared** (operator-confirmed 2026-07-21).
+3. **Soak** — the free live confirmation of the pass-2 fix is the **Wed 7/22 08:00** run (team
+   digest should have no `**Changes made:**` block). `DEPLOY_PROGRESS.md` already retired/deleted
+   2026-07-21 (deploy done). Drop `acohen` from `DIGEST_TO_TEAM` at the 2026-07-31 departure.
 
-Live watches (`NEXT_STEPS_SPEC.md §5`): memory active-count climbing (73→82 after the Monday run;
-budget trims, rendered 59 of 73 — M<N expected); first natural 30-day aging batch ~7/30 is the
+Live watches (detail in `HANDOFF.md §11.B`): memory active-count climbing **73 → 82 → 87** (7/17 / 7/20 /
+7/21; budget trims, rendered 58 of 82 — M<N expected); first natural 30-day aging batch ~7/30 is the
 archival decision point (operator still present); resolved-story re-creation ride-along clean so far.
 
 ---
@@ -74,8 +84,7 @@ their own:
   `acorn.research.bot@gmail.com` inbox, i.e. the watchdog found `archive/2026-07-21/digest_sent_at.txt`
   fresh and correctly did nothing (silent success is the pass condition).
 
-This closes the `NEXT_STEPS_SPEC §5` cutover item "confirm the first unattended 08:00 run end-to-end"
-and the `DEPLOY_PROGRESS.md` "Tuesday 7/21 — first true automation" check.
+This closes the `NEXT_STEPS_SPEC §5` cutover item "confirm the first unattended 08:00 run end-to-end".
 
 **Live run numbers (pulled off the server 2026-07-21 — TODO #1 DONE):** server `memory.json` is
 `last_updated 2026-07-21`, **87 active / 8 resolved / 95 total**. Active-count trajectory
@@ -89,7 +98,7 @@ Post-run deltas: main `22 updated / 5 new / 0 resolved -> 87 active`; substack
 laptop's `memory.json` stays frozen at 7/17 — 73/8/81 — until O4 backups sync server state off-box.)
 
 **BUT the sent team digest carried a bug — see the next entry.** The pull also surfaced that pass 2
-leaked its edit changelog into the team variant's HTML; fixed on the dev laptop, pending deploy.
+leaked its edit changelog into the team variant's HTML; fixed, deployed, and verified live 2026-07-21.
 
 ---
 
@@ -126,10 +135,11 @@ leak, and a non-`</div>`-terminated template with trailing chatter (weekly-wrap 
 `pytest` **364** green (was 362). Verified against the real server byte pattern: output == the clean
 `</div>`-terminated doc, changelog gone, real bullets kept.
 
-**DEPLOY:** dev-laptop only so far — operator must **commit + push**, then the server `git pull` picks
-it up. That pull is the SAME step as server TODO #2 (register the O4 Backup task), so one server
-session lands both: `git pull` → `setup_tasks.ps1 -StoredPassword` → run Backup once + confirm the
-OneDrive upload. Until deployed, the leak can recur on any heavy-edit pass-2 run.
+**DEPLOY — ✅ DONE (2026-07-21):** committed + pushed (`df29a59`), pulled on the server, and
+`_strip_to_html` verified live on the box (stripped a synthetic changelog, returned the clean
+`</div>`-terminated HTML). Landed in the same server session as the O4 Backup registration. Free
+live confirmation is the Wed 7/22 08:00 run — the team digest should carry no `**Changes made:**`
+block.
 
 ---
 

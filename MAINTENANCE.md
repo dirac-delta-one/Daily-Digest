@@ -6,7 +6,8 @@
 > a fix, and how to change the code safely.
 >
 > **Read order for a cold start:** `HANDOFF.md` §1–§6 (state + constraints + do-NOT-touch) → this
-> file → `WORKLOG.md` (the full "why" behind any decision) → `NEXT_STEPS_SPEC.md §5` (deploy).
+> file → `WORKLOG.md` (the full "why" behind any decision; the executed deploy/cutover is the
+> 2026-07-20/21 entries).
 
 ---
 
@@ -168,7 +169,7 @@ running (e.g. the old machine wasn't decommissioned at cutover). Kill the extra.
 (`HANDOFF.md §11.B`). Slow → the FAISS index has grown; see the index-growth ladder (§5 below).
 
 **Memory anomalies.** If a "new" story is actually a resolved story restated (the resolved-story
-re-creation watch, `NEXT_STEPS_SPEC.md §5`), the revert lever is named in
+re-creation watch, `HANDOFF.md §11.B`), the revert lever is named in
 `memory._story_index_for_prompt`. If `memory.json` is ever corrupted, each `archive/<date>/`
 directory snapshots that day's `memory.json` / `substack_memory.json` for recovery — copy the last
 good one back.
@@ -187,9 +188,9 @@ loss). Harmless; no action.
 | Every few weeks (reactive) | Substack cookie — usually auto-renews; paste manually if the degradation alert fires. |
 | Weeks–months (reactive) | 13D re-login when the WILTW zero-streak alert fires. |
 | Monthly | Glance at the Anthropic credit balance; top up before it hits $0. |
-| When you touch the project | Add a few golden-set questions for new archive days, incl. cross-day ones (`NEXT_STEPS_SPEC.md §F3`) — the eval only stays meaningful if it compounds. |
+| When you touch the project | Add a few golden-set questions for new archive days, incl. cross-day ones — the eval only stays meaningful if it compounds. |
 | At ~30–50k index vectors, or when replies feel slow | Work the index-growth ladder: (1) vectorized subset scan ✅ done → (2) date-windowed retrieval default → (3) prune old days from the live index → (4) IVF. Detail in `HANDOFF.md §5`. |
-| Continuous (automatic) since 2026-07-20 | **O4 off-box backup** — `run_backup.bat` (Backup task, weekdays 09:45) robocopies state-only into `%OneDriveCommercial%\DailyDigest-Backup`, synced off-box by OneDrive. Just watch for a "backup FAILED" alert; glance at the OneDrive web folder every few weeks to confirm it's actually uploading. Restore steps in `OPERATIONS.md` → "Backups & restore". |
+| Continuous (automatic) since 2026-07-21 | **O4 off-box backup** — `run_backup.bat` (Backup task, weekdays 09:45) robocopies state-only into `%OneDriveCommercial%\DailyDigest-Backup`, synced off-box by OneDrive. Just watch for a "backup FAILED" alert; glance at the OneDrive web folder every few weeks to confirm it's actually uploading. Restore steps in `OPERATIONS.md` → "Backups & restore". *(Re-registering the task needs an **elevated** `setup_tasks.ps1 -StoredPassword` — a non-elevated run fails with `Register-ScheduledTask: Access is denied`.)* |
 
 ---
 

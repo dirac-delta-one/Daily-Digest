@@ -5,11 +5,14 @@
 > intentional and battle-tested — treat them as constraints, not bugs.
 >
 > **Companion docs:** `WORKLOG.md` = the full dated narrative of every change ever made and why
-> (the archive — start here for the *why* behind anything below). `NEXT_STEPS_SPEC.md` = the
-> forward roadmap + the server-deploy/cutover checklist (§5). **`DEPLOY_PROGRESS.md` = the LIVE
-> server-deploy status + resume steps — read it first while the deploy is mid-flight.**
-> `OPERATIONS.md` = the jared-facing runbook. Completed-track specs (`CLEANUP_SPEC.md`, `CLEANUP_REFACTOR_SPEC.md`,
-> `TEAM_DIGEST_SPEC.md`) remain for reference. This file was condensed 2026-07-15 (F22 pass);
+> (the archive — start here for the *why* behind anything below). `OPERATIONS.md` = the jared-facing
+> runbook; `MAINTENANCE.md` = the developer keep-it-running guide.
+> *(Retired/deleted 2026-07-21, once the deploy finished, to keep the doc set lean — all preserved in
+> git history: `DEPLOY_PROGRESS.md` (live cutover-resume doc → folded into §1 + WORKLOG 07-20/21);
+> `NEXT_STEPS_SPEC.md` (the forward roadmap + deploy/cutover checklist — every track done, the deploy
+> executed; live watch items → §1/§11.B, deploy record → WORKLOG 07-20/21); and the completed-track
+> specs `CLEANUP_SPEC.md` / `CLEANUP_REFACTOR_SPEC.md` / `TEAM_DIGEST_SPEC.md` → intent distilled in
+> §1 "Retired specs" + §1a + §9.)* This file was condensed 2026-07-15 (F22 pass);
 > the pre-condensation version with all superseded/DONE narrative is in git history.
 
 ---
@@ -38,21 +41,19 @@ ran production from `main`; that's retired, the server tracks `main`, so **`main
 working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
 be deleted at will.
 
-**What remains → read `DEPLOY_PROGRESS.md` first (the live resume doc).** The system is live and the
-**first unattended run passed (Tue 2026-07-21: 08:00 delivered both variants, 09:00 watchdog silent
-— operator-confirmed)**; the remainder is post-deploy hardening that does NOT block it. Git: the docs
-are **pushed** (`origin/main` @ `3915ab3`, working tree clean). The O4 backup **code is on `origin`
-(`1f8f72a`)** but the **Backup task is not yet registered on the server**. **Server TODOs:** (1) ✅ pulled the 7/21
-run state — live memory **87 active / 8 resolved / 95 total** (trajectory 73→82→87; dev laptop stays
-frozen at 7/17); the pull also surfaced a bug — **pass 2 leaked its markdown edit-changelog into the
-sent 7/21 TEAM digest**, now FIXED on the dev laptop (prompt + hardened `_strip_to_html`; `pytest`
-**364** green; WORKLOG 2026-07-21) but **pending commit + push + deploy**. (2) register the Backup
-task, which now ALSO deploys that fix: **commit + push the fix** → `git pull` on the server → re-run
-`setup_tasks.ps1 -StoredPassword` to register the 5th **Backup** task (and, if the re-register stops
-it, restart ReplyMonitor — it also picks up the `-u` log fix) → run the O4 backup once on-demand and
-confirm it uploaded to OneDrive. Then: hand `OPERATIONS.md` to jared → delete the dev `state_sync`
-zip → soak. **Operator's last work day is 2026-07-31**, so finish the soak while a fixer still
-exists.
+**What remains → only the multi-day SOAK.** The system
+is live, the **first unattended run passed (Tue 2026-07-21: both variants, watchdog silent)**, and
+all post-deploy rollout is DONE (2026-07-21): server on `main` @ `df29a59`;
+the O4 **Backup** task is registered (5 tasks; first backup ran clean, 54.9 MB → OneDrive); the
+**pass-2 changelog-leak fix is deployed + verified live** (a heavy-edit pass 2 had leaked its markdown
+"Changes made:" block into the sent 7/21 TEAM digest — prompt + hardened `_strip_to_html`, `pytest`
+**364** green, WORKLOG 2026-07-21); `OPERATIONS.md` is handed to jared; cleanups done (dev
+`state_sync` zip → Recycle Bin; local `ava-updates` deleted — `origin/ava-updates` still remote,
+delete-or-ignore). Live memory **87 active / 8 resolved / 95 total** (trajectory 73→82→87; dev laptop
+stays frozen at 7/17). **Soak:** confirm the Wed 7/22 08:00 run is clean (team digest carries no
+`**Changes made:**` block = the fix's free live check). Drop
+`acohen` from `DIGEST_TO_TEAM` at the **2026-07-31** departure. Finish the soak while a fixer still
+exists. *(The `DEPLOY_PROGRESS.md` tracking doc was deleted 2026-07-21 — deploy done.)*
 
 **Key operational facts a fresh session needs (all detailed in WORKLOG 2026-07-20):**
 - **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box
@@ -63,7 +64,7 @@ exists.
   codes in the vault; recovery phone = a teammate staying past 7/31).
 - **O4 backup = state-only `robocopy` into `%OneDriveCommercial%\DailyDigest-Backup`** (weekday
   09:45), which OneDrive syncs off-box; works because the server is kept logged-in-and-locked.
-- **Live watches (`NEXT_STEPS_SPEC.md §5`):** memory active-count climbing (82 after the Monday run;
+- **Live watches (detail in §11.B):** memory active-count climbing (73→82→87 across 7/17/20/21;
   budget trims — `M of N` with M<N is expected); first 30-day aging batch ~7/30 is the decision
   point on archival (operator still present); resolved-story re-creation + Substack-via-email
   boundary both passed live but stay on watch.
@@ -86,6 +87,25 @@ exists.
 | `TEAM_DIGEST_SPEC` — dual FULL/TEAM variants | Built + activated (pilot: acohen) | 2026-07-13 |
 | Forwarding-visibility fix (read + attribute forwarded senders) + F3 golden-set refresh (26→29 Q) | Shipped, live-validated | 2026-07-14 |
 | Second-pass cleanup (`CLEANUP_SPEC`, 5 stages; tests 307→336; chunk_id dupes→0; TEAM leak guard code-enforced; @acorninv.com-only receiving) | Done, $0 spend | 2026-07-14/15 |
+
+**Retired specs — intent & deliverables folded in here (files deleted 2026-07-21; full text in git
+history).** All three were completed-and-committed spec docs kept "for reference"; their content is
+captured above (closed-tracks table + §9 + §1a) and distilled here so nothing depends on the files:
+- **`CLEANUP_REFACTOR_SPEC.md`** — the 2026-07-10 full-codebase review, 9 stages (Phases 0–3:
+  dead-code removal e.g. the write-only FRED/market caches, correctness/HTML-escaping, quality/cost,
+  tests/consolidation). Behavior-neutral; `pytest` 180→227; pypdf eval metric-identical; $0 Claude.
+  Excluded HANDOFF §6 do-NOT-fix items and `_assemble_digest_html`'s string-match (pinned, not
+  changed). Superseded detail lives in §9 + WORKLOG 2026-06-19→07-10.
+- **`TEAM_DIGEST_SPEC.md`** — the dual FULL/TEAM variant work (Substack = jared-personal; team gets a
+  Substack-free digest that is the indexed one; per-variant alert-window carve; cross-variant prompt
+  cache; TEAM_ACTIVATION_DATE guard). Built + activated 2026-07-13. **Full living description is
+  §1a** — that section is authoritative, not this bullet.
+- **`CLEANUP_SPEC.md`** — the 2026-07-14 second-pass review, 5 stages (chunk_id dedup 208→0, memory
+  budget guard, index-side self-artifact filter, Substack-via-email boundary, `check.bat` QoL) +
+  the deploy/cutover checklist (was `NEXT_STEPS_SPEC §5`, also retired — deploy record in WORKLOG
+  07-20/21) + the OPERATIONS runbook. `pytest`
+  307→336; eval improved to 0.897/1.0/0.937 zero misses; $0 Claude. Declined items (F7/F8/F9/F10/F11,
+  type-hints, CI) are recorded in §11.C. Detail in WORKLOG 2026-07-14/15.
 
 **Module convention:** nearly every source module exposes `fetch_X()` (gather),
 `format_X_for_prompt()` (text for the Opus prompt), and `build_X_html()` (pre-rendered HTML
@@ -257,9 +277,10 @@ optional end-state flip to the bot is his call (§13). Full history in WORKLOG.
 
 ### 7.2 Dedicated Windows server (the end goal — the remaining work)
 
-**The server EXISTS and is workable** (operator). Deploy = pure configuration on the box; the
-step-by-step is **`NEXT_STEPS_SPEC.md §5`** (execute that). Requirements this section defines and
-the §5 checklist implements:
+**The server is DEPLOYED and LIVE** (cutover 2026-07-20; see §1). The executed deploy/cutover
+step-by-step was `NEXT_STEPS_SPEC §5` (retired 2026-07-21 — in git history; the deploy narrative is
+in WORKLOG 07-20/21). For a rebuild, README (setup + scheduling) + MAINTENANCE §2 (secrets) +
+OPERATIONS "Backups & restore" are the path. Requirements the deploy implemented:
 
 1. **Always-on + headless:** stays powered, awake (no sleep/hibernate), survives reboots. The reply
    monitor is a continuous process — an always-on server is what makes it reliable.
@@ -388,7 +409,8 @@ What remains is only what a future session might still act on.)*
   chars / M of K active" log line. Revert lever named in `memory._story_index_for_prompt`. The
   ~90-day archive-to-side-file idea stays available if the *store* itself ever needs shrinking.
 - **Parked retrieval mechanisms (rerank / hybrid)** — see §6. Re-test kit: `tools/eval_retrieval.py`
-  + `tools/eval_golden.json` (29 questions; grow per `NEXT_STEPS_SPEC.md §F3` as archive days accrue).
+  + `tools/eval_golden.json` (29 questions; grow the golden set as archive days accrue —
+  cadence in `MAINTENANCE.md §5`).
 
 ### C. Declined at the 2026-07-15 second-pass review (recorded so they aren't re-derived)
 - **F7 weekly-wrap token diet** (~$35/yr EV): DEFERRED — quantify first with the free `count_tokens`

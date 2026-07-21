@@ -160,12 +160,10 @@ Account-bound — must exist on the machine; copy from a working install or rege
 |---|---|---|
 | `README.md` | anyone | this file — what it is, setup, scheduling |
 | `HANDOFF.md` | developer | current state, constraints, "do NOT touch," risks, remaining work |
-| `NEXT_STEPS_SPEC.md` | developer | forward roadmap + the **server deploy & cutover checklist** (§5) |
 | `MAINTENANCE.md` | developer | keeping it running: secrets, rotation, failure cases & fixes |
 | `OPERATIONS.md` | operator (non-technical) | what each email means + the three manual fixes |
 | `WORKLOG.md` | developer | the full dated history of every change and why |
-| `ava_refactor.md` | owner | summary of what the refactor delivered, with metrics |
 
 **Project status:** DEPLOYED & LIVE — running unattended on the dedicated Windows server since
-2026-07-20 (see `DEPLOY_PROGRESS.md`). Work happens on the `main` branch. Remaining work is
-post-deploy hardening/handoff only.
+2026-07-20; first unattended run GREEN 2026-07-21, and all post-deploy rollout (O4 backups, operator
+handoff, cleanups) is done. Work happens on the `main` branch. Only a multi-day soak remains.

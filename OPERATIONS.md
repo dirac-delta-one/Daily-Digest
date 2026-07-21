@@ -2,8 +2,8 @@
 
 > For the person who receives the alerts (jared) — no code knowledge assumed.
 > One page: what each email means and the three manual fixes you may ever need.
-> Written 2026-07-15 ahead of the server handoff (CLEANUP_SPEC 5.2); the
-> technical companion docs are HANDOFF.md / CLEANUP_SPEC.md (for a developer).
+> Written 2026-07-15 ahead of the server handoff; the technical companion
+> docs are HANDOFF.md / WORKLOG.md (for a developer).
 
 ## What runs, when (Windows Task Scheduler, folder `\DailyDigest\`)
 
@@ -94,9 +94,9 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
 digest) a scheduled task (`Backup`) copies the system's DATA to OneDrive — into
 `…\OneDrive - Acorn Investment\DailyDigest-Backup\`. It copies the things that
 can't be recreated: `archive\` (every day's gathered source material), `digests\`
-(the sent digests), the memory files (the evolving storylines), the caches, and
-the search index. It deliberately does **not** copy any passwords, keys, or
-logins — those never leave the server.
+(the sent digests), the memory files (the evolving storylines), the caches, the
+search index, and the run `logs\`. It deliberately does **not** copy any
+passwords, keys, or logins — those never leave the server.
 
 **How it gets off the server.** The task just copies the files into the OneDrive
 folder on the machine; **OneDrive then uploads them to Acorn's cloud on its own**,
