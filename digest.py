@@ -95,8 +95,8 @@ def _recipients_from_env(var, default):
 
 
 # Recipients default to production (jared); override with the DIGEST_TO env var
-# (e.g. set DIGEST_TO=acohen@acorninv.com on a test machine). midday.py and
-# reply_monitor.py import this, so the override applies there too. This is the
+# (e.g. set DIGEST_TO=acohen@acorninv.com on a test machine). reply_monitor.py
+# imports this, so the override applies there too. This is the
 # FULL variant's audience (Substack included) — TEAM_DIGEST_SPEC Stage 1.
 # Receiving-side policy (operator, 2026-07-14): recipients are @acorninv.com
 # addresses ONLY. The bot was removed as its own recipient (CLEANUP_SPEC 2.5):
@@ -122,7 +122,7 @@ CLAUDE_MODEL = OPUS_MODEL
 
 # BOT_ADDRESS + the self-mail detector moved to config.py (2026-07-15) so the
 # INDEXER can share them (search.py can't import digest — circular). The
-# private alias keeps the existing callers (midday) and tests unchanged.
+# private alias keeps the existing callers and tests unchanged.
 _is_self_artifact = is_self_artifact
 
 # Paths (relative to this script)
@@ -681,7 +681,7 @@ def _strip_to_html(text):
     the last HTML closing tag, dropping any trailing chatter. A naive "cut at
     the last '>'" is unsafe — changelog prose can contain '>' (e.g. the real
     leak's "Japan >$180B repatriation"); matching the last closing tag avoids
-    that. Used by digest pass 2 and the weekly summary; midday has its own copy."""
+    that. Used by digest pass 2 and the weekly summary."""
     start = text.find("<div")
     if start < 0:
         return text
@@ -732,7 +732,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     # prompt prefix. Drop them here; because BOTH variants filter identically the
     # cached prefix stays byte-identical, and the FULL variant still gets Substack
     # via the scraped substack_block. (Their index chunks are tagged "substack" in
-    # search._chunks_for_date; midday drops them too.)
+    # search._chunks_for_date.)
     shared_emails = [
         e for e in emails
         if not is_substack_email(e.get("effective_from"), e.get("from"))
@@ -1622,7 +1622,8 @@ def main():
     except Exception as e:
         print(f"PACER seen-state commit failed: {e} — continuing.")
 
-    # --- Save timestamp for midday.py ---
+    # --- Completion marker: the O2 watchdog (run_alert --check-completed) reads
+    # archive/<today>/digest_sent_at.txt to tell a hung/missing run from a done one ---
     try:
         today_dir = DIGESTS_DIR.parent / "archive" / datetime.date.today().isoformat()
         today_dir.mkdir(parents=True, exist_ok=True)

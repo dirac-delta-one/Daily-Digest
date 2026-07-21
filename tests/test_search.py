@@ -410,7 +410,7 @@ def test_email_self_artifacts_not_indexed(tmp_path, monkeypatch):
          "subject": "RE: [FULL] \U0001f4ec Daily Inbox Digest — Monday, July 13",
          "body": body},
         {"from": "Acorn Research Bot <acorn.research.bot@gmail.com>",
-         "subject": "\U0001f6a8 Midday Alert — something", "body": body},
+         "subject": "\U0001f6a8 Daily Digest run FAILED — something", "body": body},
         {"from": "Broker Desk <desk@stifel.com>",
          "subject": "FW: New Issue Flash", "body": body},
     ])

@@ -3,7 +3,7 @@
 Per-run Claude cost accounting (Phase A1).
 
 A small module-level accumulator: every Claude call site records its token usage
-via record(), and the entry points (digest, midday, reply_monitor) print a
+via record(), and the entry points (digest, reply_monitor) print a
 per-run total via summary(). Previously only the two Opus digest passes were
 priced, so the reported cost understated the real per-run spend (memory, alerts,
 13D, and the Sonnet/Haiku ranker calls were uncounted). Prices live in config.py.

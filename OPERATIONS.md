@@ -11,7 +11,7 @@
 |---|---|---|
 | MorningDigest | Mon–Fri 08:00 | Builds + emails the Daily Research Digest (your FULL version and the team version) |
 | Watchdog | Mon–Fri 09:00 | Emails an alert if the morning digest never completed |
-| MiddayAlert | Mon–Fri 13:00 | Emails ONLY if something material broke since the morning (silent most days) |
+| Backup | Mon–Fri 09:45 | Copies the day's data off-box to OneDrive (see "Backups & restore" below) |
 | ReplyMonitor | at startup, always on | Answers questions you email as replies to a digest |
 
 To check they're registered/running (PowerShell):

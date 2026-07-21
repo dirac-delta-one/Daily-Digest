@@ -36,8 +36,8 @@ BOT_ADDRESS = "acorn.research.bot@gmail.com"
 
 def is_self_artifact(sender, subject):
     """True for mail the system itself produced — or replies to it (CLEANUP_SPEC
-    2.5 + the 2026-07-15 index-side follow-up). Two consumers: digest/midday
-    skip such mail at FETCH time (the bot's own inbox is the digest's source),
+    2.5 + the 2026-07-15 index-side follow-up). Two consumers: the digest
+    skips such mail at FETCH time (the bot's own inbox is the digest's source),
     and search._chunks_for_date skips it at INDEX time — defense in depth that
     also cleans days archived before the fetch guard existed (the observed
     case: two replies-to-digests ingested 2026-07-14, one quoting the FULL
@@ -59,9 +59,8 @@ def is_self_artifact(sender, subject):
 # its index, and team-tier reply retrieval (observed 2026-07-15: PETITION's Serta
 # Simmons analysis in apain's team digest). Treated as Substack everywhere the
 # boundary is enforced: excluded from the shared/team prompt prefix
-# (digest.summarize_with_claude), tagged source_type="substack" at index time
-# (search._chunks_for_date), and dropped from the midday alert (midday reaches
-# team recipients too). Forwarded ones carry the substack address in
+# (digest.summarize_with_claude) and tagged source_type="substack" at index
+# time (search._chunks_for_date). Forwarded ones carry the substack address in
 # effective_from, so both headers are checked.
 # NOTE: custom-domain pubs that email from their OWN domain (not *.substack.com)
 # are NOT caught here — add domains below if any are ever observed.

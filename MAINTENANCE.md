@@ -13,16 +13,16 @@
 
 ## 1. Mental model in 60 seconds
 
-Four entry points, all Python, all scheduled via `run_*.bat` wrappers → Task Scheduler:
+Three entry points, all Python, all scheduled via `run_*.bat` wrappers → Task Scheduler:
 
 - `digest.py` — the morning job. Fetches ~17 sources, builds a 2-pass Opus prompt, generates a
   **full** and a **team** digest, emails both, archives raw content, indexes it into FAISS, updates
   memory, and (Fridays) sends a weekly wrap.
-- `midday.py` — intraday materiality check (Sonnet); emails only if warranted.
 - `reply_monitor.py` — long-running daemon; answers emailed replies to digests via RAG over the
   archive.
 - `run_alert.py` — invoked by the wrappers on nonzero exit (failure alert) and by the 9 AM watchdog
-  (`--check-completed`); deliberately self-contained (imports nothing that could have failed).
+  (`--check-completed`); deliberately self-contained (imports nothing that could have failed). Also
+  drives the weekday `Backup` task's off-box copy alerting.
 
 **Where state lives:** `archive/<date>/` (raw content per run) + `archive/index.faiss` +
 `archive/chunk_metadata.json` (the search index); `memory.json` / `substack_memory.json` (evolving

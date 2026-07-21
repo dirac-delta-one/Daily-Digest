@@ -9,8 +9,9 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 **The §7.2 server deploy is COMPLETE, the first unattended cycle passed, and all post-deploy rollout
 is done.** The dedicated Windows box (`ShawnArmstrong`) is the sole instance, running unattended:
-**all five** scheduled tasks registered and Ready (incl. the O4 `Backup`), the reply daemon polling,
-the pass-2 changelog-leak fix deployed and verified live. **Tue 7/21 08:00 MorningDigest fired
+**four** scheduled tasks registered and Ready (MorningDigest / Watchdog / Backup / ReplyMonitor —
+MiddayAlert was removed 2026-07-21), the reply daemon polling, the pass-2 changelog-leak fix deployed
+and verified live. **Tue 7/21 08:00 MorningDigest fired
 unattended and delivered BOTH variants; the 09:00 Watchdog stayed silent (operator confirmed no
 "DIGEST MISSING" email).** This was the first run with nobody driving — the whole point of the
 dedicated server — and it passed. Only the multi-day **soak** remains. *(The `DEPLOY_PROGRESS.md`
@@ -23,10 +24,10 @@ the 7/20/21 entries and preserved in git history.)* Full 7/20 cutover sequence +
   active after the 7/21 run.
 - Secrets in place via Plan B (dev token pair copied — no interactive mint; MFA lockout never
   cleared and was routed around entirely). 13D session live (probe: no login redirect).
-- **Five** tasks under a **stored-password** principal (NOT S4U — see the finding below):
-  MorningDigest 08:00 / Watchdog 09:00 / MiddayAlert 13:00 / **Backup 09:45** / ReplyMonitor at
-  startup. `DIGEST_UNATTENDED=1` machine-wide. First on-demand O4 backup ran clean (54.9 MB,
-  `FAIL=0`) into `%OneDriveCommercial%\DailyDigest-Backup`.
+- **Four** tasks under a **stored-password** principal (NOT S4U — see the finding below):
+  MorningDigest 08:00 / Watchdog 09:00 / **Backup 09:45** / ReplyMonitor at startup
+  (MiddayAlert 13:00 was removed 2026-07-21 — see that entry). `DIGEST_UNATTENDED=1` machine-wide.
+  First on-demand O4 backup ran clean (54.9 MB, `FAIL=0`) into `%OneDriveCommercial%\DailyDigest-Backup`.
 - Monday manual run GREEN, $2.03; Tue 7/21 first unattended run GREEN (both variants, watchdog
   silent), two-pass $0.88 team + $0.68 full.
 
@@ -72,6 +73,60 @@ auto-upload). `ruff` clean, `pytest` **362** green.
 Live watches (detail in `HANDOFF.md §11.B`): memory active-count climbing **73 → 82 → 87** (7/17 / 7/20 /
 7/21; budget trims, rendered 58 of 82 — M<N expected); first natural 30-day aging batch ~7/30 is the
 archival decision point (operator still present); resolved-story re-creation ride-along clean so far.
+
+---
+
+## Removed the midday alert entirely (2026-07-21)
+
+Operator decision — "no one wants it." Deleted the whole feature: `midday.py`, `run_midday.bat`,
+`tests/test_midday.py`, and the `MiddayAlert` 13:00 task from `setup_tasks.ps1`. Nothing in
+production code imported midday (only tests did), so it was a clean leaf removal. Also: dropped
+`midday` from `run_alert.py`'s valid labels; scrubbed midday mentions from `config.py` / `cost.py` /
+`digest.py` comments; retargeted two tests off the `midday` label (`test_run_alert` →
+`backup`/`reply_monitor`, `test_search` self-artifact fixture → a failure-alert subject); removed the
+one midday test in `test_team_digest`. Forward-facing docs updated (README / HANDOFF / MAINTENANCE /
+OPERATIONS) — the README + OPERATIONS task tables also gained the previously-missing **`Backup`** row
+in the process. Historical WORKLOG midday mentions left as-is (dated record; module in git history).
+
+Kept: `archive/<today>/digest_sent_at.txt` — the O2 watchdog reads it (its comment was midday-flavored,
+now corrected). Task count **5 → 4** (MorningDigest / Watchdog / Backup / ReplyMonitor). `ruff` clean,
+`pytest` 364 → **357** (7 midday tests gone). **$0 — no Claude.**
+
+**SERVER ACTION REQUIRED** (a `git pull` alone does NOT deregister it): `setup_tasks.ps1` only
+adds/updates tasks, so the `MiddayAlert` task stays REGISTERED on the box until removed by hand.
+After pulling, run once (elevated): `Unregister-ScheduledTask -TaskPath "\DailyDigest\" -TaskName
+MiddayAlert -Confirm:$false`. (Otherwise it fires at 13:00, fails to find the now-deleted
+`run_midday.bat`, and dies silently — harmless but untidy.)
+
+---
+
+## Post-deploy tidy-ups — doc prune + snapshot-footnote cleanup (2026-07-21)
+
+Two small post-deploy cleanups after the first unattended run; both **$0 (no Claude)**, committed +
+pushed + pulled on the server.
+
+**1. Doc set pruned to 5 core docs (commit `435cb15`; `ava_refactor.md` deleted by the operator).**
+Retired/deleted — all preserved in git history, intent folded into HANDOFF: `DEPLOY_PROGRESS.md`
+(cutover-resume doc, job done → §1 + the 07-20/21 entries); `NEXT_STEPS_SPEC.md` (roadmap all ✅ +
+deploy executed; live watch items → §1 / §11.B; deploy record → these WORKLOG entries); the
+completed-track specs `CLEANUP_SPEC` / `CLEANUP_REFACTOR_SPEC` / `TEAM_DIGEST_SPEC` (→ §1 "Retired
+specs" + §1a + §9); and `ava_refactor.md`. All cross-references rewired to tombstone notes — no
+dangling forward pointers (only dated historical WORKLOG mentions remain, which is correct). **Live
+doc set: README, HANDOFF, MAINTENANCE, OPERATIONS, WORKLOG.**
+
+**2. Snapshot table source footnotes collapsed (commit `0fba811`).** The footnotes under the Snapshot
+tables (`market_data._build_yahoo_table`, `macro_data._build_fred_table`) grouped tickers by each
+instrument's own `as_of` date and enumerated raw symbols, so whenever timestamps diverged (common —
+different exchanges/time zones/staleness) the line fragmented into ticker soup, e.g. `Yahoo Finance:
+^GSPC ^VIX, as of 2026-07-21 | Yahoo Finance: DX-Y.NYB, as of 2026-07-20 | FRED: DGS20 (2026-07-18)`.
+Collapsed to a single `Source: <sources>, as of <latest date>` (rows already name each instrument).
+Sources precede the date; the Corporate Credit table's OAS **definition** trails as a note *after* the
+date (operator chose "option B"): `Source: FRED · Yahoo Finance, as of <date> · OAS = ICE BofA index
+option-adjusted spreads; Portfolio OAS rows = fund-reported (ishares.com)`. `_build_fred_table` gained
+a `note_suffix` param to separate source-before-date from definition-after-date. **Deterministic
+formatting only** — no SYSTEM_PROMPT, no LLM path, no runtime behavior change. `ruff` clean, `pytest`
+**364** (`test_market_macro` pins the new format); previewed live via a snapshot-only test email to
+acohen ($0).
 
 ---
 

@@ -16,7 +16,7 @@ registered — none of which `schtasks` can do:
     daemon, which is supposed to run forever.
 
 Tasks: MorningDigest 08:00, Watchdog 09:00 (O2: run_alert --check-completed),
-MiddayAlert 13:00 (all Mon-Fri), ReplyMonitor at startup.
+Backup 09:45 (all Mon-Fri), ReplyMonitor at startup.
 
 Also sets DIGEST_UNATTENDED=1 machine-wide (F1a-1) so a dead Gmail token
 fails fast instead of hanging on a browser consent.
@@ -84,9 +84,6 @@ $tasks = @(
        Settings = $runOnceSettings },
     @{ Name = "Watchdog"; Bat = "run_watchdog.bat"
        Trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $weekdays -At 09:00
-       Settings = $runOnceSettings },
-    @{ Name = "MiddayAlert"; Bat = "run_midday.bat"
-       Trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $weekdays -At 13:00
        Settings = $runOnceSettings },
     # O4 off-box backup (2026-07-20): 09:45, after the 08:00 digest has written the
     # day's state. Copies STATE ONLY into a OneDrive subfolder (run_backup.bat) -> off-box.

@@ -4,7 +4,7 @@ Run-failure alert (the first slice of §7.2 observability).
 
 The run_*.bat wrappers invoke this when their python entry point exits nonzero:
 
-    run_alert.py <label> [--test]     # label: digest | midday | reply_monitor
+    run_alert.py <label> [--test]     # label: digest | reply_monitor | backup
 
 It emails the digest recipients a short failure notice with the tail of the
 relevant log (logs/<label>.log), so unattended failures aren't silent.
@@ -147,9 +147,9 @@ def check_completed(label, test=False):
     Register-ScheduledTask, F1a #2): it checks the completion marker the
     digest writes after a successful send and alerts if it's absent.
 
-    Only `digest` has a completion artifact (archive/<today>/digest_sent_at.txt);
-    midday is silent-by-design most days and can't be watchdogged this way.
-    `--test` sends the alert regardless, marked as a drill.
+    Only `digest` has a completion artifact (archive/<today>/digest_sent_at.txt),
+    so only it can be watchdogged this way. `--test` sends the alert regardless,
+    marked as a drill.
 
     Returns 0 if completed (or the drill/alert was sent), 1 if an alert was
     needed but could not be sent, 2 on a label without a completion marker.
@@ -187,8 +187,8 @@ def check_completed(label, test=False):
 
 def main():
     label = next((a for a in sys.argv[1:] if not a.startswith("--")), "digest")
-    if label not in ("digest", "midday", "reply_monitor", "backup"):
-        print(f"Unknown label '{label}' — expected digest | midday | reply_monitor | backup")
+    if label not in ("digest", "reply_monitor", "backup"):
+        print(f"Unknown label '{label}' — expected digest | reply_monitor | backup")
         return 2
 
     if "--check-completed" in sys.argv:

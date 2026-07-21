@@ -30,8 +30,9 @@ FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 
 **Current state — DEPLOYED & LIVE (server cutover completed 2026-07-20).** The dedicated Windows
 server (`ShawnArmstrong`) is the SOLE instance, running unattended: four scheduled tasks Ready under
-a **stored-password** principal, `DIGEST_UNATTENDED=1` machine-wide, Monday's production digest
-delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **362 green**,
+a **stored-password** principal (MorningDigest 08:00 / Watchdog 09:00 / Backup 09:45 / ReplyMonitor;
+the MiddayAlert task was removed 2026-07-21), `DIGEST_UNATTENDED=1` machine-wide, production digests
+delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **357 green**,
 retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
 (`tools/eval_results/2026-07-15_post_index_filter.json`). Operator `acohen@acorninv.com`; **Jared's
 instance is decommissioned.**
@@ -44,7 +45,8 @@ be deleted at will.
 **What remains → only the multi-day SOAK.** The system
 is live, the **first unattended run passed (Tue 2026-07-21: both variants, watchdog silent)**, and
 all post-deploy rollout is DONE (2026-07-21): server on `main` @ `df29a59`;
-the O4 **Backup** task is registered (5 tasks; first backup ran clean, 54.9 MB → OneDrive); the
+the O4 **Backup** task is registered (4 tasks after the 2026-07-21 MiddayAlert removal; first backup
+ran clean, 54.9 MB → OneDrive); the
 **pass-2 changelog-leak fix is deployed + verified live** (a heavy-edit pass 2 had leaked its markdown
 "Changes made:" block into the sent 7/21 TEAM digest — prompt + hardened `_strip_to_html`, `pytest`
 **364** green, WORKLOG 2026-07-21); `OPERATIONS.md` is handed to jared; cleanups done (dev
@@ -141,7 +143,7 @@ if the team variant is ever deliberately retired).
   never to the config recipients (jared's addresses) during testing.
 - **External tooling falls into three cost tiers — know which before testing:**
   - **Pay-per-query (the only real per-call cost): the Anthropic/Claude API.** Token-billed across
-    the 2-pass Opus digest, Haiku (news ranking), Sonnet (PACER size-filter, midday, reply
+    the 2-pass Opus digest, Haiku (news ranking), Sonnet (PACER size-filter, reply
     query-extract, memory), and Opus (13D summary, alerts, reply answers, Friday weekly summary).
     **Ask explicit permission before any test that calls Claude**, run once on a small input, and
     never loop the full digest. *(Standing exception, operator 2026-07-14: $0 `count_tokens` calls
@@ -174,8 +176,6 @@ if the team variant is ever deliberately retired).
   chunks, and feeds them to Opus.
 - **Reply monitor:** `reply_monitor.py`, a long-running poller that answers email replies to
   digests via RAG over the archive (asker-tiered — see §1a).
-- **Midday alert:** `midday.py`, an intraday materiality check (Sonnet) that emails only if
-  something important broke since the morning digest.
 
 ---
 
@@ -189,7 +189,6 @@ if the team variant is ever deliberately retired).
 | `search.py` | FAISS index + chunking + embeddings + hybrid/rerank (both param-gated, parked). CLI: `--rebuild`, `--index <date>`, `--retag`. |
 | `memory.py` | v2 story-timeline cross-digest memory + substack memory + reply-bot story router. |
 | `reply_monitor.py` | Email-reply RAG bot; asker-tiered (config-driven allow-list); `--once` mode + `while True` daemon. |
-| `midday.py` | Intraday materiality alert (Sonnet). Imports from `digest.py`. |
 | `alerts.py`, `archive.py`, `cost.py`, `claude_utils.py`, `content_monitor.py`, `run_alert.py` | Plain-English alerts; raw-content archiver; per-run cost accounting; JSON/structured-output helpers; O3 source-count degradation monitor; failure-alert + O2 completion watchdog. |
 | Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
 | `net_utils.py`, `feeds.py`, `html_utils.py` | Shared EDGAR fetch + unverified-SSL context; RSS feed/date/recency helpers; HTML strippers + Gmail body extractor + `parse_forwarded_from`. |
@@ -298,7 +297,7 @@ OPERATIONS "Backups & restore" are the path. Requirements the deploy implemented
    (`run_alert.py digest --check-completed`, its 09:00 task registered by `setup_tasks.ps1`).
    Sessions still need occasional human care: Substack auto-renews (OTP-code via Gmail); **13D will
    eventually need a manual re-login** — documented in OPERATIONS.md.
-5. **Time zone & schedule:** set the server TZ correctly (digest ~8 AM ET, midday ~1 PM ET, weekly
+5. **Time zone & schedule:** set the server TZ correctly (digest ~8 AM ET, weekly
    summary keys off Friday).
 6. **Resources & backups:** the embedding stack + growing `archive/` need ~2 GB disk; O4 backups
    (`archive/`, `memory.json`, `substack_memory.json`, the two index files, state JSONs, `digests/`)
@@ -327,7 +326,7 @@ race on the shared bot inbox; two digests double-send).
   `sec_filings.py`, `ratings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`,
   `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`).
 - **Requires permission (costs money/credits):** any path that calls Claude — full `digest.py`,
-  `memory.py`, `alerts.py`, `midday.py`, `reply_monitor.py`, news ranking, **and `python pacer.py`**
+  `memory.py`, `alerts.py`, `reply_monitor.py`, news ranking, **and `python pacer.py`**
   (its `__main__` can trigger the Sonnet size filter when new filings exist). Substack (`substack.py`)
   scraping is a flat subscription — **free to test** (makes no Claude call).
 - **Token discipline:** prefer unit tests; when an LLM path must run, run **once** on a **small**

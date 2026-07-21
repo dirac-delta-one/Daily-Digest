@@ -21,8 +21,6 @@ Each run (weekday mornings) sends two variants of the digest:
 
 Alongside the morning digest:
 
-- **Midday alert** (`midday.py`) — checks for material developments since the morning and emails
-  *only* if something warrants it (silent most days).
 - **Reply Q&A bot** (`reply_monitor.py`) — reply to any digest email with a question and it answers
   in-thread within ~5 minutes, using RAG over everything archived. Answers are tiered: the owner
   sees Substack-derived context, teammates get the Substack-free view.
@@ -98,8 +96,8 @@ proceed to scheduling.
 
 ## Scheduling (Windows Task Scheduler)
 
-The repo ships four wrappers — `run_digest.bat`, `run_midday.bat`, `run_reply_monitor.bat`,
-`run_watchdog.bat` — each of which `cd`s to its own folder (`%~dp0`), sets `PYTHONUTF8=1`, calls
+The repo ships four wrappers — `run_digest.bat`, `run_watchdog.bat`, `run_reply_monitor.bat`,
+`run_backup.bat` — each of which `cd`s to its own folder (`%~dp0`), sets `PYTHONUTF8=1`, calls
 `env.bat`, runs the project `.venv` Python, and writes a date-stamped log under `logs\` with a
 30-day prune. No hardcoded paths.
 
@@ -115,7 +113,7 @@ It registers, under Task Scheduler folder `\DailyDigest\`:
 |---|---|---|
 | MorningDigest | Mon–Fri 08:00 | Build + email the full and team digests |
 | Watchdog | Mon–Fri 09:00 | Alert if the morning digest never completed |
-| MiddayAlert | Mon–Fri 13:00 | Alert only if something material broke |
+| Backup | Mon–Fri 09:45 | Copy state off-box to OneDrive |
 | ReplyMonitor | at startup, always on | Answer emailed reply questions |
 
 All run whether or not a user is logged on, with wake/catch-up/network-required settings, and the

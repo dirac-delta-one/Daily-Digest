@@ -72,8 +72,8 @@ def test_find_log_legacy_only(tmp_path, monkeypatch):
     monkeypatch.setattr(run_alert, "SCRIPT_DIR", tmp_path)
     logs = tmp_path / "logs"
     logs.mkdir()
-    _touch(logs / "midday.log", 1_000)
-    assert run_alert._find_log("midday").name == "midday.log"
+    _touch(logs / "backup.log", 1_000)
+    assert run_alert._find_log("backup").name == "backup.log"
 
 
 def test_find_log_labels_do_not_cross_match(tmp_path, monkeypatch):
@@ -159,7 +159,7 @@ def test_watchdog_send_failure_returns_1(tmp_path, monkeypatch):
 
 def test_watchdog_rejects_other_labels(watchdog_env):
     tmp_path, sent = watchdog_env
-    assert run_alert.check_completed("midday") == 2
+    assert run_alert.check_completed("reply_monitor") == 2
     assert sent == []
 
 

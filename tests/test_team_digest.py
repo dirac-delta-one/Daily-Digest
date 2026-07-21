@@ -171,18 +171,3 @@ def test_alert_source_carves_window_for_substack(monkeypatch):
     assert "SENTINEL_SUBSTACK" in source
     assert len(source) <= 51000  # 35k shared + 15k substack + markers
     assert "truncated for alert evaluation" in source
-
-
-# --- Midday alert goes to both lists, deduped (spec §1) ---
-
-def test_midday_alert_recipients_combined(tmp_path, monkeypatch):
-    import midday
-    monkeypatch.setattr(midday, "DIGEST_RECIPIENTS", ["a@x.com"])
-    monkeypatch.setattr(midday, "TEAM_RECIPIENTS", ["b@y.com", "a@x.com"])
-    monkeypatch.setattr(midday, "ARCHIVE_DIR", tmp_path)
-    service = MagicMock()
-    midday.send_alert_email(service, "subj", "<div>a</div>")
-    raw = _sent_raw(service)
-    header = raw.lower().split("\n\n")[0]
-    assert "a@x.com" in header and "b@y.com" in header
-    assert header.count("a@x.com") == 1  # deduped
