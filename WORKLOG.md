@@ -76,6 +76,25 @@ archival decision point (operator still present); resolved-story re-creation rid
 
 ---
 
+## Alerts now bind "watchlist" to the real `sec_filings.WATCHLIST` (2026-07-21)
+
+Two of the 7 alert triggers say "watchlist names" / "a watchlist company", but `evaluate_alerts`
+only ever passed the trigger prose + source text to Opus — so "watchlist" was whatever the model
+inferred, **unbound** to the concrete `sec_filings.WATCHLIST` (the ticker universe that already
+drives SEC filings, earnings, and entity tagging). Closed the gap: `evaluate_alerts(source_text,
+watchlist=None)` injects a "WATCHLIST DEFINITION" clause listing those tickers when the caller
+passes them, and `digest.py` passes `sec_filings.WATCHLIST` on **both** the FULL and TEAM
+evaluations. Net effect for the handoff: the SEC/earnings fetchers and the watchlist-scoped alerts
+now key off **one list** — a semi-technical successor edits `sec_filings.WATCHLIST` in one place and
+both respect it. Prompt building was extracted to `_build_alert_prompt` so the binding is
+unit-tested with **no Claude call** (`tests/test_alerts.py`, 3 tests: clause present when a list is
+passed, absent when None/empty). Triggers that don't mention "watchlist" (Large Chapter 11, HY
+spread blowout, Fed surprise, Bank failure, Distressed exchange) are unaffected. No new Claude call —
+just ~16 more tickers (~40 tokens) in the existing alert-eval prompt. `ruff` clean, `pytest` **360**
+(357 + 3). $0.
+
+---
+
 ## Removed the midday alert entirely (2026-07-21)
 
 Operator decision — "no one wants it." Deleted the whole feature: `midday.py`, `run_midday.bat`,

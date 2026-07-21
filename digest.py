@@ -36,7 +36,7 @@ from claude_utils import parse_json_response, json_schema_output, wrapped_array_
 import cost
 from html_utils import extract_gmail_body, parse_forwarded_from, strip_forward_header
 from substack import fetch_substack_articles
-from sec_filings import fetch_recent_filings
+from sec_filings import fetch_recent_filings, WATCHLIST
 from news import fetch_wsj_ft_articles
 from market_data import (
     fetch_market_data, build_market_table_html, build_private_credit_html,
@@ -1486,7 +1486,7 @@ def main():
     # source text, so it can never cite a Substack pub) ---
     print("Evaluating custom alerts...")
     try:
-        triggered_alerts = evaluate_alerts(source_text)
+        triggered_alerts = evaluate_alerts(source_text, watchlist=WATCHLIST)
     except Exception as e:
         print(f"Alert evaluation failed: {e} — continuing without.")
         triggered_alerts = []
@@ -1495,7 +1495,7 @@ def main():
     if team_active:
         print("Evaluating custom alerts (team source)...")
         try:
-            team_alerts = evaluate_alerts(team_source_text)
+            team_alerts = evaluate_alerts(team_source_text, watchlist=WATCHLIST)
         except Exception as e:
             print(f"Team alert evaluation failed: {e} — continuing without.")
 

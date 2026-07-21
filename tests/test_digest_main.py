@@ -63,7 +63,7 @@ def harness(tmp_path, monkeypatch):
     monkeypatch.setattr(digest, "get_substack_memory_context", lambda: "")
     monkeypatch.setattr(
         digest, "evaluate_alerts",
-        lambda source: calls.append(("alerts", source)) or [])
+        lambda source, watchlist=None: calls.append(("alerts", source)) or [])
     monkeypatch.setattr(
         digest, "record_and_check",
         lambda counts: calls.append(("o3", dict(counts))) or [])

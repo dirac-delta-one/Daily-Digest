@@ -54,24 +54,10 @@ def _load_alerts_config():
         return []
 
 
-def evaluate_alerts(source_text):
-    """
-    Evaluate all configured alerts against today's source material.
-
-    Args:
-        source_text: The full source material text sent to Opus for the digest.
-
-    Returns:
-        List of triggered alerts with details.
-    """
-    alerts = _load_alerts_config()
-    if not alerts:
-        print("  No alerts configured — skipping.")
-        return []
-
-    print(f"  Evaluating {len(alerts)} custom alerts...")
-
-    # Build alert definitions for the prompt — keep name and trigger clearly separated
+def _build_alert_prompt(alerts, source_text, watchlist=None):
+    """Assemble the alert-evaluation prompt. Extracted from evaluate_alerts so the
+    watchlist binding below is unit-testable without a Claude call."""
+    # Alert definitions — name and trigger clearly separated
     alert_defs = ""
     name_list = []
     for i, a in enumerate(alerts, 1):
@@ -83,12 +69,26 @@ def evaluate_alerts(source_text):
             f"   PRIORITY: {a.get('priority', 'medium').upper()}\n\n"
         )
 
-    client = anthropic.Anthropic()
+    # Bind the fuzzy word "watchlist" in a trigger to the REAL ticker universe
+    # (sec_filings.WATCHLIST, passed in by the caller). Without this the model
+    # inferred "watchlist names" on its own; with it, the alerts and the
+    # SEC/earnings fetchers key off the same single list. Triggers that never
+    # say "watchlist" (Large Chapter 11, HY spread blowout, …) are unaffected.
+    watchlist_clause = ""
+    if watchlist:
+        watchlist_clause = (
+            "WATCHLIST DEFINITION — wherever a trigger says \"watchlist\" (e.g. "
+            "\"watchlist names\", \"a watchlist company\"), it means ONLY these tickers "
+            "and their issuers:\n"
+            f"{', '.join(watchlist)}\n"
+            "Do NOT treat any other company as on the watchlist.\n\n"
+        )
 
-    prompt = (
+    return (
         "Evaluate each alert trigger below against today's source material.\n\n"
         "ALERTS TO EVALUATE:\n"
         f"{alert_defs}"
+        f"{watchlist_clause}"
         "For each alert, add one entry to a \"results\" array. Each entry:\n"
         '{"name": "<exact NAME string from above>", "triggered": true/false, '
         '"detail": "1-2 sentence description of what triggered it (or null)", '
@@ -102,6 +102,30 @@ def evaluate_alerts(source_text):
         "Return a JSON object with a \"results\" array. No markdown, no explanation.\n\n"
         f"SOURCE MATERIAL:\n{'='*40}\n{source_text[:50000]}\n{'='*40}\n"
     )
+
+
+def evaluate_alerts(source_text, watchlist=None):
+    """
+    Evaluate all configured alerts against today's source material.
+
+    Args:
+        source_text: The full source material text sent to Opus for the digest.
+        watchlist: optional list of tickers the word "watchlist" in a trigger
+            resolves to (digest.py passes `sec_filings.WATCHLIST`). None leaves
+            "watchlist" to the model's own interpretation (legacy behavior).
+
+    Returns:
+        List of triggered alerts with details.
+    """
+    alerts = _load_alerts_config()
+    if not alerts:
+        print("  No alerts configured — skipping.")
+        return []
+
+    print(f"  Evaluating {len(alerts)} custom alerts...")
+
+    client = anthropic.Anthropic()
+    prompt = _build_alert_prompt(alerts, source_text, watchlist)
 
     try:
         response = client.messages.create(
