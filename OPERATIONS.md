@@ -85,16 +85,51 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
 - Known slow burn (developer item, not urgent): the search index grows daily
   and will get gradually slower after several months (~2026 Q4 at current
   rates); a developer should revisit per HANDOFF §14 when replies feel slow.
-- **Off-box backup (O4):** every weekday ~09:45 the day's DATA — `archive\`,
-  `digests\`, `memory.json`, the caches, and the search index — is copied to
-  OneDrive at `…\OneDrive - Acorn Investment\DailyDigest-Backup\` (data ONLY —
-  no passwords, keys, or logins are ever copied). This is the safety copy if the
-  server's disk ever fails. **It only works while the server stays logged in
-  (locked is fine)** so OneDrive keeps syncing; if the box is ever fully signed
-  out, the backup stops uploading and a "backup FAILED" alert fires. **To restore
-  after a disk loss:** set the project up fresh per `README.md`, then copy the
-  contents of `DailyDigest-Backup\` back into the project folder (the secrets are
-  NOT in the backup — re-supply those per `MAINTENANCE.md §2`).
+- **Off-box backup:** the day's data is copied to OneDrive every weekday — see
+  the **"Backups & restore"** section below.
+
+## Backups & restore
+
+**What's backed up, and where.** Every weekday at ~09:45 (just after the morning
+digest) a scheduled task (`Backup`) copies the system's DATA to OneDrive — into
+`…\OneDrive - Acorn Investment\DailyDigest-Backup\`. It copies the things that
+can't be recreated: `archive\` (every day's gathered source material), `digests\`
+(the sent digests), the memory files (the evolving storylines), the caches, and
+the search index. It deliberately does **not** copy any passwords, keys, or
+logins — those never leave the server.
+
+**How it gets off the server.** The task just copies the files into the OneDrive
+folder on the machine; **OneDrive then uploads them to Acorn's cloud on its own**,
+the same way any file you drop into OneDrive syncs. So the safety copy ends up in
+the cloud, not only on the server's disk. (The task itself never touches the
+internet — it only copies files locally; OneDrive does the uploading.)
+
+**What it depends on.** OneDrive only uploads while the server is **logged in**
+(locked is fine — that's how it's kept). If the server were ever fully signed
+out, the copies would still be made on disk but wouldn't upload to the cloud
+until someone logs in again. If the OneDrive folder can't be found at all, the
+backup sends a **"backup FAILED"** alert rather than fail silently. It also never
+deletes anything from the backup, so a problem on the server can't wipe the
+saved history.
+
+**Is it working? (worth a glance every few weeks.)** The task can confirm only
+that it wrote the files on the server — it can't confirm they reached the cloud.
+So occasionally open OneDrive (the web site, or the cloud icon in the system
+tray) and check the `DailyDigest-Backup` folder is there and recently updated.
+If OneDrive shows a sync error, sort that out (a standard OneDrive issue) — the
+data is safe on the server in the meantime.
+
+**How to restore (if the server's disk fails):**
+1. Set the project up fresh on a machine per `README.md` (install Python + deps).
+2. Re-supply the secrets — they were **not** backed up, on purpose: the Gmail
+   login, Substack cookie, 13D session, and `env.bat`. See `MAINTENANCE.md §2`.
+3. Copy the contents of `DailyDigest-Backup\` (from OneDrive) back into the
+   project folder.
+
+The archive, memory, and search index all come back, and the system continues
+from the last backup. *(Developer detail — the copy mechanism, what's included,
+and the safety flags — is in `run_backup.bat`'s comments and the 2026-07-20
+WORKLOG entry.)*
 
 ## If something breaks beyond the three fixes above
 
