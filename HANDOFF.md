@@ -192,9 +192,9 @@ alert email to the operator channel + digest chunks un-indexed + memory frozen; 
   never to the config recipients (jared's addresses) during testing.
 - **External tooling falls into three cost tiers — know which before testing:**
   - **Pay-per-query (the only real per-call cost): the Anthropic/Claude API.** Token-billed across
-    the 2-pass **Fable** digest (~$2.5–3.5/run since 2026-07-22), Haiku (news ranking), Sonnet
-    (PACER size-filter, reply query-extract, memory), and Opus (13D summary, alerts, reply answers,
-    Friday weekly summary).
+    the 2-pass **Fable** digest (~$2.5–3.5/run since 2026-07-22) plus the **Fable** Friday weekly
+    wrap (shares `digest.CLAUDE_MODEL`), Haiku (news ranking), Sonnet (PACER size-filter, reply
+    query-extract, memory), and Opus (13D summary, alerts, reply answers).
     **Ask explicit permission before any test that calls Claude**, run once on a small input, and
     never loop the full digest. *(Standing exception, operator 2026-07-14: $0 `count_tokens` calls
     are pre-authorized; generation calls stay ask-first.)*

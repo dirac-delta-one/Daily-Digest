@@ -2003,11 +2003,23 @@ def main():
                         save_weekly_digest(weekly_html)
                     except Exception as e:
                         print(f"Failed to save weekly summary: {e}")
-                    send_digest_email(
-                        service, weekly_html,
-                        subject=_weekly_subject(full=True),
-                    )
-                    print("Weekly summary sent.")
+                    # One email per recipient (identical body — the weekly wrap
+                    # carries no per-user alert box) so recipients can't reply-all
+                    # to each other; a single failure doesn't block the rest.
+                    weekly_failures = []
+                    for recipient in DIGEST_RECIPIENTS:
+                        try:
+                            send_digest_email(
+                                service, weekly_html,
+                                recipients=[recipient],
+                                subject=_weekly_subject(full=True),
+                            )
+                        except Exception as e:
+                            print(f"  Weekly send to {recipient} FAILED: {e}")
+                            weekly_failures.append(recipient)
+                    print(f"Weekly summary sent "
+                          f"({len(DIGEST_RECIPIENTS) - len(weekly_failures)}"
+                          f"/{len(DIGEST_RECIPIENTS)} recipient(s)).")
             else:
                 print(f"Only {len(week_digests)} digest(s) this week — skipping weekly summary.")
         except Exception as e:
@@ -2026,12 +2038,21 @@ def main():
                             save_weekly_digest(team_weekly, team=True)
                         except Exception as e:
                             print(f"Failed to save team weekly summary: {e}")
-                        send_digest_email(
-                            service, team_weekly,
-                            recipients=TEAM_RECIPIENTS,
-                            subject=_weekly_subject(),
-                        )
-                        print("Team weekly summary sent.")
+                        # One email per recipient (see the FULL weekly note above).
+                        team_weekly_failures = []
+                        for recipient in TEAM_RECIPIENTS:
+                            try:
+                                send_digest_email(
+                                    service, team_weekly,
+                                    recipients=[recipient],
+                                    subject=_weekly_subject(),
+                                )
+                            except Exception as e:
+                                print(f"  Team weekly send to {recipient} FAILED: {e}")
+                                team_weekly_failures.append(recipient)
+                        print(f"Team weekly summary sent "
+                              f"({len(TEAM_RECIPIENTS) - len(team_weekly_failures)}"
+                              f"/{len(TEAM_RECIPIENTS)} recipient(s)).")
                 else:
                     print(f"Only {len(team_week)} team digest(s) this week — "
                           "skipping team weekly summary.")
