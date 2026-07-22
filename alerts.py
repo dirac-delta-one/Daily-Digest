@@ -235,16 +235,31 @@ def _alert_items_html(alerts):
     return items
 
 
+# The reply-channel teaching line (ALERT_COMMANDS_SPEC discoverability,
+# 2026-07-22): closes every rendered alert box, and stands alone at the top of
+# the digest when there is no box that day \u2014 every recipient gets the hint
+# daily either way.
+_REPLY_FOOTER_TEXT = (
+    'Reply to this digest to ask questions or manage your alerts &amp; the shared '
+    'SEC watchlist \u2014 e.g. &quot;watch for X until Aug 15&quot;, &quot;add CRWV to '
+    'the watchlist&quot;, &quot;what alerts are set up?&quot;.'
+)
+
+
 def build_alerts_html(triggered_alerts, expiry_alerts=None):
     """Render triggered alerts as a prominent HTML box.
 
     expiry_alerts \u2014 the watch-item expiring/expired lifecycle notices
     (ALERT_COMMANDS_SPEC) \u2014 render inside the same box but BELOW a thin
     separator, so renewal housekeeping reads apart from the actual
-    market/content alerts (operator formatting request 2026-07-22)."""
+    market/content alerts (operator formatting request 2026-07-22).
+
+    With nothing to report there is NO red box \u2014 just the standalone
+    reply-channel hint line where the box would sit."""
     expiry_alerts = expiry_alerts or []
     if not triggered_alerts and not expiry_alerts:
-        return ""
+        return (f'<p style="font-size: 11px; color: #888; margin: 0 0 24px;">'
+                f'{_REPLY_FOOTER_TEXT}</p>\n')
 
     body = ""
     if triggered_alerts:
@@ -263,6 +278,8 @@ def build_alerts_html(triggered_alerts, expiry_alerts=None):
         '<h2 style="font-size: 18px; color: #c0392b; margin: 0 0 10px;">'
         '\u26a0\ufe0f ALERTS</h2>\n'
         f'{body}'
+        f'<p style="font-size: 11px; color: #888; margin: 10px 0 0;">'
+        f'{_REPLY_FOOTER_TEXT}</p>\n'
         '</div>\n'
     )
 

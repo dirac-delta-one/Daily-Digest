@@ -390,6 +390,17 @@ def test_expiry_notice_renders_in_alert_box():
     assert "<hr" not in html
 
 
+def test_alert_box_teaches_reply_commands():
+    # the box footer advertises the reply channel…
+    html = build_alerts_html([{"name": "X", "detail": "d", "source": "s"}])
+    assert "manage your alerts" in html
+    assert "what alerts are set up?" in html
+    # …and with nothing to report, the hint renders STANDALONE (no red box)
+    empty = build_alerts_html([], [])
+    assert "manage your alerts" in empty
+    assert "ALERTS" not in empty and "<div" not in empty
+
+
 def test_expiry_notices_render_below_separator():
     content = [{"name": "HY spread blowout", "detail": "widened 31bps", "source": "FRED"}]
     expiry = [{"name": "Watch item expiring", "detail": "ends after today's run",
@@ -398,6 +409,6 @@ def test_expiry_notices_render_below_separator():
     # one separator, content above it, expiry below it
     assert html.count("<hr") == 1
     assert html.index("HY spread blowout") < html.index("<hr") < html.index("Watch item expiring")
-    # content alerts alone -> no separator; nothing at all -> no box
+    # content alerts alone -> no separator; nothing at all -> no box (hint only)
     assert "<hr" not in build_alerts_html(content)
-    assert build_alerts_html([], []) == ""
+    assert "<div" not in build_alerts_html([], [])

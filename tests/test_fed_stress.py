@@ -66,6 +66,9 @@ def test_signals_render_in_alert_box():
 
 def test_no_box_when_silent():
     signals = fbs.check_fed_stress(_dw(8000, wow=200))
-    assert build_alerts_html(
+    html = build_alerts_html(
         [{"name": "Fed stress signal", "detail": s, "source": "FRED H.4.1"} for s in signals]
-    ) == ""
+    )
+    # no red box — only the standalone reply-channel hint line renders
+    assert "ALERTS" not in html and "<div" not in html
+    assert "manage your alerts" in html

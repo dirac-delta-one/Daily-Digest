@@ -50,6 +50,12 @@ add to `DIGEST_TO_TEAM`, self-serve by reply). The SEC watchlist stays fully sha
 - `ruff` clean; `pytest` **439** (was 427; +12 incl. migration, cross-owner isolation, fan-out
   dedupe/disambiguation, per-recipient boxes, partial-send failure, orphan once-semantics,
   owner-grounded parse prompt).
+- **Discoverability footer (operator, post-commit; 2 sample emails sent to acohen):** the ⚠️
+  ALERTS box now closes with a grey one-liner teaching the reply channel ("Reply to this digest
+  to ask questions or manage your alerts & the shared SEC watchlist — e.g. …"); with NOTHING to
+  report there is no red box but the same hint renders standalone where the box would sit — every
+  recipient gets the hint every day (`alerts._REPLY_FOOTER_TEXT`; build_alerts_html never returns
+  "" anymore — the empty-case tests assert no-box-no-div instead). `pytest` **440**.
 - **Verified live ($0.02, 3 calls):** the dev `alerts_config.json` migrated in place (7→14,
   idempotent on re-run); owner grounding held (apain removing "the bank failure alert" → correct
   "you have no active alerts" clarification, no cross-user leak; jared's same request → exact-name
