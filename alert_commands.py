@@ -618,22 +618,46 @@ def apply_actions(actions, asker, today=None):
                                "earnings coverage will be empty until a ticker is added.")
 
         elif action == "list_config":
+            # Structured sections, not outcome strings (formatting, 2026-07-22):
+            # each alert is just its trigger sentence — no count, no priority
+            # tag (priority has no coded behavior; it's only an eval-prompt
+            # hint), no name/dash prefix. Alerts group into expiry buckets
+            # (expire tomorrow / expire later / permanent); empty buckets are
+            # omitted. Watchlist renders as bullets.
             alerts = _active_own_alerts()
-            results.append(f"Your alerts ({len(alerts)}):")
-            for a in alerts:
-                results.append(f'[{a.get("priority", "medium")}] "{a["name"]}" — '
-                               f'{a.get("trigger", "")} ({_fmt_expiry(a.get("expires"))})')
-            tickers = _active_tickers()
+            if alerts:
+                results.append({"header": "Your alerts"})
+                tomorrow = (datetime.date.fromisoformat(today)
+                            + datetime.timedelta(days=1)).isoformat()
+                buckets = {"Expire tomorrow": [], "Expire later": [], "Permanent": []}
+                for a in alerts:
+                    line = a.get("trigger") or a.get("name", "?")
+                    expires = a.get("expires")
+                    if not expires:
+                        buckets["Permanent"].append(line)
+                    elif expires <= tomorrow:
+                        buckets["Expire tomorrow"].append(f"{line} (until {expires})")
+                    else:
+                        buckets["Expire later"].append(f"{line} (until {expires})")
+                for bucket, items in buckets.items():
+                    if items:
+                        results.append({"header": bucket, "sub": True, "items": items})
+            else:
+                results.append({"header": "Your alerts",
+                                "text": 'None yet — reply e.g. "watch for X until '
+                                        'Aug 15" to add one.'})
             ticker_bits = []
-            for t in tickers:
+            for t in _active_tickers():
                 bit = t.get("ticker", "?")
                 if t.get("name"):
                     bit += f" ({t['name']})"
                 if t.get("expires"):
                     bit += f" [until {t['expires']}]"
                 ticker_bits.append(bit)
-            results.append(f"Shared SEC watchlist ({len(tickers)}): "
-                           f"{', '.join(ticker_bits) or '(empty)'}")
+            if ticker_bits:
+                results.append({"header": "Shared SEC watchlist", "items": ticker_bits})
+            else:
+                results.append({"header": "Shared SEC watchlist", "text": "(empty)"})
 
         else:
             results.append(f'Unrecognized command "{action}" — nothing applied.')
@@ -654,15 +678,52 @@ def apply_actions(actions, asker, today=None):
 
 def build_confirmation_html(results):
     """Digest-styled confirmation reply body (same wrapper as answer_question),
-    with a one-line footer teaching the feature."""
-    items = "".join(
-        f'<li style="margin-bottom: 8px;">{esc(r)}</li>' for r in results
-    ) or '<li style="margin-bottom: 8px;">Nothing to do.</li>'
+    with a one-line footer teaching the feature.
+
+    A result is either a plain string (one bullet — command outcomes) or a
+    section dict from list_config: {"header": str} plus optional "items"
+    (bulleted list), "text" (paragraph), and "sub": True (a smaller italic
+    grouping label under the current section, e.g. the expiry buckets)."""
+    blocks = []
+    pending = []
+
+    def _flush():
+        if pending:
+            lis = "".join(f'<li style="margin-bottom: 8px;">{esc(r)}</li>'
+                          for r in pending)
+            blocks.append(f'<ul style="padding-left: 20px; margin: 0 0 10px;">{lis}</ul>')
+            pending.clear()
+
+    for r in results or []:
+        if isinstance(r, dict):
+            _flush()
+            if r.get("sub"):
+                blocks.append(f'<p style="margin: 10px 0 4px; font-size: 13px; '
+                              f'color: #555;"><em>{esc(r.get("header", ""))}</em></p>')
+            else:
+                # 18px top margin = the blank line separating a section from
+                # the last bullet of the previous one (operator formatting)
+                blocks.append(f'<p style="margin: 18px 0 6px;">'
+                              f'<strong>{esc(r.get("header", ""))}</strong></p>')
+            if r.get("items"):
+                lis = "".join(f'<li style="margin-bottom: 6px;">{esc(i)}</li>'
+                              for i in r["items"])
+                blocks.append(f'<ul style="padding-left: 20px; margin: 0;">{lis}</ul>')
+            if r.get("text"):
+                blocks.append(f'<p style="margin: 0; color: #444;">{esc(r["text"])}</p>')
+        else:
+            pending.append(r)
+    _flush()
+    if not blocks:
+        blocks.append('<ul style="padding-left: 20px; margin: 0;">'
+                      '<li style="margin-bottom: 8px;">Nothing to do.</li></ul>')
+
+    body = "\n".join(blocks)
     return (
         '<div style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; '
         'color: #1a1a1a; line-height: 1.6; font-size: 14px;">\n'
         '<p style="margin: 0 0 10px;"><strong>Alert &amp; watchlist settings</strong></p>\n'
-        f'<ul style="padding-left: 20px; margin: 0;">{items}</ul>\n'
+        f'{body}\n'
         '<hr style="margin: 20px 0; border: none; border-top: 1px solid #ccc;">\n'
         '<p style="font-size: 11px; color: #888;">Manage alerts by replying to any digest — '
         'e.g. &quot;watch for X until Aug 15&quot;, &quot;add CRWV to the watchlist&quot;, '

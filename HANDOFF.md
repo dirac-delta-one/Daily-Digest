@@ -79,15 +79,23 @@ one-time ops note); **(WSJ) tag red**; **reply-channel teaching footer** (in the
 standalone when no box). Live-validated cheaply: parse seam 5+3 calls ($0.05 total), real
 fan-out eval, 4 formatting sample emails to acohen.
 
-**⚠ The server had NOT pulled ANY of the above at session end — the next pull must also RESTART
-the ReplyMonitor daemon** (long-running process, holds old code; digest tasks pick up changes
-automatically). The Thu 2026-07-23 08:00 run (post-pull) is the biggest-change debut since deploy:
-first production Fable run, first per-recipient sends (jared FULL + apain/acohen TEAM emails sent
-individually), alerts_config self-migration line in the log, `Repetition:` lines, ~2x cost lines.
-Then: **~1 week of repetition scores → Bundle 2 decision** (`REDUCE_REPEATS_SPEC.md` checklist;
-watch STRONG only). Drop `acohen` from `DIGEST_TO_TEAM` at the **2026-07-31** departure — the
-orphan-notice mechanism will flag her paused alerts in the ops email once. Finish the soak while a
-fixer still exists.
+**Server DEPLOYED same evening (2026-07-22 night):** pulled through the spec-retirement commit,
+`alert_commands.py` smoke run seeded both state files fresh (the pull deletes the formerly-tracked
+`alerts_config.json`; seed-on-missing recreated it pre-migrated — 14 owned alerts + 16 tickers
+verified), **ReplyMonitor restarted**, and the **live command round-trip PASSED** (operator
+replied "what alerts are set up?" from her inbox → confirmation email listing her 7 alerts + the
+shared watchlist). The email-command path is live-validated end to end.
+
+**What's next:** the Thu 2026-07-23 08:00 run is still the biggest-change debut since deploy
+(first production Fable run + first per-recipient sends). Read its log closely: THREE individual
+"Digest sent successfully" lines (jared FULL; apain + acohen TEAM), the "14 owned alert(s) …
+-> 7 eval unit(s)" line, two `Repetition:` lines, ~2x cost lines (~$2.5–3.5); in the emails —
+per-user alert boxes (apain's has no personal alerts), teaching footer everywhere, red (WSJ)
+tags; the 09:45 backup log's state-file line now carries alerts_config/watchlist/
+repetition_scores. Then: **~1 week of repetition scores → Bundle 2 decision**
+(`REDUCE_REPEATS_SPEC.md` checklist; watch STRONG only). Drop `acohen` from `DIGEST_TO_TEAM` at
+the **2026-07-31** departure — the orphan-notice mechanism will flag her paused alerts in the ops
+email once. Finish the soak while a fixer still exists.
 
 **Key operational facts a fresh session needs (all detailed in WORKLOG 2026-07-20):**
 - **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box

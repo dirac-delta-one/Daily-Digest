@@ -284,20 +284,50 @@ def test_update_expiry_alert_and_ticker():
 
 
 def test_list_config_renders_own_alerts_and_shared_watchlist():
+    # 2026-07-22 formatting: structured sections — bare trigger sentences (no
+    # count, no [priority], no name/dash, no "(permanent)"), grouped into
+    # expiry buckets; watchlist as bullets
+    ac.apply_actions([
+        {"action": "add_alert", "name": "Argentina watch",
+         "trigger": "Any news on Argentina sovereign debt", "expires": FUTURE},
+        {"action": "update_expiry", "kind": "alert", "target": "Bank failure",
+         "expires": TODAY},
+    ], JARED, today=TODAY)
     results, changed = ac.apply_actions(
         [{"action": "list_config"}], JARED, today=TODAY)
     assert not changed
-    joined = "\n".join(results)
-    assert "Your alerts (7):" in joined
-    assert '"Large Chapter 11"' in joined
-    assert "Shared SEC watchlist (16):" in joined
-    assert "PGY (Pagaya Technologies)" in joined
-    # a user with no alerts still sees the shared watchlist
+
+    headers = [r["header"] for r in results]
+    assert headers == ["Your alerts", "Expire tomorrow", "Expire later",
+                       "Permanent", "Shared SEC watchlist"]
+    by_header = {r["header"]: r for r in results}
+    assert "items" not in by_header["Your alerts"]        # title only
+    assert by_header["Expire tomorrow"]["sub"] is True
+    assert (f"Any FDIC bank failure detected (until {TODAY})"
+            in by_header["Expire tomorrow"]["items"])
+    assert (f"Any news on Argentina sovereign debt (until {FUTURE})"
+            in by_header["Expire later"]["items"])
+    perm = by_header["Permanent"]["items"]
+    assert "Any Form 4 showing insider selling over $1M in watchlist names" in perm
+    joined = "\n".join(perm)
+    assert "[high]" not in joined and "—" not in joined   # no priority/name-dash
+    assert "(permanent)" not in joined and "(until" not in joined
+    wl = by_header["Shared SEC watchlist"]["items"]       # bullets, not a text blob
+    assert "PGY (Pagaya Technologies)" in wl and len(wl) == 16
+
+    # rendered html: main headers bold with the separating top margin, buckets
+    # italic sub-labels, no counts
+    html = ac.build_confirmation_html(results)
+    assert "(7)" not in html and "(8)" not in html
+    assert "<em>Expire tomorrow</em>" in html
+    assert '<p style="margin: 18px 0 6px;"><strong>Shared SEC watchlist</strong></p>' in html
+
+    # a user with no alerts gets the teaching placeholder + the shared watchlist
     results, _ = ac.apply_actions(
         [{"action": "list_config"}], "apain@acorninv.com", today=TODAY)
-    joined = "\n".join(results)
-    assert "Your alerts (0):" in joined
-    assert "Shared SEC watchlist (16):" in joined
+    assert results[0]["header"] == "Your alerts"
+    assert "None yet" in results[0]["text"]
+    assert "PGY (Pagaya Technologies)" in results[1]["items"]
 
 
 def test_no_tmp_files_left_behind():

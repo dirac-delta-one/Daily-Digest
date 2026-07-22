@@ -5,23 +5,28 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-22 night — soak day 2 GREEN; TWO dev sessions committed; SERVER PULL + ReplyMonitor RESTART PENDING)
+## Current state (2026-07-22 night — soak day 2 GREEN; both dev sessions DEPLOYED to the server; command round-trip PASSED)
 
 **Soak day 2 GREEN** (Wed 7/22 08:00: both variants delivered, no changelog leak; watchdog
-silent). Then TWO large dev sessions — all committed on `main` through `f90e4ed`, `ruff` clean,
-`pytest` **440**. Session 1 (the 2026-07-22 entry below): **Claude Fable 5** for digest
-generation; ticker glossary; lead-word format (tickers bold only as lead words); **TL;DR box
-removed**; PACER link fix; REDUCE_REPEATS Bundle 1 + `repetition.py`. Session 2 (the three
-newest entries below — ALERT_COMMANDS_SPEC Parts I+II): **email-managed alerts & SEC watchlist**
+silent). Then TWO large dev sessions — all committed on `main`, `ruff` clean, `pytest` **440**.
+Session 1 (the 2026-07-22 entry below): **Claude Fable 5** for digest generation; ticker
+glossary; lead-word format (tickers bold only as lead words); **TL;DR box removed**; PACER link
+fix; REDUCE_REPEATS Bundle 1 + `repetition.py`. Session 2 (the three newest entries below —
+ALERT_COMMANDS Parts I+II, spec retired same day): **email-managed alerts & SEC watchlist**
 (reply-to-digest commands, Sonnet parse, confirmations), expiry lifecycle (expiring/expired
 notices below an `<hr>`), **ops-alert split** (config/degradation → separate ⚙️ operator email),
-**per-user thematic alerts** (owner-only; old 7 → jared+acohen copies, server file self-migrates
-post-pull; per-recipient sends with personalized boxes; neutral base archived/indexed), (WSJ) tag
-red, reply-channel teaching footer (always renders — in-box or standalone). **⚠ The server had
-NOT pulled ANY of this at session end — pull, then RESTART the ReplyMonitor daemon (it holds old
-code). Thu 2026-07-23 08:00 is the biggest-change debut run since deploy:** check per-recipient
-sends (3 individual emails), the alerts_config migration log line, `Repetition:` lines, ~2x cost
-lines. The block below is the 7/21 deploy-era state, kept for the S4U/stored-password findings.
+**per-user thematic alerts** (owner-only; old 7 → jared+acohen copies; per-recipient sends with
+personalized boxes; neutral base archived/indexed), (WSJ) tag red, reply-channel teaching footer.
+
+**Deployed to the server the same evening:** pull done; `alert_commands.py` smoke seeded the
+state files fresh (14 owned alerts + 16 tickers verified — the pull deletes the formerly-tracked
+`alerts_config.json` by design); ReplyMonitor restarted; **live command round-trip PASSED**
+(operator's "what alerts are set up?" reply → correct confirmation email). One follow-up landed
+after that pull — the list_config reply reformat (expiry buckets + watchlist bullets) — which
+needs its own **push → server pull → ReplyMonitor restart**. **Thu 2026-07-23 08:00 is the
+biggest-change debut run since deploy:** check the 3 individual sends, the
+"…-> 7 eval unit(s)" line, `Repetition:` lines, ~2x cost lines, per-user boxes + footer in the
+emails. The block below is the 7/21 deploy-era state, kept for the S4U/stored-password findings.
 
 ---
 
@@ -30,6 +35,37 @@ lines. The block below is the 7/21 deploy-era state, kept for the S4U/stored-pas
 *(Spec retired same day, pre-pull: `ALERT_COMMANDS_SPEC.md` deleted per the built-and-distilled
 convention — full text incl. Part II + §17 validation findings in git history; how-it-works lives
 in HANDOFF §4 / OPERATIONS / MAINTENANCE, the decisions in this entry and the two below.)*
+
+**list_config reply reformat (operator, after seeing the live reply; sample emailed):** the
+"what alerts are set up?" reply now renders structured sections instead of outcome-string
+bullets — bold "Your alerts" header + each alert as its bare trigger sentence (no count, no
+`[priority]` tag, no `"Name" —` prefix, no "(permanent)"; "(until YYYY-MM-DD)" only when timed),
+then "Shared SEC watchlist" as one comma-joined paragraph. Zero-alert users get a teaching
+placeholder. `apply_actions` list_config emits `{"header", "items"/"text"}` dicts;
+`build_confirmation_html` renders strings as bullets (command outcomes, unchanged) and dicts as
+sections. Priority NOTE (operator asked): priority has NO coded behavior anywhere — it's only a
+"PRIORITY: HIGH" hint line in the Opus eval prompt (may sway borderline triggers); seeded values
+were hand-assigned, user adds default medium. Now hidden from the listing. Second round (after
+sample 1): alerts grouped into expiry buckets — italic sub-labels "Expire tomorrow" (expires ≤
+tomorrow) / "Expire later" / "Permanent", empty buckets omitted; watchlist as BULLETS (not a
+comma paragraph); main section headers carry an 18px top margin (the blank line before "Shared
+SEC watchlist"). `pytest` **440**.
+
+**Post-deploy follow-up (same night, after seeing the live reply):** the list_config reply
+reformat (see the paragraph above — sections, expiry buckets, watchlist bullets, priority note;
+3 samples emailed to acohen incl. the permanent-only everyday case, all approved). ⚠ This landed
+AFTER the server pull below, so it needs its own push → server pull → **ReplyMonitor restart**
+(the daemon holds `alert_commands.py` in memory; until restarted, list replies render the old
+format).
+
+**Server deploy, same evening (2026-07-22 night):** pulled on `ShawnArmstrong`;
+`alert_commands.py` smoke run seeded `alerts_config.json` (fresh, pre-migrated: 14 owned
+alerts — the pull had deleted the formerly-tracked copy, as designed) + `watchlist.json`
+(16 tickers); ReplyMonitor task ended + re-run (the daemon holds old code until restarted);
+**first live command round-trip PASSED** — the operator replied "what alerts are set up?" from
+her @acorninv inbox and received the confirmation email (her 7 alerts + the shared 16-ticker
+watchlist). Email-command path validated end to end in production. Remaining validation now
+rides the normal 2026-07-23 08:00 run (per-recipient sends + batched eval debut).
 
 **Design locked with the operator, then spec→validate→implement→verify (Part II appended to
 `ALERT_COMMANDS_SPEC.md`, incl. §17 validation findings):** every thematic alert now has exactly
