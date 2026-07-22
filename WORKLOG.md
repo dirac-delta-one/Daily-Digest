@@ -5,7 +5,101 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-21, first unattended run GREEN — the server is LIVE)
+## Current state (2026-07-22 evening — soak day 2 GREEN; big dev session committed; SERVER PULL PENDING)
+
+**Soak day 2 GREEN** (Wed 7/22 08:00: both variants delivered, no changelog leak — pass-2 fix's
+live check passed; watchdog silent). Then a large dev session (see the 2026-07-22 entry below) —
+all committed on `main`, `ruff` clean, `pytest` **395** — whose headline items: digest generation
+switched to **Claude Fable 5**; ticker glossary; bolded lead words + ticker-name pairing; **TL;DR
+box removed**; PACER embedded-link fix; REDUCE_REPEATS Bundle 1 (anti-repetition prompt rules +
+`repetition.py` metric + WSJ/FT dedupe). **⚠ The server had NOT pulled these commits at session
+end — Thu 2026-07-23 08:00 is the biggest-change debut run since deploy.** Read it closely; check
+the `Repetition:` log lines and the ~2x cost lines. The block below is the 7/21 deploy-era state,
+kept for the S4U/stored-password findings.
+
+---
+
+## 2026-07-22 — Soak day 2 GREEN; Fable 5 switch; glossary; format overhaul; anti-repetition Bundle 1
+
+**Morning verification (read-only, $0):** 7/22 08:00 production run verified via the bot's Sent
+mail — both variants delivered 08:08 ET (TEAM 66,852 chars / FULL 68,461), **zero "Changes made:"
+occurrences** (pass-2 leak fix live check PASSED), no FAILED/MISSING alerts. Soak day 2 GREEN.
+Side finding: HANDOFF said "Daily Research Digest" but the *subject* is "📬 Daily Inbox Digest"
+(the H1 differs from the subject by design) — HANDOFF clarified.
+
+**Snapshot fixes (committed AM):** Market Snapshot footnote mis-attributed the HYG/LQD Portfolio
+OAS mirror rows to FRED — footnote now built from the extras actually present (`" · FRED"` only
+when a FRED extra landed; `" · Portfolio OAS rows = fund-reported (ishares.com)"` when iShares rows
+did; `_build_yahoo_table` gained `note_suffix`). AI Snapshot gained NVDA / TSM (ADR) / INTC / MU —
+all four verified live via Yahoo (free). Color semantics documented: green/red = good/bad move
+(VIX, spreads, claims inverted); grey dash = no data; grey number = zero change; yields-up-green
+and 2s20s-steepening-red are known quirks, deliberately left.
+
+**Digest format overhaul (prompt, 2 paid test runs + fixes):** (1) every bullet in §1–9 now opens
+`<strong>Topic:</strong>` (bolded lead word; entity leads use the FULL ticker form); (2) Market &
+Macro forbids restating snapshot levels without analysis (section omitted if nothing qualifies);
+(3) every cited ticker carries the issuer name in parens when the name is in the sources — the
+no-guessing guard stays for unknowns. First Opus test run was perfect; second regressed to bare
+`COF:` leads → rules tightened (tickers ALWAYS $-prefixed, incl. lead position) + pass-2 format
+check. **TL;DR box REMOVED later in the day (operator)** — all 5 references excised; digest opens
+at §1; pass 2 actively deletes any summary box a draft emits.
+
+**Ticker glossary (`ticker_names.py`, new):** solves "$TICK (Name)" for bond-desk shorthand
+($BRASKM, $VMED…) without weakening anti-hallucination. Prompt gains a TICKER GLOSSARY block built
+from (a) SEC `company_tickers.json` titles via the new non-downloading `sec_filings.company_names()`
+and (b) a learned cache (`ticker_names_cache.json`) of digest-rendered pairs validated against that
+day's source text (+ proper-noun guard — Fable once wrote "$SDZSW (potential USD issuer)"; rejected
+by tests now). **Cache-write discipline:** `collect()` only stages; `main()` `commit()`s once AFTER
+both variants — a write between them would fork the TEAM/FULL shared cache prefix. Substack-only
+tickers ride a supplemental glossary in the FULL tail (mapping = public metadata, so
+Substack-learned pairs legitimately serve future TEAM digests). Cache self-seeds: 12 entries day 1.
+
+**Fable 5 switch (digest generation only):** `config.FABLE_MODEL="claude-fable-5"` →
+`digest.CLAUDE_MODEL`; alerts/13D/reply stay Opus. Two required fixes discovered by test runs:
+(1) Fable returns thinking blocks first — `content[0].text` crashed; new `digest._response_text()`
+selects text blocks by type (3 call sites: pass 1, pass 2, weekly); (2) `cost.py` had no Fable tier
+— added ($10/$50 per MTok, exactly 2x Opus, from the authoritative API reference); unknown ids now
+default to the fable tier (most-expensive safety). Real run cost ~$2.9 vs ~$1.3 on Opus (thinking
+tokens bill as output). Fable's digest quality: format adherence at least as good; one behavioral
+wobble (name-in-prose instead of "$TICK (Name)") fixed via rule tightening.
+
+**PACER fix:** PACER RSS descriptions embed an `<a>` doc-link that rendered as escaped literal
+markup in the 7/22 production email ("looks like a href didn't render") — descriptions now
+`strip_html()`-ed at the two storage sites; Ch.11 detection still runs on raw text.
+
+**Anti-repetition (REDUCE_REPEATS_SPEC.md, new — the active spec):** measured baseline (signals in
+2+ sections, same day): Opus 13/87 (8 involving Top Takeaways), Fable 8/91 (worst: $CRWV told in 3
+sections). 15 ideas specced with a decision checklist; spec cross-checked against the codebase
+(5 corrections, incl. a no-TL;DR-guard-location trap). **Bundle 1 BUILT:** (12) `repetition.py`
+metric — strong (ticker/bps/$) vs weak (bare %) split after the smoke test exposed percent-collision
+false positives + a "50% inside 10.50%" substring bug, scores logged per run + persisted to
+`repetition_scores.json`; (1+2+5+9) one batched prompt revision — plan-first line, SECTIONS ARE
+EXCLUSIVE IN ORDER (earliest-wins), `<em>(→ §N)</em>` cross-ref device, pass-2 checklist reordered
+DEDUPLICATE-first; (13) WSJ/FT appended-section dedupe — Haiku ranking hoisted to `main()` (F10
+letter superseded, rationale respected — see HANDOFF §11.C), `build_news_html(articles,
+exclude_text)` drops headlines the variant's own digest already covers ($TICK / proper-noun bigram /
+≥60% token overlap), per-variant rendering. **Smoke test PASS ($2.89):** template intact, no plan
+leak, no TL;DR, 3 working cross-refs, 6/15 headlines dropped; same-day strong dupes **2→1** (the
+survivor: $CRWV with different facts per section — legitimate two-angle coverage). Bundle 2 decision
+deferred ~1 week pending live scores (deliberately — attribution + Fable over-prescription risk +
+not stacking more change onto the 7/23 debut run).
+
+**Test-run harness note (dev box):** `env.bat`'s `DIGEST_TO` contains PRODUCTION recipients despite
+its "test override" comment — every test run this session overrode `DIGEST_TO=acohen@acorninv.com`
++ `DIGEST_TO_TEAM=` (empty ⇒ misconfig guard ⇒ FULL-only, local memory/index frozen — the correct
+dev-test state). `call env.bat` fails under the agent shell's `NoDefaultCurrentDirectoryInExePath`;
+the working pattern parses env.bat's `set` lines in PowerShell. 4 paid test runs total today
+(~$8.3): Opus format check $1.26/$1.28, Fable first run $1.48-report/​~$2.7-real (pre-tier-fix),
+Bundle-1 smoke $2.89; two $0 failed launches (env loading).
+
+**State:** `pytest` 360 → **395** (**+35**: footnote/ticker tests, glossary, thinking-block, cost
+tiers, repetition metric, news dedupe); `ruff` clean; all committed on `main` by operator. Dev-local
+side effects (inert): archive/index/digests for 7/22 overwritten by test runs; `substack_memory`
+delta'd; shared `memory.json` untouched (guard). **Server pull pending → 7/23 debut.**
+
+---
+
+## Deploy-era state (2026-07-21, first unattended run GREEN — the server is LIVE)
 
 **The §7.2 server deploy is COMPLETE, the first unattended cycle passed, and all post-deploy rollout
 is done.** The dedicated Windows box (`ShawnArmstrong`) is the sole instance, running unattended:

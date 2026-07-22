@@ -373,18 +373,19 @@ ticker lead like "COF:"; in Worth Reading the lead word comes before the \
 linked title; in SEC Filings and Rating Actions the company/entity is the natural lead. \
 A two-word lead is allowed only when one word would be ambiguous \
 (<strong>Turkey CDS:</strong>).
-- Tickers are ALWAYS written $-prefixed and bolded — <strong>$COF</strong>, never a \
-bare "COF" — wherever they appear, including as a bullet's lead word. When a company \
-is discussed, keep its ticker visible: do not replace a ticker from the sources with \
-the name alone.
+- Tickers are ALWAYS written $-prefixed — $COF, never a bare "COF" — wherever they \
+appear. Bold a ticker ONLY when it is the bullet's lead word \
+(<strong>$COF (Capital One):</strong>); everywhere else in a bullet's body the ticker \
+stays unbolded ($COF). When a company is discussed, keep its ticker visible: do not \
+replace a ticker from the sources with the name alone.
 - Every ticker you cite is followed by the issuer's name in parentheses — \
-<strong>$SPCX</strong> (SpaceX) — whenever that name appears in the source material \
+$SPCX (SpaceX) — whenever that name appears in the source material \
 (a TICKER GLOSSARY block of verified names may be provided among the sources; it \
 counts as source material for this rule). Do not expand a ticker into a company name \
 that does NOT appear in the source material or the glossary: if you are unsure of the \
 issuer, cite the bare ticker (e.g. "$TCBK") rather than guessing. Skip the \
 parenthetical where the name is already immediately adjacent \
-(e.g. "SpaceX (<strong>$SPCX</strong>)" needs no second copy of the name).
+(e.g. "SpaceX ($SPCX)" needs no second copy of the name).
 - If multiple sources discuss the same topic, synthesize them and note where they agree \
 or disagree.
 - SECTIONS ARE EXCLUSIVE, IN ORDER. Work top-down: once a story has appeared in any \
@@ -440,7 +441,7 @@ Use inline styles only (no <style> blocks). Every digest must look identical in 
   <!-- Content: ul/li for bullets, 14px, 10px margin-bottom -->
   <!-- Every bullet opens with its bolded lead word: <strong>Topic:</strong> -->
   <!-- Sources: span with color #888, always at end of bullet -->
-  <!-- Tickers: <strong>$TICK</strong> (Company Name) whenever a ticker appears -->
+  <!-- Tickers: $TICK (Company Name) whenever a ticker appears; bold only as a lead word -->
   <!-- Cross-refs: <em>(→ §N)</em> when touching a story whose home is another section -->
   <!-- Hyperlinks: <a href="URL" style="color: #1a5276;">linked text</a> -->
 
@@ -913,9 +914,10 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "arguments.\n"
             "4. Check that every bullet has a source tag.\n"
             "5. Check the FORMAT rules: every bullet starts with its bolded lead word + colon "
-            "(<strong>Topic:</strong>); every ticker is $-prefixed and bolded EVERYWHERE it "
-            "appears — a single-issuer bullet leads with the full form "
-            "(<strong>$COF (Capital One):</strong>, never a bare \"COF:\"); every cited "
+            "(<strong>Topic:</strong>); every ticker is $-prefixed everywhere it appears but "
+            "bolded ONLY as a bullet's lead word — a single-issuer bullet leads with the full "
+            "form (<strong>$COF (Capital One):</strong>, never a bare \"COF:\") while "
+            "mid-bullet tickers stay unbolded; every cited "
             "ticker carries the issuer name in parentheses when the name is in the sources "
             "(or immediately adjacent prose); Market & Macro contains no bullet that merely "
             "restates a snapshot-table level or move without added analysis (delete any such "
@@ -1135,8 +1137,8 @@ def build_news_html(articles, exclude_text=""):
         summary = a.get("summary", "")
         source = a.get("source", "")
 
-        # Source color
-        src_color = "#0274b6" if source == "WSJ" else "#f26f21"
+        # Source color (WSJ red so the tag doesn't blend into the blue link color)
+        src_color = "#c00000" if source == "WSJ" else "#f26f21"
 
         if url:
             headline = (

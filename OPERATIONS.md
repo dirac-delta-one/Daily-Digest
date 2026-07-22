@@ -62,9 +62,11 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
    `substack_cookie.txt` in the project folder.
 3. **API credit top-up**: the digest stops generating when the Anthropic
    account hits $0 (you'd see run-FAILED alerts mentioning credit/quota).
-   Expected burn: roughly **$45–55/month** (~$2/weekday for both digest
-   versions + Friday wraps + your reply questions). Check/top up at
-   console.anthropic.com (the bot account's login).
+   Expected burn: roughly **$90–140/month** (~$4–6/weekday for both digest
+   versions + Friday wraps + your reply questions) since 2026-07-22, when
+   digest generation moved to a stronger, ~2x-priced model (Claude Fable 5) —
+   this range is an estimate; the first live week's cost lines will firm it
+   up. Check/top up at console.anthropic.com (the bot account's login).
 
 ## Where things live (on the server, in the project folder)
 

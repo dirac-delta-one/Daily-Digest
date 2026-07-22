@@ -15,7 +15,8 @@
 
 Three entry points, all Python, all scheduled via `run_*.bat` wrappers → Task Scheduler:
 
-- `digest.py` — the morning job. Fetches ~17 sources, builds a 2-pass Opus prompt, generates a
+- `digest.py` — the morning job. Fetches ~17 sources, builds a 2-pass prompt (generation model =
+  Claude Fable 5 since 2026-07-22, `config.FABLE_MODEL`; satellites stay on Opus), generates a
   **full** and a **team** digest, emails both, archives raw content, indexes it into FAISS, updates
   memory, and (Fridays) sends a weekly wrap.
 - `reply_monitor.py` — long-running daemon; answers emailed replies to digests via RAG over the
@@ -197,13 +198,14 @@ loss). Harmless; no action.
 ## 6. Changing the code safely
 
 - **Read `HANDOFF.md §6` first.** Several blunt-looking pieces are intentional and load-bearing
-  (the module-level argv parse, the conservative PDF cleaner, Opus-written §9, the reply daemon
-  loop, the parked rerank/hybrid mechanisms, `IndexFlatIP`). Don't "fix" them.
+  (the module-level argv parse, the conservative PDF cleaner, the model-written §9 Rating Actions,
+  the reply daemon loop, the parked rerank/hybrid mechanisms, `IndexFlatIP`). Don't "fix" them.
 - **Cost discipline (`HANDOFF.md §8`).** Prefer unit tests. When a Claude-calling path must run, run
   **once** on a **small** input, **with permission**, and route all email to a test address — never
   the production recipients, never a loop. `count_tokens` calls are free. Substack/13D scraping is
   free to test (flat subscriptions, no Claude call — except 13D's embedded summary).
-- **The gate:** `check.bat` = `ruff check` + `pytest` (360 tests). Both must pass before commit.
+- **The gate:** `check.bat` = `ruff check` + `pytest` (395 tests as of 2026-07-22). Both must pass
+  before commit.
 - **The eval harness:** `tools/eval_retrieval.py` + `tools/eval_golden.json` measure retrieval
   quality (current baseline: hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses,
   `tools/eval_results/2026-07-15_post_index_filter.json`). Re-run and compare after any change to

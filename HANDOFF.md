@@ -6,7 +6,9 @@
 >
 > **Companion docs:** `WORKLOG.md` = the full dated narrative of every change ever made and why
 > (the archive — start here for the *why* behind anything below). `OPERATIONS.md` = the jared-facing
-> runbook; `MAINTENANCE.md` = the developer keep-it-running guide.
+> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active spec:**
+> `REDUCE_REPEATS_SPEC.md` (anti-repetition, 15 ideas; Bundle 1 BUILT 2026-07-22, Bundle 2+ pending
+> a week of live `repetition_scores.json` data — see its decision checklist).
 > *(Retired/deleted 2026-07-21, once the deploy finished, to keep the doc set lean — all preserved in
 > git history: `DEPLOY_PROGRESS.md` (live cutover-resume doc → folded into §1 + WORKLOG 07-20/21);
 > `NEXT_STEPS_SPEC.md` (the forward roadmap + deploy/cutover checklist — every track done, the deploy
@@ -34,30 +36,35 @@ FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 server (`ShawnArmstrong`) is the SOLE instance, running unattended: four scheduled tasks Ready under
 a **stored-password** principal (MorningDigest 08:00 / Watchdog 09:00 / Backup 09:45 / ReplyMonitor;
 the MiddayAlert task was removed 2026-07-21), `DIGEST_UNATTENDED=1` machine-wide, production digests
-delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **360 green**,
+delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **395 green**,
 retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
 (`tools/eval_results/2026-07-15_post_index_filter.json`). Operator `acohen@acorninv.com`; **Jared's
-instance is decommissioned.**
+instance is decommissioned.** **Digest generation runs on Claude Fable 5 since 2026-07-22**
+(`config.FABLE_MODEL` → `digest.CLAUDE_MODEL`; alerts/13D/reply bot stay on Opus) — expect ~$2.5–3.5
+per FULL 2-pass run at Fable's $10/$50 rates (accurately tiered in `cost.py`).
 
 **Branch: work on `main`.** `ava-updates` existed only to keep refactor work off `main` while Jared
 ran production from `main`; that's retired, the server tracks `main`, so **`main` is now the
 working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
 be deleted at will.
 
-**What remains → only the multi-day SOAK.** The system
-is live, the **first unattended run passed (Tue 2026-07-21: both variants, watchdog silent)**, and
-all post-deploy rollout is DONE (2026-07-21): server on `main` @ `df29a59`;
-the O4 **Backup** task is registered (4 tasks after the 2026-07-21 MiddayAlert removal; first backup
-ran clean, 54.9 MB → OneDrive); the
-**pass-2 changelog-leak fix is deployed + verified live** (a heavy-edit pass 2 had leaked its markdown
-"Changes made:" block into the sent 7/21 TEAM digest — prompt + hardened `_strip_to_html`, `pytest`
-**364** green, WORKLOG 2026-07-21); `OPERATIONS.md` is handed to jared; cleanups done (dev
-`state_sync` zip → Recycle Bin; local `ava-updates` deleted — `origin/ava-updates` still remote,
-delete-or-ignore). Live memory **87 active / 8 resolved / 95 total** (trajectory 73→82→87; dev laptop
-stays frozen at 7/17). **Soak:** confirm the Wed 7/22 08:00 run is clean (team digest carries no
-`**Changes made:**` block = the fix's free live check). Drop
+**What remains → the SOAK + the 2026-07-23 big-debut run + a week of repetition data.** Soak day 2
+GREEN (Wed 7/22 08:00: both variants, no changelog leak — the pass-2 fix's live check passed;
+watchdog silent). A large dev session followed on 7/22 (all committed on `main`, full detail in
+WORKLOG 2026-07-22): **Fable 5 model switch** for digest generation (+ thinking-block
+`_response_text` fix + real cost tier), **ticker glossary** (`ticker_names.py`: SEC names + learned
+cache so "$TICK (Name)" pairing works on bond-desk shorthand), **digest format changes** (bolded
+lead words on every bullet; Market & Macro restatement filter; TL;DR box REMOVED — digest now opens
+at §1), **PACER embedded-`<a>` strip fix**, and **REDUCE_REPEATS Bundle 1** (exclusive-sections +
+cross-ref prompt rules, pass-2 dedupe-first, per-variant WSJ/FT dedupe, and the `repetition.py`
+metric logging strong/weak scores to `repetition_scores.json` each run). Smoke-tested same-day:
+strong dupes 2→1, template intact. **⚠ The server had NOT pulled any of this as of the 7/22
+session end — the Thu 2026-07-23 08:00 run is the biggest-change debut since deploy** (first
+production Fable run + all of the above at once): read it closely, check the two `Repetition:` log
+lines and the cost lines (~2x under Fable). Then: **~1 week of repetition scores → Bundle 2
+decision** (`REDUCE_REPEATS_SPEC.md` checklist; watch the STRONG count, ignore weak wiggle). Drop
 `acohen` from `DIGEST_TO_TEAM` at the **2026-07-31** departure. Finish the soak while a fixer still
-exists. *(The `DEPLOY_PROGRESS.md` tracking doc was deleted 2026-07-21 — deploy done.)*
+exists.
 
 **Key operational facts a fresh session needs (all detailed in WORKLOG 2026-07-20):**
 - **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box
@@ -136,17 +143,22 @@ if the team variant is ever deliberately retired).
 
 ## 2. Key constraints
 
-- **Opus is `claude-opus-4-8`.** All model IDs are centralized in `config.py`
-  (`OPUS_MODEL` / `SONNET_MODEL="claude-sonnet-4-6"` / `HAIKU_MODEL="claude-haiku-4-5-20251001"`);
-  every Claude call site imports them, so a model bump is a one-line change in `config.py`.
+- **Digest generation is `claude-fable-5` (FABLE_MODEL, since 2026-07-22); everything else Opus-tier
+  stays `claude-opus-4-8`.** All model IDs are centralized in `config.py` (`FABLE_MODEL` /
+  `OPUS_MODEL` / `SONNET_MODEL="claude-sonnet-4-6"` / `HAIKU_MODEL="claude-haiku-4-5-20251001"`);
+  every call site imports them. Fable specifics: returns thinking blocks first (extract text via
+  `digest._response_text`, never `content[0].text`), bills $10/$50 per MTok (2x Opus — its own
+  `cost.py` tier; thinking tokens bill as output), and unknown model ids now default to the fable
+  tier (most expensive) in cost accounting. Roll back = point `digest.CLAUDE_MODEL` at `OPUS_MODEL`.
 - **This is a working single-operator tool.** Explicitness and tuned heuristics have real value;
   prefer small, reversible changes over architecture-level refactors.
 - **Test between every phase.** Route all test output **locally or to `acohen@acorninv.com`** —
   never to the config recipients (jared's addresses) during testing.
 - **External tooling falls into three cost tiers — know which before testing:**
   - **Pay-per-query (the only real per-call cost): the Anthropic/Claude API.** Token-billed across
-    the 2-pass Opus digest, Haiku (news ranking), Sonnet (PACER size-filter, reply
-    query-extract, memory), and Opus (13D summary, alerts, reply answers, Friday weekly summary).
+    the 2-pass **Fable** digest (~$2.5–3.5/run since 2026-07-22), Haiku (news ranking), Sonnet
+    (PACER size-filter, reply query-extract, memory), and Opus (13D summary, alerts, reply answers,
+    Friday weekly summary).
     **Ask explicit permission before any test that calls Claude**, run once on a small input, and
     never loop the full digest. *(Standing exception, operator 2026-07-14: $0 `count_tokens` calls
     are pre-authorized; generation calls stay ask-first.)*
@@ -164,9 +176,10 @@ if the team variant is ever deliberately retired).
 
 ## 3. Terminology
 
-- **Two-pass / pass 1 / pass 2:** Opus generates a draft digest (pass 1), then a second Opus call
-  reviews the draft against the *same* source material and produces the final (pass 2). Intentional
-  and valued — keep it.
+- **Two-pass / pass 1 / pass 2:** the digest model (Fable 5 since 2026-07-22; previously Opus)
+  generates a draft digest (pass 1), then a second call reviews the draft against the *same* source
+  material and produces the final (pass 2 — its checklist now leads with DEDUPLICATE, then missed
+  items/errors/source-tags/format). Intentional and valued — keep it.
 - **Cross-digest memory:** `memory.json`, a model-maintained store of evolving storylines injected
   into the next day's prompt (`memory.py`; Sonnet since 2026-07-01). Since Stage 5 it is a **v2
   story-timeline store** updated by incremental deltas (per-story dated update history, no wholesale
@@ -339,6 +352,13 @@ race on the shared bot inbox; two digests double-send).
   `acohen@acorninv.com` (or render HTML to a local file) during tests. For reply/memory testing,
   drive `answer_question()` / `update_memory()` directly on archived inputs (avoids racing the
   production reply monitor on the shared bot inbox; needs no live Gmail injection).
+- **⚠ Dev `env.bat` FOOTGUN (found 2026-07-22):** its comment says `DIGEST_TO` is a "test-recipient
+  override," but its VALUES are the production recipients (jtramontano + apain + acohen). Any manual
+  dev run MUST explicitly override: `DIGEST_TO=acohen@acorninv.com` and `DIGEST_TO_TEAM=` (empty —
+  which also triggers the §1a misconfig guard: FULL-only, memory frozen, digest chunks un-indexed —
+  the correct state for a dev test run; the red "Team config missing" alert box in the email is
+  expected). Loading `env.bat` from PowerShell: parse the `set` lines (see WORKLOG 2026-07-22) —
+  bare `call env.bat` fails under `NoDefaultCurrentDirectoryInExePath`.
 
 ---
 
@@ -403,6 +423,18 @@ What remains is only what a future session might still act on.)*
 - **Index growth** — see §5 (F13 ladder + tripwire).
 
 ### B. Watch → trigger → fix (implement only if the output says otherwise)
+- **Repetition score (REDUCE_REPEATS Bundle 1, shipped 2026-07-22).** Every run logs
+  `Repetition: N strong + M weak signal(s)` and appends to `repetition_scores.json` (server-side).
+  Watch the **STRONG** count (~1 week from 7/23): stays ≤1–2 → done, close the spec; stays ≥3+ →
+  build Bundle 2 per `REDUCE_REPEATS_SPEC.md` (add ideas 4+7, or A/B the idea-8 de-prescribe).
+  Weak (bare-%) collisions are mostly coincidental — ignore their wiggle.
+- **Ticker-name learned cache (`ticker_names_cache.json`, 2026-07-22).** Self-seeds from each run
+  ("Ticker-name cache: learned N" log line; 12 entries after day one). Watch: a wrong issuer name
+  appearing in a digest → inspect/delete the bad cache entry (the proper-noun + source-text guards
+  should prevent this; one descriptive-phrase class was already caught and guarded in tests).
+- **First production Fable run (2026-07-23) cost re-baseline.** Expect roughly 2x Opus per-run cost
+  in the daily cost summary; after a week, update OPERATIONS' monthly burn estimate from observed
+  numbers (it was pre-updated to a ~$90–140/mo guess).
 - **Paraphrase-level dedup / true MMR** in the reply path. Current dedup is token-Jaccard ≥0.85
   (near-verbatim twins only). Watch: reply answers feel repetitive from reworded same-story chunks.
   Fix: real MMR over candidate vectors (accept the `search()` return-shape change), or lower the
