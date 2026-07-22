@@ -110,9 +110,32 @@ def test_market_table_embeds_fred_extras():
     assert "FRED" in out                     # FRED noted as a co-source (no id list)
     assert "^GSPC" not in out                # raw tickers no longer enumerated
     assert "2Y UST<" not in out      # only the listed extras (DGS20), not DGS2
+    assert "ishares.com" not in out  # no iShares extras -> no fund-reported note
     # without fred_data: no FRED co-source in the footnote
     plain = market_data.build_market_table_html(yahoo)
     assert "20Y UST" not in plain and "FRED" not in plain
+
+
+def test_market_table_cites_ishares_mirror_rows():
+    # 2026-07-22: the HYG/LQD Portfolio OAS mirror rows are ishares.com data,
+    # not FRED — the footnote must carry the fund-reported note, and "FRED"
+    # only when a real FRED extra (DGS20) is present.
+    yahoo = [_yahoo_row("S&P 500", "market", ticker="^GSPC")]
+    ishares = [_fred_row("HYG (iBoxx HY)", "credit", unit="spread", value=310.0,
+                         series_id="ISHARES:HYG", metric="Portfolio OAS")]
+    fred = [_fred_row("20Y UST", "rates", value=5.09, series_id="DGS20")]
+
+    both = market_data.build_market_table_html(yahoo, fred + ishares)
+    assert "HYG (iBoxx HY)" in both and "310 bps" in both
+    assert "FRED" in both
+    assert "Portfolio OAS rows = fund-reported (ishares.com)" in both
+    # sources before the as-of date, definition note trailing after it
+    assert both.index("FRED") < both.index("as of") < both.index("ishares.com")
+
+    # iShares-only extras (DGS20 failed): no spurious FRED co-source
+    ishares_only = market_data.build_market_table_html(yahoo, ishares)
+    assert "fund-reported (ishares.com)" in ishares_only
+    assert "FRED" not in ishares_only
 
 
 def test_yahoo_section_tables_filter_by_section():

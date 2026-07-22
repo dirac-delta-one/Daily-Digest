@@ -34,6 +34,10 @@ YAHOO_TICKERS = {
     # --- AI Snapshot ---
     "^IXIC":     ("Nasdaq Composite",     "index",  "ai",      "Index"),
     "SPCX":      ("SpaceX",               "dollar", "ai",      "Share price"),
+    "NVDA":      ("NVIDIA",               "dollar", "ai",      "Share price"),
+    "TSM":       ("TSMC (ADR)",           "dollar", "ai",      "Share price"),
+    "INTC":      ("Intel",                "dollar", "ai",      "Share price"),
+    "MU":        ("Micron",               "dollar", "ai",      "Share price"),
     "000660.KS": ("SK Hynix",             "won",    "ai",      "Share price (KRW)"),
     "ORCL":      ("Oracle",               "dollar", "ai",      "Share price"),
     "CRWV":      ("CoreWeave",            "dollar", "ai",      "Share price"),
@@ -260,18 +264,25 @@ MARKET_FRED_EXTRAS = ("DGS20", "ISHARES:HYG", "ISHARES:LQD")
 
 
 def build_market_table_html(data, fred_data=None):
-    """The Market Snapshot table (S&P, VIX, WTI, DXY, BTC + the FRED extras
-    above when `fred_data` — macro_data's fetch result — is provided)."""
-    extra_rows, footnote_suffix = "", ""
+    """The Market Snapshot table (S&P, VIX, WTI, DXY, BTC + the FRED/iShares
+    extras above when `fred_data` — the combined macro_data + ishares_data
+    fetch result — is provided). The footnote cites only the sources whose
+    rows actually landed: DGS20 → FRED; ISHARES:* → the fund-reported note
+    (same wording as the Corporate Credit table's)."""
+    extra_rows, footnote_suffix, note_suffix = "", "", ""
     if fred_data:
         import macro_data
         extras = [r for r in fred_data if r.get("series_id") in MARKET_FRED_EXTRAS]
         if extras:
             extra_rows = macro_data.table_rows_html(extras)
-            footnote_suffix = " · FRED"
+            if any(not str(r["series_id"]).startswith("ISHARES:") for r in extras):
+                footnote_suffix = " · FRED"
+            if any(str(r["series_id"]).startswith("ISHARES:") for r in extras):
+                note_suffix = " · Portfolio OAS rows = fund-reported (ishares.com)"
     return _build_yahoo_table(data, "market", "Market Snapshot",
                               extra_rows_html=extra_rows,
-                              footnote_suffix=footnote_suffix)
+                              footnote_suffix=footnote_suffix,
+                              note_suffix=note_suffix)
 
 
 def build_private_credit_html(data):
@@ -313,8 +324,11 @@ def table_rows_html(rows):
     return html
 
 
-def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix=""):
-    """Render one section's rows as an HTML table with 1D / 1W / 1M columns."""
+def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix="",
+                       note_suffix=""):
+    """Render one section's rows as an HTML table with 1D / 1W / 1M columns.
+    Footnote shape matches macro_data's: sources (suffix) before the as-of
+    date, definitions (note_suffix) trailing after it."""
     data = [r for r in data if r.get("section") == section]
     if not data:
         return ""
@@ -327,7 +341,8 @@ def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix
     # instruments carried different as-of timestamps.)
     dates = [item["as_of"].split(" ")[0] for item in data if item.get("as_of")]
     latest = max(dates) if dates else ""
-    footnote = "Source: Yahoo Finance" + footnote_suffix + (f", as of {latest}" if latest else "")
+    footnote = ("Source: Yahoo Finance" + footnote_suffix
+                + (f", as of {latest}" if latest else "") + note_suffix)
     footnote_html = (
         '<p style="font-size: 10px; color: #aaa; margin: 4px 0 0; line-height: 1.3;">'
         f'{footnote}</p>\n'

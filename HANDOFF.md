@@ -24,7 +24,9 @@ financial/market data sources (Gmail inbox + forwarded research PDFs, paid Subst
 EDGAR, FRED macro, Fed balance sheet, Yahoo Finance, earnings calendar, PACER, 13F filings, rating
 actions, central-bank research, Treasury auctions, CFTC COT, FDIC, WSJ/FT RSS, 13D WILTW),
 summarizes them with Claude in a **two-pass** flow (draft → review/enhance), emails an HTML "Daily
-Research Digest," archives all raw content to disk, and indexes it into a local FAISS vector store
+Research Digest" (that's the in-email H1; the *subject line* is "📬 Daily Inbox Digest" =
+`config.DIGEST_SUBJECT_PREFIX`, which the reply bot's Gmail query anchors on — search sent mail by
+the latter), archives all raw content to disk, and indexes it into a local FAISS vector store
 that powers an **email-reply Q&A bot**. Since 2026-07-13 each run produces **two variants** — a
 FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 
