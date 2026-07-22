@@ -107,6 +107,32 @@ def test_build_source_prompt_is_deterministic():
     assert digest._build_source_prompt(**kwargs) == digest._build_source_prompt(**kwargs)
 
 
+# --- response text extraction (Fable 5 thinking-block compatibility) ---
+
+class _Block:
+    def __init__(self, type, text=None):
+        self.type = type
+        if text is not None:
+            self.text = text
+
+
+class _Resp:
+    def __init__(self, blocks):
+        self.content = blocks
+
+
+def test_response_text_skips_thinking_block():
+    # Fable 5 returns a ThinkingBlock first; the visible answer is a later text
+    # block. content[0].text would have grabbed the thinking (or raised).
+    resp = _Resp([_Block("thinking"), _Block("text", "<div>digest</div>")])
+    assert digest._response_text(resp) == "<div>digest</div>"
+
+
+def test_response_text_plain_opus_single_block():
+    resp = _Resp([_Block("text", "<div>digest</div>")])
+    assert digest._response_text(resp) == "<div>digest</div>"
+
+
 def test_omitted_sources_produce_no_section():
     # With only emails supplied, none of the other section headers appear.
     kwargs = _kwargs()

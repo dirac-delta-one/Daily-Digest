@@ -27,7 +27,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from config import (
-    OPUS_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, TEAM_ACTIVATION_DATE,
+    FABLE_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, TEAM_ACTIVATION_DATE,
     FORWARDER_ADDRESSES, esc, safe_href, unattended, is_self_artifact,
     is_substack_email,
 )
@@ -36,7 +36,8 @@ from claude_utils import parse_json_response, json_schema_output, wrapped_array_
 import cost
 from html_utils import extract_gmail_body, parse_forwarded_from, strip_forward_header
 from substack import fetch_substack_articles
-from sec_filings import fetch_recent_filings, WATCHLIST
+from sec_filings import fetch_recent_filings, company_names, WATCHLIST
+import ticker_names
 from news import fetch_wsj_ft_articles
 from market_data import (
     fetch_market_data, build_market_table_html, build_private_credit_html,
@@ -118,7 +119,11 @@ TEAM_RECIPIENTS = _recipients_from_env("DIGEST_TO_TEAM", "")
 # DIGEST_SUBJECT_PREFIX (a separate subject: term from the "Re:" anchor), so this
 # leading marker does NOT break reply matching — see reply_monitor.check_for_replies.
 FULL_SUBJECT_MARKER = "[FULL] "
-CLAUDE_MODEL = OPUS_MODEL
+# Digest generation model. Switched OPUS_MODEL -> FABLE_MODEL 2026-07-22 to
+# evaluate the Mythos-class model on the 2-pass digest + weekly summary.
+# Alerts/13D/reply bot stay on OPUS_MODEL (unchanged), so this is the only
+# moving variable. Import OPUS_MODEL and set this back to it to roll back.
+CLAUDE_MODEL = FABLE_MODEL
 
 # BOT_ADDRESS + the self-mail detector moved to config.py (2026-07-15) so the
 # INDEXER can share them (search.py can't import digest — circular). The
@@ -362,16 +367,23 @@ Rules:
 - LEAD WORD: every bullet in every numbered section (1-9) starts with a single bolded \
 topic word followed by a colon — <strong>Oil:</strong>, <strong>Turkey:</strong>, \
 <strong>Homebuilders:</strong> — chosen so the reader knows the bullet's subject at a \
-glance. When a bullet is about one issuer, the ticker or entity name is the right lead \
-(<strong>$NVDA (NVIDIA):</strong> …); in Worth Reading the lead word comes before the \
+glance. When a bullet is about one issuer, the ticker or entity name is the right lead, \
+written in the FULL ticker form — <strong>$NVDA (NVIDIA):</strong> — NEVER a bare \
+ticker lead like "COF:"; in Worth Reading the lead word comes before the \
 linked title; in SEC Filings and Rating Actions the company/entity is the natural lead. \
 A two-word lead is allowed only when one word would be ambiguous \
 (<strong>Turkey CDS:</strong>). The TL;DR is exempt (its bullets are already fully bold).
+- Tickers are ALWAYS written $-prefixed and bolded — <strong>$COF</strong>, never a \
+bare "COF" — wherever they appear, including as a bullet's lead word. When a company \
+is discussed, keep its ticker visible: do not replace a ticker from the sources with \
+the name alone.
 - Every ticker you cite is followed by the issuer's name in parentheses — \
-<strong>$SPCX</strong> (SpaceX) — whenever that name appears in the source material. \
-Do not expand a ticker into a company name that does NOT appear in the source \
-material: if you are unsure of the issuer, cite the bare ticker (e.g. "$TCBK") rather \
-than guessing. Skip the parenthetical where the name is already immediately adjacent \
+<strong>$SPCX</strong> (SpaceX) — whenever that name appears in the source material \
+(a TICKER GLOSSARY block of verified names may be provided among the sources; it \
+counts as source material for this rule). Do not expand a ticker into a company name \
+that does NOT appear in the source material or the glossary: if you are unsure of the \
+issuer, cite the bare ticker (e.g. "$TCBK") rather than guessing. Skip the \
+parenthetical where the name is already immediately adjacent \
 (e.g. "SpaceX (<strong>$SPCX</strong>)" needs no second copy of the name).
 - If multiple sources discuss the same topic, synthesize them and note where they agree \
 or disagree.
@@ -645,6 +657,16 @@ def _build_source_prompt(*, emails, sec_filings, market_data,
         if fdic_text:
             prompt += "\n\n" + "=" * 40 + "\n" + fdic_text + "\n" + "=" * 40
 
+    # Ticker glossary (ticker_names.py, 2026-07-22): verified issuer names for
+    # the tickers in the text above, so the "$TICK (Name)" rule can fire
+    # without violating the no-guessing rule. Built from the assembled prompt
+    # itself, so it is a pure function of the shared sources + the (frozen-
+    # during-run) name cache — both variants produce byte-identical blocks and
+    # the TEAM prefix stays cache-shareable.
+    glossary, _ = ticker_names.build_glossary(prompt, sec_names=company_names())
+    if glossary:
+        prompt += "\n\n" + "=" * 40 + "\n" + glossary + "\n" + "=" * 40
+
     return prompt
 
 
@@ -681,6 +703,19 @@ def _build_substack_block(substack_articles, substack_memory_context=None):
         )
 
     return "\n\n".join(parts)
+
+
+def _response_text(response):
+    """The concatenated text of a Messages response, skipping non-text blocks.
+
+    Fable 5 (claude-fable-5) returns extended-thinking by default, so
+    content[0] is a ThinkingBlock and the visible answer is a LATER text block
+    — the old `content[0].text` raised AttributeError under Fable (2026-07-22).
+    Selecting text blocks by type is model-agnostic: on Opus (no thinking
+    block) it still returns the single text block unchanged."""
+    return "".join(
+        b.text for b in response.content if getattr(b, "type", None) == "text"
+    )
 
 
 def _strip_to_html(text):
@@ -814,6 +849,14 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     # with its own breakpoint so the full run's two passes share it too.
     substack_block = _build_substack_block(substack_articles, substack_memory_context)
     if substack_block:
+        # Supplemental glossary for tickers appearing only in the Substack
+        # tail (the shared-prefix glossary can't carry them without forking
+        # the TEAM/FULL cache prefix — so they ride here, full-variant only).
+        supp_glossary, _ = ticker_names.build_glossary(
+            substack_block, sec_names=company_names(),
+            exclude=ticker_names.extract_tickers(prompt))
+        if supp_glossary:
+            substack_block += "\n\n" + "=" * 40 + "\n" + supp_glossary + "\n" + "=" * 40
         content.append({
             "type": "text",
             "text": "\n" + substack_block,
@@ -837,7 +880,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
         messages=[{"role": "user", "content": pass1_content}],
     )
 
-    draft = response.content[0].text
+    draft = _response_text(response)
 
     # Log token usage
     p1_input = response.usage.input_tokens
@@ -867,10 +910,13 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "job).\n"
             "4. Check that every bullet has a source tag.\n"
             "5. Check the FORMAT rules: every bullet starts with its bolded lead word + colon "
-            "(<strong>Topic:</strong>); every cited ticker carries the issuer name in "
-            "parentheses when the name is in the sources; Market & Macro contains no bullet "
-            "that merely restates a snapshot-table level or move without added analysis "
-            "(delete any such bullet).\n"
+            "(<strong>Topic:</strong>); every ticker is $-prefixed and bolded EVERYWHERE it "
+            "appears — a single-issuer bullet leads with the full form "
+            "(<strong>$COF (Capital One):</strong>, never a bare \"COF:\"); every cited "
+            "ticker carries the issuer name in parentheses when the name is in the sources "
+            "(or immediately adjacent prose); Market & Macro contains no bullet that merely "
+            "restates a snapshot-table level or move without added analysis (delete any such "
+            "bullet).\n"
             "6. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
             "and fixes any errors, repetition, and format violations. Keep the exact same HTML "
             "template and formatting.\n\n"
@@ -892,7 +938,18 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
         messages=[{"role": "user", "content": pass2_content}],
     )
 
-    final = _strip_to_html(review_response.content[0].text)
+    final = _strip_to_html(_response_text(review_response))
+
+    # Stage "$TICK (Name)" pairs this digest rendered for the learned name
+    # cache — validated against the FULL prompt text (not the truncated alert
+    # window below). Staging only: the disk write is main()'s single commit()
+    # after BOTH variants, so the team/full shared cache prefix can't fork
+    # mid-run (see ticker_names module docstring).
+    try:
+        ticker_names.collect(final, prompt + "\n" + substack_block,
+                             known=ticker_names.known_names(company_names()))
+    except Exception as e:
+        print(f"  Ticker-name collection failed: {e} — continuing.")
 
     # Log total token usage
     p2_input = review_response.usage.input_tokens
@@ -1201,7 +1258,7 @@ def generate_weekly_summary(digests, cost_label=""):
         )}],
     )
 
-    weekly = _strip_to_html(response.content[0].text)
+    weekly = _strip_to_html(_response_text(response))
 
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
@@ -1501,6 +1558,15 @@ def main():
         substack_articles=substack_articles,
         substack_memory_context=substack_memory_context,
         **shared_kwargs)
+
+    # Both variants have generated — now (and only now) the staged ticker-name
+    # pairs may hit disk without forking the shared prompt-cache prefix.
+    try:
+        n_learned = ticker_names.commit()
+        if n_learned:
+            print(f"  Ticker-name cache: learned {n_learned} new pairing(s).")
+    except Exception as e:
+        print(f"Ticker-name cache commit failed: {e} — continuing.")
 
     # --- Custom Alerts (per variant — the team box is evaluated on the team
     # source text, so it can never cite a Substack pub) ---

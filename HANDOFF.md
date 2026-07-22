@@ -192,6 +192,7 @@ if the team variant is ever deliberately retired).
 | `memory.py` | v2 story-timeline cross-digest memory + substack memory + reply-bot story router. |
 | `reply_monitor.py` | Email-reply RAG bot; asker-tiered (config-driven allow-list); `--once` mode + `while True` daemon. |
 | `alerts.py`, `archive.py`, `cost.py`, `claude_utils.py`, `content_monitor.py`, `run_alert.py` | Plain-English alerts; raw-content archiver; per-run cost accounting; JSON/structured-output helpers; O3 source-count degradation monitor; failure-alert + O2 completion watchdog. |
+| `ticker_names.py` | Ticker→issuer-name glossary for the prompt (2026-07-22): SEC registry titles + a learned cache of digest-rendered "$TICK (Name)" pairs validated against that day's sources. Staged collect() / single post-variants commit() so the TEAM/FULL cache prefix can't fork mid-run. |
 | Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
 | `net_utils.py`, `feeds.py`, `html_utils.py` | Shared EDGAR fetch + unverified-SSL context; RSS feed/date/recency helpers; HTML strippers + Gmail body extractor + `parse_forwarded_from`. |
 | `run_*.bat`, `setup_tasks.ps1`, `check.bat` | Task Scheduler wiring: 4 `%~dp0`-relative wrappers (dated logs + 30-day prune, clean `exit /b 0`) + the PowerShell provisioning script (run-whether-logged-on, wake/catch-up/network, the 09:00 watchdog, `DIGEST_UNATTENDED`). `check.bat` = ruff + pytest. |
@@ -201,8 +202,9 @@ if the team variant is ever deliberately retired).
 
 **Gitignored, account-bound secrets** (must exist on the machine; copy or regenerate):
 `credentials.json`, `token.json` (Gmail — the durable *production* token minted 2026-07-10),
-`substack_cookie.txt`, `thirteen_d_session.json`, `env.bat`, plus caches/state (`*_cache.json`,
-`pacer_seen.json`, `memory.json`, `substack_memory.json`, `source_counts.json`).
+`substack_cookie.txt`, `thirteen_d_session.json`, `env.bat`, plus caches/state (`*_cache.json`
+incl. `ticker_names_cache.json`, `pacer_seen.json`, `memory.json`, `substack_memory.json`,
+`source_counts.json`).
 *(`credentials_JARED.json` is a dev-machine backup only — do NOT copy it to the server.)*
 
 **Env vars:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),

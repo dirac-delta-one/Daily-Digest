@@ -12,6 +12,11 @@ import os
 OPUS_MODEL = "claude-opus-4-8"
 SONNET_MODEL = "claude-sonnet-4-6"
 HAIKU_MODEL = "claude-haiku-4-5-20251001"
+# Mythos-class model above Opus. Wired into the digest 2-pass + weekly summary
+# (digest.CLAUDE_MODEL) 2026-07-22 for evaluation; alerts/13D/reply stay on
+# OPUS_MODEL. NOTE: returns extended-thinking blocks by default (see
+# digest._response_text) and has no cost.py price tier yet (bills as Opus).
+FABLE_MODEL = "claude-fable-5"
 
 # --- User-Agent strings ---
 # Courtesy contact in the User-Agent for the SEC EDGAR / PACER scrapers
@@ -121,6 +126,11 @@ FORWARDER_ADDRESSES = {
 }
 
 # --- Pricing ($ per million tokens) ---
+# Fable 5 is Mythos-class, priced 2x Opus ($10/$50 vs $5/$25); its extended-
+# thinking tokens bill as output, so digest runs on Fable cost more than the
+# token counts alone suggest vs Opus.
+FABLE_PRICE_IN = 10.0
+FABLE_PRICE_OUT = 50.0
 OPUS_PRICE_IN = 5.0
 OPUS_PRICE_OUT = 25.0
 SONNET_PRICE_IN = 3.0

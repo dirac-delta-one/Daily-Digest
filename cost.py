@@ -12,12 +12,14 @@ This module only measures — it changes no behavior and makes no API calls.
 """
 
 from config import (
+    FABLE_PRICE_IN, FABLE_PRICE_OUT,
     OPUS_PRICE_IN, OPUS_PRICE_OUT,
     SONNET_PRICE_IN, SONNET_PRICE_OUT,
     HAIKU_PRICE_IN, HAIKU_PRICE_OUT,
 )
 
 _PRICES = {
+    "fable": (FABLE_PRICE_IN, FABLE_PRICE_OUT),
     "opus": (OPUS_PRICE_IN, OPUS_PRICE_OUT),
     "sonnet": (SONNET_PRICE_IN, SONNET_PRICE_OUT),
     "haiku": (HAIKU_PRICE_IN, HAIKU_PRICE_OUT),
@@ -28,14 +30,16 @@ _calls = []
 
 
 def _tier(model):
-    """Map a model id to a price tier. Defaults to opus (most expensive) so an
+    """Map a model id to a price tier. Defaults to fable (most expensive) so an
     unrecognized id never silently undercounts."""
     m = (model or "").lower()
     if "haiku" in m:
         return "haiku"
     if "sonnet" in m:
         return "sonnet"
-    return "opus"
+    if "opus" in m:
+        return "opus"
+    return "fable"
 
 
 def cost_of(model, input_tokens, output_tokens, cache_read=0, cache_write=0):

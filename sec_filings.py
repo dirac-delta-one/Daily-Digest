@@ -160,6 +160,18 @@ def _load_cik_map():
     return _cik_map
 
 
+def company_names():
+    """{TICKER: registry company title} from the already-loaded CIK map.
+
+    Non-downloading BY DESIGN (ticker_names glossary, 2026-07-22): this is
+    called at prompt-build time, after the fetch phase has run _load_cik_map.
+    If the map was never loaded (SEC fetch failed, or an offline unit test),
+    return {} rather than triggering a network fetch mid-prompt-build."""
+    if _cik_map is None:
+        return {}
+    return {t: v["name"] for t, v in _cik_map.items() if v.get("name")}
+
+
 def _get_cik(ticker):
     """Look up a ticker's CIK number."""
     cik_map = _load_cik_map()
