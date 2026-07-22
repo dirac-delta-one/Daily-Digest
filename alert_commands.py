@@ -1,0 +1,534 @@
+#!/usr/bin/env python3
+"""
+Email-managed alerts & watchlist (ALERT_COMMANDS_SPEC, 2026-07-22).
+
+Users (any digest recipient) manage the thematic alerts and the SEC watchlist
+by REPLYING to a digest email in plain English ("for the next two weeks watch
+for X", "add CRWV to the watchlist", "what alerts are set up?"). The reply
+monitor routes such replies here; the digest run reads the resulting state.
+
+This module owns:
+- the two state files (alerts_config.json, watchlist.json) — gitignored,
+  seeded from the in-code defaults when missing, written atomically;
+- the Sonnet classify/parse call that turns a reply email into structured
+  actions (relative timelines resolved to absolute ISO dates at parse time);
+- the deterministic apply + confirmation-rendering logic;
+- expiry: entries stay active through their `expires` date inclusive; the
+  first digest run after that gets a one-line notice (consume_expired) and
+  the entry is gone.
+
+Sits below alerts.py / sec_filings.py / reply_monitor.py / digest.py in the
+import graph — imports nothing from them, so every consumer is cycle-free.
+"""
+
+import copy
+import datetime
+import json
+import os
+from pathlib import Path
+
+import anthropic
+
+from config import SONNET_MODEL, esc
+from claude_utils import parse_json_response, json_schema_output
+import cost
+
+SCRIPT_DIR = Path(__file__).parent
+ALERTS_FILE = SCRIPT_DIR / "alerts_config.json"
+WATCHLIST_FILE = SCRIPT_DIR / "watchlist.json"
+
+_SEED = {"added_by": "seed", "added_on": "2026-07-22", "expires": None}
+
+# The pre-spec alerts_config.json contents (git history: tracked until
+# 2026-07-22). Seeded to disk when the file is missing — which includes the
+# server's first pull after the file left git tracking (git deletes the
+# working-tree copy on that pull; the seed makes the deletion lossless).
+DEFAULT_ALERTS = [
+    {"name": "Large Chapter 11",
+     "trigger": "Any new Chapter 11 bankruptcy filing with over $500M in liabilities",
+     "priority": "high", **_SEED},
+    {"name": "Insider selling",
+     "trigger": "Any Form 4 showing insider selling over $1M in watchlist names",
+     "priority": "high", **_SEED},
+    {"name": "HY spread blowout",
+     "trigger": "HY OAS widens more than 25bps in a single day",
+     "priority": "high", **_SEED},
+    {"name": "Fed surprise",
+     "trigger": "Any unexpected Fed action or emergency meeting",
+     "priority": "high", **_SEED},
+    {"name": "Distressed exchange",
+     "trigger": "Any distressed exchange, liability management exercise, or "
+                "cooperation agreement mentioned",
+     "priority": "medium", **_SEED},
+    {"name": "Rating downgrade",
+     "trigger": "Any downgrade of a watchlist company or any downgrade to "
+                "junk/speculative grade (fallen angel)",
+     "priority": "high", **_SEED},
+    {"name": "Bank failure",
+     "trigger": "Any FDIC bank failure detected",
+     "priority": "high", **_SEED},
+]
+
+# The pre-spec sec_filings.WATCHLIST (tickers + their comment names).
+DEFAULT_WATCHLIST = [
+    {"ticker": "PGY", "name": "Pagaya Technologies", **_SEED},
+    {"ticker": "CRWV", "name": "CoreWeave", **_SEED},
+    {"ticker": "WOLF", "name": "Wolfspeed", **_SEED},
+    {"ticker": "MSTR", "name": "MicroStrategy", **_SEED},
+    {"ticker": "TRTX", "name": "TPG RE Finance Trust", **_SEED},
+    {"ticker": "LADR", "name": "Ladder Capital", **_SEED},
+    {"ticker": "OSG", "name": "Overseas Shipholding Group", **_SEED},
+    {"ticker": "FSK", "name": "FS KKR Capital", **_SEED},
+    {"ticker": "OBDC", "name": "Blue Owl Capital (Owl Rock)", **_SEED},
+    {"ticker": "RWT", "name": "Redwood Trust", **_SEED},
+    {"ticker": "ABR", "name": "Arbor Realty Trust", **_SEED},
+    {"ticker": "GBDC", "name": "Golub Capital BDC", **_SEED},
+    {"ticker": "MAIN", "name": "Main Street Capital", **_SEED},
+    {"ticker": "TSLX", "name": "Sixth Street Specialty Lending", **_SEED},
+    {"ticker": "ARCC", "name": "Ares Capital", **_SEED},
+    {"ticker": "APLD", "name": "Applied Digital", **_SEED},
+]
+
+
+# ======================================================================
+# STATE FILES
+# ======================================================================
+
+def _today(today=None):
+    return today or datetime.date.today().isoformat()
+
+
+def _atomic_write(path, payload):
+    """Write-temp-then-replace so the digest process never reads a torn file."""
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _default_alerts_payload():
+    return {"alerts": copy.deepcopy(DEFAULT_ALERTS)}
+
+
+def _default_watchlist_payload():
+    return {"tickers": copy.deepcopy(DEFAULT_WATCHLIST)}
+
+
+def _read_state(path, default_payload):
+    """(payload, writable). Missing file -> seed defaults to disk. Corrupt
+    file -> defaults in-memory + writable=False: NEVER overwrite a corrupt
+    file (the O4 backup holds the last good copy; a reseed would silently
+    discard user edits)."""
+    if not path.exists():
+        _atomic_write(path, default_payload)
+        return copy.deepcopy(default_payload), True
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("top level is not an object")
+        return payload, True
+    except Exception as e:
+        print(f"  {path.name} unreadable ({e}) — using built-in defaults; "
+              "file left untouched (restore from the O4 backup).")
+        return copy.deepcopy(default_payload), False
+
+
+def _is_active(entry, today):
+    """Active through the expires date inclusive; no expires = permanent.
+    ISO strings compare correctly as strings."""
+    expires = entry.get("expires")
+    return not expires or today <= expires
+
+
+def load_alerts(today=None):
+    """Active alert dicts (expired filtered out) — what alerts.py evaluates."""
+    today = _today(today)
+    payload, _ = _read_state(ALERTS_FILE, _default_alerts_payload())
+    return [a for a in payload.get("alerts", [])
+            if isinstance(a, dict) and a.get("name") and _is_active(a, today)]
+
+
+def load_watchlist(today=None):
+    """Active tickers, uppercased, deduped, insertion order preserved — the
+    list behind sec_filings.WATCHLIST (and through it earnings, the alert
+    watchlist binding, and the search entity lexicon)."""
+    today = _today(today)
+    payload, _ = _read_state(WATCHLIST_FILE, _default_watchlist_payload())
+    out, seen = [], set()
+    for entry in payload.get("tickers", []):
+        if not isinstance(entry, dict):
+            continue
+        ticker = (entry.get("ticker") or "").upper()
+        if ticker and ticker not in seen and _is_active(entry, today):
+            seen.add(ticker)
+            out.append(ticker)
+    return out
+
+
+def watchlist_names():
+    """{ticker: company name} for entries that carry a name (confirmation
+    rendering; deliberately NOT wired into the ticker-glossary prompt path)."""
+    payload, _ = _read_state(WATCHLIST_FILE, _default_watchlist_payload())
+    return {e["ticker"].upper(): e["name"] for e in payload.get("tickers", [])
+            if isinstance(e, dict) and e.get("ticker") and e.get("name")}
+
+
+def consume_expired(today=None):
+    """Notice strings for entries past their expiry, REMOVING them from the
+    files — remove-on-read gives exactly-one-notice semantics with no
+    'notified' flag. Called once per digest run; [] when nothing expired."""
+    today = _today(today)
+    notices = []
+
+    payload, writable = _read_state(ALERTS_FILE, _default_alerts_payload())
+    if writable:
+        keep = [a for a in payload.get("alerts", []) if _is_active(a, today)]
+        dropped = [a for a in payload.get("alerts", []) if not _is_active(a, today)]
+        if dropped:
+            payload["alerts"] = keep
+            _atomic_write(ALERTS_FILE, payload)
+            for a in dropped:
+                notices.append(f'Alert "{a.get("name", "?")}" expired '
+                               f'{a.get("expires")} and was removed.')
+
+    payload, writable = _read_state(WATCHLIST_FILE, _default_watchlist_payload())
+    if writable:
+        keep = [t for t in payload.get("tickers", []) if _is_active(t, today)]
+        dropped = [t for t in payload.get("tickers", []) if not _is_active(t, today)]
+        if dropped:
+            payload["tickers"] = keep
+            _atomic_write(WATCHLIST_FILE, payload)
+            for t in dropped:
+                name = f" ({t['name']})" if t.get("name") else ""
+                notices.append(f'Watchlist ticker {t.get("ticker", "?")}{name} expired '
+                               f'{t.get("expires")} and was removed.')
+
+    return notices
+
+
+# ======================================================================
+# CLASSIFY / PARSE (the one Sonnet call per reply email)
+# ======================================================================
+
+_ACTION_NAMES = ["add_alert", "remove_alert", "update_expiry",
+                 "add_ticker", "remove_ticker", "list_config"]
+
+COMMAND_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "actions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": _ACTION_NAMES},
+                    "name": {"type": ["string", "null"]},
+                    "trigger": {"type": ["string", "null"]},
+                    "priority": {"type": ["string", "null"]},
+                    "expires": {"type": ["string", "null"]},
+                    "ticker": {"type": ["string", "null"]},
+                    "kind": {"type": ["string", "null"]},
+                    "target": {"type": ["string", "null"]},
+                },
+                "required": ["action", "name", "trigger", "priority",
+                             "expires", "ticker", "kind", "target"],
+                "additionalProperties": False,
+            },
+        },
+        "question": {"type": ["string", "null"]},
+        "clarification": {"type": ["string", "null"]},
+    },
+    "required": ["actions", "question", "clarification"],
+    "additionalProperties": False,
+}
+
+PARSE_SYSTEM = (
+    "You are the command interpreter for a research-digest email bot. Users reply "
+    "to the daily digest either to ask questions about the research archive or to "
+    "manage the bot's configuration: thematic ALERTS (plain-English triggers "
+    "evaluated daily against research sources) and the SEC filing WATCHLIST "
+    "(tickers whose filings and earnings are monitored).\n\n"
+    "Classify the reply and extract any configuration commands.\n"
+    "RULES:\n"
+    "- Emit an action ONLY when the user clearly requests a configuration change, "
+    "or asks to see the current configuration (-> list_config). Comments, thanks, "
+    "opinions, and research questions are NOT commands.\n"
+    "- A genuine research/archive question goes in \"question\" (null if none). A "
+    "reply can contain both commands and a question.\n"
+    "- Resolve every relative time expression (\"for the next two weeks\", \"until "
+    "end of August\", \"through earnings on Aug 10\") to an absolute ISO date using "
+    "TODAY's date. \"expires\" is the LAST day the item stays active. No time "
+    "expression -> expires null (permanent).\n"
+    "- add_alert: write \"trigger\" as a specific, self-contained condition "
+    "suitable for daily evaluation against research sources; generate a short "
+    "2-4 word \"name\" in the style of the existing alert names; \"priority\" is "
+    "high/medium/low (null when unstated).\n"
+    "- remove_alert (\"name\") / update_expiry (\"target\") / remove_ticker "
+    "(\"ticker\"): the value MUST be copied EXACTLY from the current configuration "
+    "below. If the request does not match exactly one existing entry, emit NO "
+    "action for it and explain in \"clarification\", naming the candidates.\n"
+    "- add_ticker: uppercase the ticker symbol; include the company name if the "
+    "user gives one (else null).\n"
+    "- update_expiry: \"kind\" is \"alert\" or \"ticker\"; expires null means make "
+    "it permanent.\n"
+    "- If the user clearly wanted a command but it cannot be parsed safely, emit "
+    "no action and set \"clarification\".\n"
+    "- Do NOT narrate outcomes or pre-judge redundancy — the apply step reports "
+    "what actually happened. Emit the action even if it looks redundant (e.g. a "
+    "ticker that is already on the watchlist); duplicates are handled downstream.\n"
+    "Output only the JSON object."
+)
+
+
+def _build_parse_prompt(reply_text, alerts, tickers, today):
+    """The user-turn content for classify_and_parse — extracted so grounding
+    (today's date, exact alert names, tickers) is unit-testable for free."""
+    alert_lines = "\n".join(
+        f'- "{a["name"]}" (priority {a.get("priority", "medium")}, '
+        f'{"expires " + a["expires"] if a.get("expires") else "permanent"})'
+        for a in alerts
+    ) or "- (none)"
+    return (
+        f"TODAY: {today}\n\n"
+        f"CURRENT ALERTS (exact names):\n{alert_lines}\n\n"
+        f"CURRENT WATCHLIST TICKERS: {', '.join(tickers) or '(none)'}\n\n"
+        f"REPLY EMAIL:\n{'=' * 40}\n{reply_text}\n{'=' * 40}\n"
+    )
+
+
+def classify_and_parse(reply_text, today=None):
+    """One Sonnet call: reply text -> {actions, question, clarification}.
+    Raises on API failure — the reply monitor catches and falls through to
+    the Q&A path, so a parse outage degrades to today's behavior."""
+    today = _today(today)
+    prompt = _build_parse_prompt(reply_text, load_alerts(today), load_watchlist(today), today)
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model=SONNET_MODEL,
+        max_tokens=1500,
+        system=PARSE_SYSTEM,
+        output_config=json_schema_output(COMMAND_SCHEMA),
+        messages=[{"role": "user", "content": prompt}],
+    )
+    cost.record("alert command-parse", SONNET_MODEL, response.usage)
+    return parse_json_response(response.content[0].text)
+
+
+# ======================================================================
+# APPLY (deterministic — no Claude)
+# ======================================================================
+
+def _fmt_expiry(expires):
+    return f"expires {expires}" if expires else "permanent"
+
+
+def _unique_alert_name(name, existing_names):
+    """Name collisions get a numbered suffix rather than overwriting."""
+    if name.lower() not in existing_names:
+        return name
+    n = 2
+    while f"{name} ({n})".lower() in existing_names:
+        n += 1
+    return f"{name} ({n})"
+
+
+def apply_actions(actions, asker, today=None):
+    """Apply parsed actions to the state files. Returns (results, changed):
+    results = per-action outcome strings for the confirmation reply, changed =
+    whether anything was written. Deterministic; every failure mode (unknown
+    target, duplicate, unreadable file) becomes a polite outcome string."""
+    today = _today(today)
+    results = []
+
+    a_payload, a_writable = _read_state(ALERTS_FILE, _default_alerts_payload())
+    w_payload, w_writable = _read_state(WATCHLIST_FILE, _default_watchlist_payload())
+    a_dirty = w_dirty = False
+
+    def _active_alerts():
+        return [a for a in a_payload.get("alerts", []) if _is_active(a, today)]
+
+    def _active_tickers():
+        return [t for t in w_payload.get("tickers", []) if _is_active(t, today)]
+
+    def _alert_names():
+        return ", ".join(f'"{a["name"]}"' for a in _active_alerts()) or "(none)"
+
+    for act in actions or []:
+        action = (act or {}).get("action")
+
+        if action in ("add_alert", "remove_alert") and not a_writable:
+            results.append("The alerts file is unreadable — no alert changes applied. "
+                           "Restore alerts_config.json from the backup.")
+            continue
+        if action in ("add_ticker", "remove_ticker") and not w_writable:
+            results.append("The watchlist file is unreadable — no watchlist changes "
+                           "applied. Restore watchlist.json from the backup.")
+            continue
+
+        if action == "add_alert":
+            trigger = (act.get("trigger") or "").strip()
+            if not trigger:
+                results.append("Couldn't add an alert — no trigger condition was given.")
+                continue
+            priority = (act.get("priority") or "medium").lower()
+            if priority not in ("high", "medium", "low"):
+                priority = "medium"
+            existing = {a["name"].lower() for a in a_payload.get("alerts", [])
+                        if a.get("name")}
+            name = _unique_alert_name((act.get("name") or "Custom alert").strip(), existing)
+            a_payload.setdefault("alerts", []).append({
+                "name": name, "trigger": trigger, "priority": priority,
+                "expires": act.get("expires"), "added_by": asker or "unknown",
+                "added_on": today,
+            })
+            a_dirty = True
+            results.append(f'Added alert "{name}" — {trigger} '
+                           f'(priority {priority}, {_fmt_expiry(act.get("expires"))}).')
+
+        elif action == "remove_alert":
+            name = (act.get("name") or "").strip().lower()
+            match = [a for a in a_payload.get("alerts", [])
+                     if (a.get("name") or "").lower() == name]
+            if not match:
+                results.append(f'No alert named "{act.get("name")}" — active alerts: '
+                               f'{_alert_names()}.')
+                continue
+            a_payload["alerts"] = [a for a in a_payload["alerts"] if a not in match]
+            a_dirty = True
+            results.append(f'Removed alert "{match[0]["name"]}".')
+
+        elif action == "update_expiry":
+            target = (act.get("target") or "").strip()
+            expires = act.get("expires")
+            if act.get("kind") == "ticker":
+                if not w_writable:
+                    results.append("The watchlist file is unreadable — no changes applied.")
+                    continue
+                match = [t for t in w_payload.get("tickers", [])
+                         if (t.get("ticker") or "").upper() == target.upper()]
+                if not match:
+                    results.append(f'No watchlist ticker "{target}" — current watchlist: '
+                                   f'{", ".join(load_watchlist(today)) or "(empty)"}.')
+                    continue
+                match[0]["expires"] = expires
+                w_dirty = True
+                results.append(f'Updated {match[0]["ticker"]} on the watchlist — now '
+                               f'{_fmt_expiry(expires)}.')
+            else:
+                if not a_writable:
+                    results.append("The alerts file is unreadable — no changes applied.")
+                    continue
+                match = [a for a in a_payload.get("alerts", [])
+                         if (a.get("name") or "").lower() == target.lower()]
+                if not match:
+                    results.append(f'No alert named "{target}" — active alerts: '
+                                   f'{_alert_names()}.')
+                    continue
+                match[0]["expires"] = expires
+                a_dirty = True
+                results.append(f'Updated alert "{match[0]["name"]}" — now '
+                               f'{_fmt_expiry(expires)}.')
+
+        elif action == "add_ticker":
+            ticker = (act.get("ticker") or "").strip().upper()
+            if not ticker:
+                results.append("Couldn't add a ticker — no symbol was given.")
+                continue
+            existing = [t for t in w_payload.get("tickers", [])
+                        if (t.get("ticker") or "").upper() == ticker]
+            if existing:
+                if act.get("expires") != existing[0].get("expires"):
+                    existing[0]["expires"] = act.get("expires")
+                    w_dirty = True
+                    results.append(f"{ticker} is already on the watchlist — updated to "
+                                   f"{_fmt_expiry(act.get('expires'))}.")
+                else:
+                    results.append(f"{ticker} is already on the watchlist (no change).")
+                continue
+            w_payload.setdefault("tickers", []).append({
+                "ticker": ticker, "name": act.get("name"),
+                "expires": act.get("expires"), "added_by": asker or "unknown",
+                "added_on": today,
+            })
+            w_dirty = True
+            name_part = f' ({act["name"]})' if act.get("name") else ""
+            results.append(f"Added {ticker}{name_part} to the SEC watchlist "
+                           f"({_fmt_expiry(act.get('expires'))}). Takes effect on the "
+                           "next digest run.")
+
+        elif action == "remove_ticker":
+            ticker = (act.get("ticker") or "").strip().upper()
+            match = [t for t in w_payload.get("tickers", [])
+                     if (t.get("ticker") or "").upper() == ticker]
+            if not match:
+                results.append(f'{ticker or "?"} is not on the watchlist — current '
+                               f'watchlist: {", ".join(load_watchlist(today)) or "(empty)"}.')
+                continue
+            w_payload["tickers"] = [t for t in w_payload["tickers"] if t not in match]
+            w_dirty = True
+            results.append(f"Removed {ticker} from the SEC watchlist.")
+            if not _active_tickers():
+                results.append("Heads-up: the watchlist is now empty — SEC filings and "
+                               "earnings coverage will be empty until a ticker is added.")
+
+        elif action == "list_config":
+            alerts = _active_alerts()
+            results.append(f"Active alerts ({len(alerts)}):")
+            for a in alerts:
+                results.append(f'[{a.get("priority", "medium")}] "{a["name"]}" — '
+                               f'{a.get("trigger", "")} ({_fmt_expiry(a.get("expires"))})')
+            tickers = _active_tickers()
+            ticker_bits = []
+            for t in tickers:
+                bit = t.get("ticker", "?")
+                if t.get("name"):
+                    bit += f" ({t['name']})"
+                if t.get("expires"):
+                    bit += f" [until {t['expires']}]"
+                ticker_bits.append(bit)
+            results.append(f"SEC watchlist ({len(tickers)}): "
+                           f"{', '.join(ticker_bits) or '(empty)'}")
+
+        else:
+            results.append(f'Unrecognized command "{action}" — nothing applied.')
+
+    changed = False
+    if a_dirty:
+        _atomic_write(ALERTS_FILE, a_payload)
+        changed = True
+    if w_dirty:
+        _atomic_write(WATCHLIST_FILE, w_payload)
+        changed = True
+    return results, changed
+
+
+# ======================================================================
+# CONFIRMATION RENDERING
+# ======================================================================
+
+def build_confirmation_html(results):
+    """Digest-styled confirmation reply body (same wrapper as answer_question),
+    with a one-line footer teaching the feature."""
+    items = "".join(
+        f'<li style="margin-bottom: 8px;">{esc(r)}</li>' for r in results
+    ) or '<li style="margin-bottom: 8px;">Nothing to do.</li>'
+    return (
+        '<div style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; '
+        'color: #1a1a1a; line-height: 1.6; font-size: 14px;">\n'
+        '<p style="margin: 0 0 10px;"><strong>Alert &amp; watchlist settings</strong></p>\n'
+        f'<ul style="padding-left: 20px; margin: 0;">{items}</ul>\n'
+        '<hr style="margin: 20px 0; border: none; border-top: 1px solid #ccc;">\n'
+        '<p style="font-size: 11px; color: #888;">Manage alerts by replying to any digest — '
+        'e.g. &quot;watch for X until Aug 15&quot;, &quot;add CRWV to the watchlist&quot;, '
+        '&quot;stop watching MSTR&quot;, &quot;what alerts are set up?&quot;.</p>\n'
+        '</div>'
+    )
+
+
+if __name__ == "__main__":
+    print(f"Active alerts ({ALERTS_FILE}):")
+    for a in load_alerts():
+        print(f'  [{a.get("priority", "?")}] {a["name"]}: {a.get("trigger", "")} '
+              f'({_fmt_expiry(a.get("expires"))})')
+    print(f"\nActive watchlist ({WATCHLIST_FILE}):")
+    print(f'  {", ".join(load_watchlist()) or "(empty)"}')

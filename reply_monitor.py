@@ -24,6 +24,7 @@ import anthropic
 # Reuse Gmail auth from digest.py
 from digest import get_gmail_service, DIGEST_RECIPIENTS, TEAM_RECIPIENTS
 
+import alert_commands
 from search import search, extract_entities, dedupe_near_duplicates
 from memory import match_stories, SUBSTACK_MEMORY_FILE
 from config import (
@@ -713,6 +714,44 @@ def answer_question(question, digest_date=None, asker=None):
 
 
 # ======================================================================
+# ALERT / WATCHLIST COMMANDS (ALERT_COMMANDS_SPEC)
+# ======================================================================
+
+def _handle_command(question, asker):
+    """Route a reply through the alert-command interpreter.
+
+    Returns None when the reply is not a command — including when the parse
+    call itself fails, so the Q&A path is always the fallback. Otherwise
+    returns (confirmation_html, leftover_question): leftover is any genuine
+    archive question that rode along in the same reply (answered separately
+    and appended below the confirmation by the caller)."""
+    try:
+        parsed = alert_commands.classify_and_parse(question)
+    except Exception as e:
+        print(f"  Command parse failed ({e}) — treating as a question.")
+        return None
+
+    actions = parsed.get("actions") or []
+    clarification = parsed.get("clarification")
+    leftover = parsed.get("question") or None
+
+    if actions:
+        print(f"  Alert command(s): {[a.get('action') for a in actions]}")
+        results, changed = alert_commands.apply_actions(actions, asker)
+        if changed:
+            print("  Alert/watchlist state updated.")
+        if clarification:  # partial parse: some commands applied, one ambiguous
+            results = results + [clarification]
+        return alert_commands.build_confirmation_html(results), leftover
+
+    if clarification:
+        print("  Command unclear — asking for clarification.")
+        return alert_commands.build_confirmation_html([clarification]), None
+
+    return None
+
+
+# ======================================================================
 # REPLY SENDING
 # ======================================================================
 
@@ -809,7 +848,17 @@ def process_replies(service):
 
         try:
             cost.reset()
-            answer = answer_question(question, digest_date=digest_date, asker=asker)
+            # Alert/watchlist commands (ALERT_COMMANDS_SPEC) are handled before
+            # Q&A; a command reply may also carry a question — answer it below
+            # the confirmation in the same reply.
+            handled = _handle_command(question, asker)
+            if handled is not None:
+                answer, leftover = handled
+                if leftover:
+                    answer += answer_question(leftover, digest_date=digest_date,
+                                              asker=asker)
+            else:
+                answer = answer_question(question, digest_date=digest_date, asker=asker)
             cost_text, _ = cost.summary()
             print(cost_text)
             success = send_reply(service, thread_id, msg_id, subject, answer,

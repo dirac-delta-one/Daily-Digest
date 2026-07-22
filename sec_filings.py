@@ -13,6 +13,8 @@ import datetime
 import time
 import urllib.request
 import html as html_module
+
+import alert_commands
 from html_utils import HTMLStripper
 from net_utils import edgar_get
 from config import USER_AGENT as EDGAR_USER_AGENT
@@ -28,26 +30,13 @@ CONTENT_CHARS_DEFAULT = 3000  # everything else
 # config above as the shared scraper contact.
 
 # ======================================================================
-# LIST YOUR TICKERS TO MONITOR HERE
+# TICKERS TO MONITOR — email-managed state since ALERT_COMMANDS_SPEC
+# (2026-07-22): reply to any digest ("add CRWV to the watchlist") to edit.
+# State file: watchlist.json; defaults live in alert_commands.DEFAULT_WATCHLIST.
+# Loaded once at import — the digest is a fresh process each run, so edits
+# always reach the morning run; earnings/alerts/search key off this same list.
 # ======================================================================
-WATCHLIST = [
-    "PGY",   # Pagaya Technologies
-    "CRWV",  # CoreWeave
-    "WOLF",  # Wolfspeed
-    "MSTR",  # MicroStrategy
-    "TRTX",  # TPG RE Finance Trust
-    "LADR",  # Ladder Capital
-    "OSG",   # Overseas Shipholding Group
-    "FSK",   # FS KKR Capital
-    "OBDC",  # Blue Owl Capital (Owl Rock)
-    "RWT",   # Redwood Trust
-    "ABR",   # Arbor Realty Trust
-    "GBDC",  # Golub Capital BDC
-    "MAIN",  # Main Street Capital
-    "TSLX",  # Sixth Street Specialty Lending
-    "ARCC",  # Ares Capital
-    "APLD",  # Applied Digital
-]
+WATCHLIST = alert_commands.load_watchlist()
 
 # Filing types you care about (empty = all types)
 # Common types: 10-K, 10-Q, 8-K, 4, SC 13D, SC 13G, S-1, DEF 14A, 13F-HR
@@ -255,7 +244,7 @@ def fetch_recent_filings(since_datetime=None):
     """
     if not WATCHLIST:
         print("  No EDGAR watchlist configured -- skipping SEC filings.")
-        print("  Edit the WATCHLIST in sec_filings.py to add tickers.")
+        print("  Add tickers by replying to a digest (or edit watchlist.json).")
         return []
 
     all_filings = []
@@ -302,8 +291,8 @@ def fetch_recent_filings(since_datetime=None):
 
 if __name__ == "__main__":
     if not WATCHLIST:
-        print("Edit the WATCHLIST at the top of this file first!")
-        print('Example: WATCHLIST = ["AAPL", "MSFT", "GOOGL"]')
+        print("The watchlist is empty — add tickers by replying to a digest "
+              "(or edit watchlist.json).")
     else:
         filings = fetch_recent_filings()
         for f in filings:

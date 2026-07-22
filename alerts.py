@@ -5,16 +5,14 @@ Evaluates user-defined triggers against each day's source content using Opus.
 """
 
 import json
-from pathlib import Path
 
 import anthropic
 
+import alert_commands
 from config import OPUS_MODEL, esc
 from claude_utils import parse_json_response, json_schema_output
 import cost
 
-SCRIPT_DIR = Path(__file__).parent
-ALERTS_CONFIG_FILE = SCRIPT_DIR / "alerts_config.json"
 CLAUDE_MODEL = OPUS_MODEL
 
 # Structured-output schema (A2): a top-level object with a "results" array, so the
@@ -43,12 +41,11 @@ ALERTS_SCHEMA = {
 
 
 def _load_alerts_config():
-    """Load alert definitions from config file."""
-    if not ALERTS_CONFIG_FILE.exists():
-        return []
+    """Active alert definitions — delegated to alert_commands, which owns
+    alerts_config.json (email-managed state since ALERT_COMMANDS_SPEC:
+    seeding, expiry filtering, and all writes live there)."""
     try:
-        data = json.loads(ALERTS_CONFIG_FILE.read_text(encoding="utf-8"))
-        return data.get("alerts", [])
+        return alert_commands.load_alerts()
     except Exception as e:
         print(f"  Error loading alerts config: {e}")
         return []
@@ -197,4 +194,5 @@ if __name__ == "__main__":
         for a in alerts:
             print(f"  [{a.get('priority', '?')}] {a['name']}: {a['trigger']}")
     else:
-        print("No alerts configured. Create alerts_config.json.")
+        print("No alerts configured. Add one by replying to a digest "
+              "(or create alerts_config.json).")

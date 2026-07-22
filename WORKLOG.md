@@ -19,6 +19,53 @@ kept for the S4U/stored-password findings.
 
 ---
 
+## 2026-07-22 (late session) — ALERT_COMMANDS: email-managed alerts & watchlist; format tweaks
+
+**Format tweaks (committed separately as "some formatting fixes"):** tickers are now bolded ONLY
+as a bullet's lead word (mid-bullet tickers stay plain `$TICK` — prompt rule + glossary examples +
+template comment + pass-2 checklist all aligned; the ticker-name learned cache strips tags before
+pairing, so unbolding is safe); the `(WSJ)` tag in WSJ/FT Articles went blue `#0274b6` → red
+`#c00000` (was blending into the link color; FT stays orange).
+
+**ALERT_COMMANDS_SPEC built (spec → validate → implement → verify, all same session, $0 Claude):**
+alerts and the SEC watchlist are now **email-managed runtime state** — any digest recipient
+replies to a digest in plain English ("for the next two weeks watch for X", "add CRWV to the
+watchlist", "what alerts are set up?"); the reply monitor classifies command-vs-question (one
+Sonnet call, `alert_commands.classify_and_parse`, relative dates resolved to absolute at parse
+time), applies deterministically, and confirms in-thread. Design decisions (operator-locked):
+reply-to-digest channel only (rides `is_self_artifact()`'s existing fetch+index exclusion — ZERO
+digest-contamination risk, the concern that motivated the design; auth comes free from
+`_reply_query()`'s recipient allow-list); NL parsing with confirmation replies; expiry = one-line
+"Watch item expired" notice in the next digest (via the deterministic-alerts path, both variants),
+then dropped (`consume_expired`, remove-on-read = notice exactly once). Key mechanics:
+- **New `alert_commands.py`** owns `alerts_config.json` (now gitignored/untracked — seeded from
+  in-code defaults when missing, which makes the server's pull-deletion of the formerly-tracked
+  file lossless) + new `watchlist.json` (seeded from the old hardcoded 16); atomic writes; corrupt
+  files are never overwritten (defaults in-memory, writes refused, restore from O4).
+- `sec_filings.WATCHLIST` now loads from `watchlist.json` at import (same object → earnings/alerts/
+  search-lexicon single-list keying preserved); `alerts._load_alerts_config` delegates (expiry
+  filtering included).
+- **`tests/conftest.py` (new):** autouse fixture pins `sec_filings.WATCHLIST` to the defaults +
+  clears the search entity-lexicon cache + redirects the state files to tmp — the suite is
+  insulated from live user-mutable state (MSTR/MAIN lexicon tests would otherwise break the day
+  someone emails "stop watching MSTR") and can never touch real config.
+- `run_backup.bat` state list gained `alerts_config.json watchlist.json` **+ ride-along
+  `repetition_scores.json`** (added 7/22 but missed by the backup list; it drives the Bundle-2
+  decision). OPERATIONS gained the jared-facing "Managing alerts & the SEC watchlist" section;
+  MAINTENANCE §1 updated.
+- `ruff` clean; `pytest` **424** (was 395; +29: state/expiry/apply/prompt-grounding/routing/
+  render, incl. the partial-parse clarification case). **Parse seam validated live (permissioned,
+  5 Sonnet calls, $0.03 total):** timed add resolved "next two weeks" → 2026-08-05 with a solid
+  generated trigger; compound add+remove grounded both tickers; a pure question passed through
+  untouched; "the downgrade alert" grounded to the exact name "Rating downgrade" with
+  end-of-August → 2026-08-31. One prompt revision out of it (one-revision-one-validation): the
+  model initially withheld a redundant add_ticker and narrated outcomes itself — rule added
+  ("emit the action even if redundant; never narrate outcomes — the apply step reports what
+  happened"), revalidated clean. Remaining: first real command reply on the server (restart the
+  ReplyMonitor daemon after the pull — it's long-running and holds old code until then).
+
+---
+
 ## 2026-07-22 — Soak day 2 GREEN; Fable 5 switch; glossary; format overhaul; anti-repetition Bundle 1
 
 **Morning verification (read-only, $0):** 7/22 08:00 production run verified via the bot's Sent

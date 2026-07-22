@@ -68,13 +68,41 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
    this range is an estimate; the first live week's cost lines will firm it
    up. Check/top up at console.anthropic.com (the bot account's login).
 
+## Managing alerts & the SEC watchlist (by email — no code needed)
+
+The digest watches two configurable lists: **thematic alerts** (plain-English
+triggers checked every morning — e.g. "Any new Chapter 11 filing with over
+$500M in liabilities" — hits show in the red ⚠️ ALERTS box) and the **SEC
+watchlist** (tickers whose SEC filings and earnings dates are monitored).
+
+**To change either, just reply to any digest email** in plain English from
+your work address. The bot understands things like:
+
+- "For the next two weeks, watch for anything on Argentina sovereign debt"
+- "Until July 28th, look out for CLO downgrade news"
+- "Add CRWV to the watchlist" / "stop watching MSTR"
+- "Watch WOLF through earnings, say until Aug 10"
+- "Extend the Argentina alert to end of August"
+- "Remove the insider selling alert"
+- "What alerts are set up right now?"
+
+You'll get a confirmation reply within ~5 minutes stating exactly what
+changed; the change takes effect on the next morning's digest. Anyone who
+receives a digest can do this, and everyone shares the same lists. Items with
+a time limit expire on their own: the first digest after the end date shows a
+one-line **"Watch item expired"** notice in the alerts box — reply to renew
+if you still want it. If the bot isn't sure what you meant, it replies asking
+you to rephrase instead of guessing (and a reply that's just a question is
+answered normally — asking questions hasn't changed).
+
 ## Where things live (on the server, in the project folder)
 
 - Sent digests: `digests\<date>.html` (and `…_team.html`); everything the
   system read that day: `archive\<date>\`; logs: `logs\` (30-day rotation).
 - Asking questions: **reply to any digest email** from your work address —
   the bot answers you in-thread within ~5 minutes. Team members can reply to
-  their digests the same way.
+  their digests the same way. (Replies can also manage the alerts and the SEC
+  watchlist — see the section above.)
 - **Bot-account security emails live in a "Gmail Alerts" folder**, not the
   inbox: Google's account emails about MFA/2-Step Verification and sign-in
   alerts for `acorn.research.bot@gmail.com` are auto-filtered there (filter

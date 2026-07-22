@@ -38,7 +38,7 @@ if %ERRORLEVEL% GEQ 8 set FAIL=1
 robocopy "logs"    "%DEST%\logs"    /E /R:2 /W:5 /NP /NDL /NFL >> %LOGFILE% 2>&1
 if %ERRORLEVEL% GEQ 8 set FAIL=1
 REM Top-level state files ONLY - explicit list, so no secret ever gets copied.
-robocopy "." "%DEST%" memory.json substack_memory.json wiltw_cache.json ishares_oas_cache.json pacer_seen.json source_counts.json /R:2 /W:5 /NP /NDL /NFL >> %LOGFILE% 2>&1
+robocopy "." "%DEST%" memory.json substack_memory.json wiltw_cache.json ishares_oas_cache.json pacer_seen.json source_counts.json alerts_config.json watchlist.json repetition_scores.json /R:2 /W:5 /NP /NDL /NFL >> %LOGFILE% 2>&1
 if %ERRORLEVEL% GEQ 8 set FAIL=1
 
 echo [%date% %time%] robocopy done ^(FAIL=%FAIL%; robocopy exit ^>=8 = real failure^) >> %LOGFILE%

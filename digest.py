@@ -53,6 +53,7 @@ from memory import (
     get_memory_context, update_memory,
     get_substack_memory_context, update_substack_memory,
 )
+import alert_commands
 from alerts import evaluate_alerts, build_alerts_html
 from earnings import fetch_earnings_calendar, build_earnings_html, format_earnings_for_prompt
 from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html, commit_seen
@@ -1712,6 +1713,19 @@ def main():
             })
     except Exception as e:
         print(f"Content monitor failed: {e} — continuing.")
+
+    # Expired watch items (ALERT_COMMANDS_SPEC): the first run after an
+    # email-managed alert/watchlist item passes its expiry date gets a
+    # one-line notice; consume_expired removes the entry as it reports it.
+    try:
+        for notice in alert_commands.consume_expired():
+            deterministic_alerts.append({
+                "name": "Watch item expired",
+                "detail": f"{notice} Reply to this digest to renew.",
+                "source": "alert commands",
+            })
+    except Exception as e:
+        print(f"Watch-item expiry check failed: {e} — continuing.")
 
     triggered_alerts.extend(deterministic_alerts)
     team_alerts.extend(deterministic_alerts)

@@ -202,3 +202,88 @@ def test_load_digest_for_date_team_missing_returns_none(tmp_path, monkeypatch):
     day.mkdir()
     (day / "digest.html").write_text("<div>FULL</div>", encoding="utf-8")
     assert reply_monitor._load_digest_for_date("2026-07-13", team=True) is None
+
+
+# --- _handle_command (ALERT_COMMANDS_SPEC routing; classify/apply mocked) ---
+
+def _parsed(actions=None, question=None, clarification=None):
+    return {"actions": actions or [], "question": question,
+            "clarification": clarification}
+
+
+def test_handle_command_actions_only(monkeypatch):
+    import alert_commands
+    monkeypatch.setattr(alert_commands, "classify_and_parse",
+                        lambda text: _parsed(actions=[{"action": "list_config"}]))
+    seen = {}
+
+    def fake_apply(actions, asker, today=None):
+        seen["actions"], seen["asker"] = actions, asker
+        return ["Removed MSTR from the SEC watchlist."], True
+
+    monkeypatch.setattr(alert_commands, "apply_actions", fake_apply)
+    html, leftover = reply_monitor._handle_command("stop watching MSTR",
+                                                   "apain@acorninv.com")
+    assert leftover is None
+    assert "Removed MSTR" in html
+    assert seen["asker"] == "apain@acorninv.com"  # requester attribution flows through
+
+
+def test_handle_command_with_rideralong_question(monkeypatch):
+    import alert_commands
+    monkeypatch.setattr(
+        alert_commands, "classify_and_parse",
+        lambda text: _parsed(actions=[{"action": "add_ticker", "ticker": "WYNN"}],
+                             question="what did Grant's say about Wynn?"))
+    monkeypatch.setattr(alert_commands, "apply_actions",
+                        lambda a, asker, today=None: (["Added WYNN."], True))
+    html, leftover = reply_monitor._handle_command("add WYNN, and what did Grant's say?",
+                                                   "a@acorninv.com")
+    assert "Added WYNN." in html
+    assert leftover == "what did Grant's say about Wynn?"
+
+
+def test_handle_command_clarification_only(monkeypatch):
+    import alert_commands
+    applied = []
+    monkeypatch.setattr(alert_commands, "classify_and_parse",
+                        lambda text: _parsed(clarification="Two alerts mention banks."))
+    monkeypatch.setattr(alert_commands, "apply_actions",
+                        lambda *a, **k: applied.append(a) or ([], False))
+    html, leftover = reply_monitor._handle_command("remove the bank alert",
+                                                   "a@acorninv.com")
+    assert "Two alerts mention banks." in html
+    assert leftover is None
+    assert applied == []  # nothing applied on an ambiguous command
+
+
+def test_handle_command_not_a_command_returns_none(monkeypatch):
+    import alert_commands
+    monkeypatch.setattr(alert_commands, "classify_and_parse",
+                        lambda text: _parsed(question="how did HY trade?"))
+    assert reply_monitor._handle_command("how did HY trade?", "a@acorninv.com") is None
+
+
+def test_handle_command_parse_failure_falls_through(monkeypatch):
+    import alert_commands
+
+    def boom(text):
+        raise RuntimeError("api down")
+
+    monkeypatch.setattr(alert_commands, "classify_and_parse", boom)
+    assert reply_monitor._handle_command("add WYNN", "a@acorninv.com") is None
+
+
+def test_handle_command_partial_parse_keeps_clarification(monkeypatch):
+    import alert_commands
+    monkeypatch.setattr(
+        alert_commands, "classify_and_parse",
+        lambda text: _parsed(actions=[{"action": "add_ticker", "ticker": "WYNN"}],
+                             clarification="Two alerts mention banks — which one?"))
+    monkeypatch.setattr(alert_commands, "apply_actions",
+                        lambda a, asker, today=None: (["Added WYNN."], True))
+    html, leftover = reply_monitor._handle_command("add WYNN and drop the bank alert",
+                                                   "a@acorninv.com")
+    assert "Added WYNN." in html
+    assert "which one?" in html  # the ambiguous half isn't silently dropped
+    assert leftover is None

@@ -20,7 +20,9 @@ Three entry points, all Python, all scheduled via `run_*.bat` wrappers → Task 
   **full** and a **team** digest, emails both, archives raw content, indexes it into FAISS, updates
   memory, and (Fridays) sends a weekly wrap.
 - `reply_monitor.py` — long-running daemon; answers emailed replies to digests via RAG over the
-  archive.
+  archive. Also the write path for the email-managed watch config (ALERT_COMMANDS_SPEC,
+  2026-07-22): replies that are alert/watchlist commands ("watch for X until Aug 15") are parsed
+  by Sonnet in `alert_commands.py`, applied to the state files, and confirmed in-thread.
 - `run_alert.py` — invoked by the wrappers on nonzero exit (failure alert) and by the 9 AM watchdog
   (`--check-completed`); deliberately self-contained (imports nothing that could have failed). Also
   drives the weekday `Backup` task's off-box copy alerting.
@@ -28,6 +30,9 @@ Three entry points, all Python, all scheduled via `run_*.bat` wrappers → Task 
 **Where state lives:** `archive/<date>/` (raw content per run) + `archive/index.faiss` +
 `archive/chunk_metadata.json` (the search index); `memory.json` / `substack_memory.json` (evolving
 storylines); `*_cache.json`, `pacer_seen.json`, `source_counts.json` (per-source caches/state);
+`alerts_config.json` / `watchlist.json` (the email-managed alerts + SEC watchlist — gitignored,
+**seeded from `alert_commands.py` defaults when missing**, written atomically; if one is corrupted
+the code runs on built-in defaults without overwriting it — restore from the O4 backup);
 `digests/<date>.html` (sent digests); `logs/` (30-day rotation).
 
 **Cost:** only the Claude API costs money per run (see `HANDOFF.md §2` cost tiers). Everything else

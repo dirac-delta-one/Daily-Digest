@@ -6,9 +6,12 @@
 >
 > **Companion docs:** `WORKLOG.md` = the full dated narrative of every change ever made and why
 > (the archive — start here for the *why* behind anything below). `OPERATIONS.md` = the jared-facing
-> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active spec:**
+> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active specs:**
 > `REDUCE_REPEATS_SPEC.md` (anti-repetition, 15 ideas; Bundle 1 BUILT 2026-07-22, Bundle 2+ pending
-> a week of live `repetition_scores.json` data — see its decision checklist).
+> a week of live `repetition_scores.json` data — see its decision checklist) and
+> `ALERT_COMMANDS_SPEC.md` (email-managed alerts/watchlist, BUILT 2026-07-22; parse seam
+> spot-checked live same day, 5 calls $0.03, all correct — remaining: first real command reply
+> on the server + reply-monitor restart after the pull).
 > *(Retired/deleted 2026-07-21, once the deploy finished, to keep the doc set lean — all preserved in
 > git history: `DEPLOY_PROGRESS.md` (live cutover-resume doc → folded into §1 + WORKLOG 07-20/21);
 > `NEXT_STEPS_SPEC.md` (the forward roadmap + deploy/cutover checklist — every track done, the deploy
@@ -203,8 +206,9 @@ if the team variant is ever deliberately retired).
 | `substack.py` | API/cookie-based Substack scraper (OTP-code auto-login via Gmail). Uses `substack_cookie.txt`; `SUBSCRIPTIONS` list (17 pubs). |
 | `search.py` | FAISS index + chunking + embeddings + hybrid/rerank (both param-gated, parked). CLI: `--rebuild`, `--index <date>`, `--retag`. |
 | `memory.py` | v2 story-timeline cross-digest memory + substack memory + reply-bot story router. |
-| `reply_monitor.py` | Email-reply RAG bot; asker-tiered (config-driven allow-list); `--once` mode + `while True` daemon. |
+| `reply_monitor.py` | Email-reply RAG bot; asker-tiered (config-driven allow-list); `--once` mode + `while True` daemon. Since 2026-07-22 also the alert-command channel: `_handle_command` routes command replies to `alert_commands` before Q&A (parse failure falls through to Q&A). |
 | `alerts.py`, `archive.py`, `cost.py`, `claude_utils.py`, `content_monitor.py`, `run_alert.py` | Plain-English alerts; raw-content archiver; per-run cost accounting; JSON/structured-output helpers; O3 source-count degradation monitor; failure-alert + O2 completion watchdog. |
+| `alert_commands.py` | Email-managed alerts + SEC watchlist (ALERT_COMMANDS_SPEC, 2026-07-22): owns `alerts_config.json`/`watchlist.json` (seed-on-missing, atomic writes, expiry), the Sonnet command classify/parse, deterministic apply + confirmation HTML, and `consume_expired()` (digest expiry notices). Any digest recipient edits both lists by replying to a digest; contamination-safe because replies are already `is_self_artifact()`-excluded from ingestion. |
 | `ticker_names.py` | Ticker→issuer-name glossary for the prompt (2026-07-22): SEC registry titles + a learned cache of digest-rendered "$TICK (Name)" pairs validated against that day's sources. Staged collect() / single post-variants commit() so the TEAM/FULL cache prefix can't fork mid-run. |
 | `repetition.py` | Cross-section repetition metric (REDUCE_REPEATS Idea 12, 2026-07-22): deterministic scorer over assembled digest HTML, logged per run + persisted to `repetition_scores.json`. The yardstick for all anti-repetition prompt work. |
 | Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
@@ -218,7 +222,8 @@ if the team variant is ever deliberately retired).
 `credentials.json`, `token.json` (Gmail — the durable *production* token minted 2026-07-10),
 `substack_cookie.txt`, `thirteen_d_session.json`, `env.bat`, plus caches/state (`*_cache.json`
 incl. `ticker_names_cache.json`, `pacer_seen.json`, `memory.json`, `substack_memory.json`,
-`source_counts.json`, `repetition_scores.json`).
+`source_counts.json`, `repetition_scores.json`, and — email-managed, self-seeding from
+`alert_commands.py` defaults if absent — `alerts_config.json` + `watchlist.json`).
 *(`credentials_JARED.json` is a dev-machine backup only — do NOT copy it to the server.)*
 
 **Env vars:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),
