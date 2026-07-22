@@ -52,23 +52,40 @@ ran production from `main`; that's retired, the server tracks `main`, so **`main
 working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
 be deleted at will.
 
-**What remains → the SOAK + the 2026-07-23 big-debut run + a week of repetition data.** Soak day 2
-GREEN (Wed 7/22 08:00: both variants, no changelog leak — the pass-2 fix's live check passed;
-watchdog silent). A large dev session followed on 7/22 (all committed on `main`, full detail in
-WORKLOG 2026-07-22): **Fable 5 model switch** for digest generation (+ thinking-block
-`_response_text` fix + real cost tier), **ticker glossary** (`ticker_names.py`: SEC names + learned
-cache so "$TICK (Name)" pairing works on bond-desk shorthand), **digest format changes** (bolded
-lead words on every bullet; Market & Macro restatement filter; TL;DR box REMOVED — digest now opens
-at §1), **PACER embedded-`<a>` strip fix**, and **REDUCE_REPEATS Bundle 1** (exclusive-sections +
-cross-ref prompt rules, pass-2 dedupe-first, per-variant WSJ/FT dedupe, and the `repetition.py`
-metric logging strong/weak scores to `repetition_scores.json` each run). Smoke-tested same-day:
-strong dupes 2→1, template intact. **⚠ The server had NOT pulled any of this as of the 7/22
-session end — the Thu 2026-07-23 08:00 run is the biggest-change debut since deploy** (first
-production Fable run + all of the above at once): read it closely, check the two `Repetition:` log
-lines and the cost lines (~2x under Fable). Then: **~1 week of repetition scores → Bundle 2
-decision** (`REDUCE_REPEATS_SPEC.md` checklist; watch the STRONG count, ignore weak wiggle). Drop
-`acohen` from `DIGEST_TO_TEAM` at the **2026-07-31** departure. Finish the soak while a fixer still
-exists.
+**What remains → SERVER PULL + ReplyMonitor RESTART + the 2026-07-23 debut run + a week of
+repetition data.** Soak day 2 GREEN (Wed 7/22 08:00: both variants, no changelog leak; watchdog
+silent). TWO large dev sessions followed on 7/22 (ALL COMMITTED on `main` through `f90e4ed`,
+`pytest` **440**, ruff clean; full detail in the three WORKLOG 2026-07-22 entries):
+
+*Session 1 (morning):* **Fable 5 model switch** for digest generation (+ thinking-block
+`_response_text` fix + real cost tier), **ticker glossary** (`ticker_names.py`), **format changes**
+(bolded lead words — since narrowed: tickers bold ONLY as a bullet's lead word; M&M restatement
+filter; TL;DR box REMOVED), **PACER embedded-`<a>` strip fix**, **REDUCE_REPEATS Bundle 1**
+(+ `repetition.py` metric → `repetition_scores.json`).
+
+*Session 2 (afternoon/evening — the alerts overhaul, ALERT_COMMANDS_SPEC Parts I+II):*
+**email-managed alerts & watchlist** (reply to a digest in plain English; Sonnet parse +
+confirmation replies; `alert_commands.py` owns `alerts_config.json` — now untracked — +
+new `watchlist.json`, both seed-on-missing); **expiry lifecycle** ("expiring" advance warning on
+the last active day + "expired" notice next day, below an `<hr>` in the alert box, no source tag);
+**ops-alert split** (config guard + source degradation → a separate ⚙️ operator email; red box =
+content only); **per-user thematic alerts** (every alert has ONE owner, owner-only
+visibility/editing; the old 7 migrated to jared+acohen copies — the server file self-migrates on
+first post-pull run; per-recipient sends with personalized alert boxes; neutral base is what's
+saved/archived/indexed/memory-fed; batched eval keeps ≤2 Claude calls/run; orphaned owners →
+one-time ops note); **(WSJ) tag red**; **reply-channel teaching footer** (in the alert box, or
+standalone when no box). Live-validated cheaply: parse seam 5+3 calls ($0.05 total), real
+fan-out eval, 4 formatting sample emails to acohen.
+
+**⚠ The server had NOT pulled ANY of the above at session end — the next pull must also RESTART
+the ReplyMonitor daemon** (long-running process, holds old code; digest tasks pick up changes
+automatically). The Thu 2026-07-23 08:00 run (post-pull) is the biggest-change debut since deploy:
+first production Fable run, first per-recipient sends (jared FULL + apain/acohen TEAM emails sent
+individually), alerts_config self-migration line in the log, `Repetition:` lines, ~2x cost lines.
+Then: **~1 week of repetition scores → Bundle 2 decision** (`REDUCE_REPEATS_SPEC.md` checklist;
+watch STRONG only). Drop `acohen` from `DIGEST_TO_TEAM` at the **2026-07-31** departure — the
+orphan-notice mechanism will flag her paused alerts in the ops email once. Finish the soak while a
+fixer still exists.
 
 **Key operational facts a fresh session needs (all detailed in WORKLOG 2026-07-20):**
 - **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box

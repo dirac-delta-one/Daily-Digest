@@ -5,17 +5,23 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-22 evening — soak day 2 GREEN; big dev session committed; SERVER PULL PENDING)
+## Current state (2026-07-22 night — soak day 2 GREEN; TWO dev sessions committed; SERVER PULL + ReplyMonitor RESTART PENDING)
 
-**Soak day 2 GREEN** (Wed 7/22 08:00: both variants delivered, no changelog leak — pass-2 fix's
-live check passed; watchdog silent). Then a large dev session (see the 2026-07-22 entry below) —
-all committed on `main`, `ruff` clean, `pytest` **395** — whose headline items: digest generation
-switched to **Claude Fable 5**; ticker glossary; bolded lead words + ticker-name pairing; **TL;DR
-box removed**; PACER embedded-link fix; REDUCE_REPEATS Bundle 1 (anti-repetition prompt rules +
-`repetition.py` metric + WSJ/FT dedupe). **⚠ The server had NOT pulled these commits at session
-end — Thu 2026-07-23 08:00 is the biggest-change debut run since deploy.** Read it closely; check
-the `Repetition:` log lines and the ~2x cost lines. The block below is the 7/21 deploy-era state,
-kept for the S4U/stored-password findings.
+**Soak day 2 GREEN** (Wed 7/22 08:00: both variants delivered, no changelog leak; watchdog
+silent). Then TWO large dev sessions — all committed on `main` through `f90e4ed`, `ruff` clean,
+`pytest` **440**. Session 1 (the 2026-07-22 entry below): **Claude Fable 5** for digest
+generation; ticker glossary; lead-word format (tickers bold only as lead words); **TL;DR box
+removed**; PACER link fix; REDUCE_REPEATS Bundle 1 + `repetition.py`. Session 2 (the three
+newest entries below — ALERT_COMMANDS_SPEC Parts I+II): **email-managed alerts & SEC watchlist**
+(reply-to-digest commands, Sonnet parse, confirmations), expiry lifecycle (expiring/expired
+notices below an `<hr>`), **ops-alert split** (config/degradation → separate ⚙️ operator email),
+**per-user thematic alerts** (owner-only; old 7 → jared+acohen copies, server file self-migrates
+post-pull; per-recipient sends with personalized boxes; neutral base archived/indexed), (WSJ) tag
+red, reply-channel teaching footer (always renders — in-box or standalone). **⚠ The server had
+NOT pulled ANY of this at session end — pull, then RESTART the ReplyMonitor daemon (it holds old
+code). Thu 2026-07-23 08:00 is the biggest-change debut run since deploy:** check per-recipient
+sends (3 individual emails), the alerts_config migration log line, `Repetition:` lines, ~2x cost
+lines. The block below is the 7/21 deploy-era state, kept for the S4U/stored-password findings.
 
 ---
 
