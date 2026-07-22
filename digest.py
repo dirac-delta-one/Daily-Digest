@@ -308,14 +308,9 @@ SECTIONS — If a section has no content, OMIT IT ENTIRELY and renumber the rema
 sections sequentially (1, 2, 3...). Do not include empty sections or "none found" messages. \
 Do not leave numbering gaps.
 
-0. **TL;DR** — Exactly 3 bold bullets. Each bullet must be ONE LINE, under 20 words. \
-No elaboration, no context, no full sentences. Raw signal only. Examples:
-   • WTI $112 — Tuesday Hormuz ultimatum is the binary catalyst
-   • 5-10yr TIPS: breakevens at 2.36% vs. PIMCO's 4.25% CPI estimate
-   • Private credit redemption queue at 2 years, portfolio quality silently deteriorating
-
 1. **Top Takeaways** — The 3-5 most important things from today's inbox. Lead with what's \
-new, surprising, or actionable.
+new, surprising, or actionable. This is the digest's opening section — there is NO TL;DR / \
+summary box above it; do not generate one.
 
 2. **Market & Macro** — Key macro themes, economic data, central bank commentary, \
 rates/FX/commodities moves mentioned across sources. Cite specific levels and changes from \
@@ -372,7 +367,7 @@ written in the FULL ticker form — <strong>$NVDA (NVIDIA):</strong> — NEVER a
 ticker lead like "COF:"; in Worth Reading the lead word comes before the \
 linked title; in SEC Filings and Rating Actions the company/entity is the natural lead. \
 A two-word lead is allowed only when one word would be ambiguous \
-(<strong>Turkey CDS:</strong>). The TL;DR is exempt (its bullets are already fully bold).
+(<strong>Turkey CDS:</strong>).
 - Tickers are ALWAYS written $-prefixed and bolded — <strong>$COF</strong>, never a \
 bare "COF" — wherever they appear, including as a bullet's lead word. When a company \
 is discussed, keep its ticker visible: do not replace a ticker from the sources with \
@@ -390,8 +385,7 @@ or disagree.
 - NO REPETITION ACROSS SECTIONS. Each story or data point appears ONCE with full detail, \
 in its single best-fit section. If a later section has a genuinely NEW angle on a story \
 covered earlier (e.g. a contrarian take on a Top Takeaways item), give ONLY the new angle \
-in one line — do not restate the numbers or re-tell the story. The TL;DR is exempt \
-(compressing the day's top items is its job).
+in one line — do not restate the numbers or re-tell the story.
 - Tag each claim with its source in parentheses at the end, e.g. "(Grant's)" or "(Greenmantle)". \
 Be consistent — always at the end of the bullet, never woven into the sentence. \
 Only cite real sources: publication names (Grant's, FT, Bloomberg), SEC filing types, \
@@ -415,13 +409,7 @@ Use inline styles only (no <style> blocks). Every digest must look identical in 
     <p style="font-size: 13px; color: #666; margin: 4px 0 0;">{{DATE}} · Prepared by Claude</p>
   </div>
 
-  <!-- TL;DR — always 3 bullets, bold, no header, each UNDER 20 WORDS -->
-  <div style="background: #f7f5f0; border-left: 4px solid #1a1a1a; padding: 14px 18px; margin-bottom: 24px; font-size: 15px;">
-    <p style="margin: 0 0 6px;"><strong>• {{one-line macro signal}}</strong></p>
-    <p style="margin: 0 0 6px;"><strong>• {{one-line trade idea}}</strong></p>
-    <p style="margin: 0;"><strong>• {{one-line risk}}</strong></p>
-  </div>
-
+  <!-- No TL;DR / summary box. The digest opens directly with section 1. -->
   <!-- Sections use this exact pattern. Use these EXACT numbers. Omit sections with no content. -->
   <h2 style="font-size: 18px; border-bottom: 1px solid #ccc; padding-bottom: 6px; margin: 28px 0 12px;">1. Top Takeaways</h2>
   <ul style="padding-left: 20px; margin: 0;">
@@ -906,8 +894,9 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "arguments.\n"
             "3. Check for REPETITION — the same story or data point restated in more than one "
             "section. Keep the full detail in its single best-fit section; elsewhere keep at most "
-            "a one-line genuinely-new-angle reference (the TL;DR is exempt — compression is its "
-            "job).\n"
+            "a one-line genuinely-new-angle reference.\n"
+            "   Also confirm there is NO TL;DR / summary box before section 1 — if the draft "
+            "opens with one, delete it so the digest starts at section 1.\n"
             "4. Check that every bullet has a source tag.\n"
             "5. Check the FORMAT rules: every bullet starts with its bolded lead word + colon "
             "(<strong>Topic:</strong>); every ticker is $-prefixed and bolded EVERYWHERE it "
@@ -1111,7 +1100,8 @@ def _assemble_digest_html(digest_html, alerts_html, market_html, rates_html,
     snapshots; the earnings calendar follows them.
     """
     # Find the opening div and header end to insert pre-built sections
-    # Insert alerts + the snapshot tables + earnings AFTER the header, BEFORE the TL;DR
+    # Insert alerts + the snapshot tables + earnings AFTER the header, before
+    # section 1 (the TL;DR box that used to sit here was removed 2026-07-22)
     header_end = digest_html.find('</div>', digest_html.find('border-bottom: 3px double'))
     if header_end != -1:
         # Find the end of the header closing div

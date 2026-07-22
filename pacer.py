@@ -21,6 +21,7 @@ import anthropic
 
 from config import esc, safe_href, SONNET_MODEL, USER_AGENT
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
+from html_utils import strip_html
 import cost
 
 SCRIPT_DIR = Path(__file__).parent
@@ -407,7 +408,10 @@ def discover_new_filings():
                     "case_number": case_number,
                     "debtor": debtor or "(name not parsed)",
                     "title": item["title"],
-                    "description": item["description"][:300],
+                    # PACER RSS descriptions embed an <a> document-link tag; strip
+                    # it to visible text so it doesn't render as escaped markup in
+                    # the email (build_pacer_html esc()s it) or clutter the prompt.
+                    "description": strip_html(item["description"])[:300],
                     "link": item["link"],
                     "date": item["pub_date"],
                 })
@@ -495,7 +499,8 @@ def track_existing_cases():
                     "court": court,
                     "case_number": case_number,
                     "title": item["title"],
-                    "description": item["description"][:300],
+                    # Strip PACER's embedded <a> doc-link (see fetch_new_filings).
+                    "description": strip_html(item["description"])[:300],
                     "link": item["link"],
                     "date": item["pub_date"],
                     "keywords": matched,
