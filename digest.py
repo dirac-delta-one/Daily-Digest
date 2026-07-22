@@ -313,8 +313,11 @@ No elaboration, no context, no full sentences. Raw signal only. Examples:
 new, surprising, or actionable.
 
 2. **Market & Macro** — Key macro themes, economic data, central bank commentary, \
-rates/FX/commodities moves mentioned across sources. Reference the actual market data and \
-FRED numbers provided — cite specific levels and changes.
+rates/FX/commodities moves mentioned across sources. Cite specific levels and changes from \
+the market/FRED data provided ONLY in support of a story or interpretation drawn from the \
+sources. The reader sees that raw data in snapshot tables directly above your digest, so a \
+bullet that merely restates a level or move (e.g. "10Y at 4.25%, down 3 bps on the week") \
+with no added analysis is FORBIDDEN — drop it. If nothing qualifies, omit the section.
 
 3. **Equity Ideas & Calls** — Specific stock mentions, upgrades/downgrades, price target \
 changes, earnings takeaways. Always include ticker symbols and any specific numbers \
@@ -327,7 +330,7 @@ multiple sources.
 or where two sources disagree with each other.
 
 6. **Worth Reading in Full** — Flag 1-3 items. One line each: \
-<a href="URL">Title</a> (Source) — why it's worth reading. \
+<strong>Topic:</strong> <a href="URL">Title</a> (Source) — why it's worth reading. \
 Hyperlink the title to the source URL. No paragraph descriptions.
 
 7. **Bloomberg** — If any emails are from bloomberg.net, group them here. \
@@ -356,9 +359,20 @@ write a standalone bankruptcy or court-activity section.
 
 Rules:
 - Be specific. Include numbers, tickers, dates, and names — not vague summaries.
-- Do not expand a ticker into a company name unless that name appears in the source \
-material. If you are unsure of the issuer, cite the bare ticker (e.g. "$TCBK") rather \
-than guessing the company name.
+- LEAD WORD: every bullet in every numbered section (1-9) starts with a single bolded \
+topic word followed by a colon — <strong>Oil:</strong>, <strong>Turkey:</strong>, \
+<strong>Homebuilders:</strong> — chosen so the reader knows the bullet's subject at a \
+glance. When a bullet is about one issuer, the ticker or entity name is the right lead \
+(<strong>$NVDA (NVIDIA):</strong> …); in Worth Reading the lead word comes before the \
+linked title; in SEC Filings and Rating Actions the company/entity is the natural lead. \
+A two-word lead is allowed only when one word would be ambiguous \
+(<strong>Turkey CDS:</strong>). The TL;DR is exempt (its bullets are already fully bold).
+- Every ticker you cite is followed by the issuer's name in parentheses — \
+<strong>$SPCX</strong> (SpaceX) — whenever that name appears in the source material. \
+Do not expand a ticker into a company name that does NOT appear in the source \
+material: if you are unsure of the issuer, cite the bare ticker (e.g. "$TCBK") rather \
+than guessing. Skip the parenthetical where the name is already immediately adjacent \
+(e.g. "SpaceX (<strong>$SPCX</strong>)" needs no second copy of the name).
 - If multiple sources discuss the same topic, synthesize them and note where they agree \
 or disagree.
 - NO REPETITION ACROSS SECTIONS. Each story or data point appears ONCE with full detail, \
@@ -399,7 +413,7 @@ Use inline styles only (no <style> blocks). Every digest must look identical in 
   <!-- Sections use this exact pattern. Use these EXACT numbers. Omit sections with no content. -->
   <h2 style="font-size: 18px; border-bottom: 1px solid #ccc; padding-bottom: 6px; margin: 28px 0 12px;">1. Top Takeaways</h2>
   <ul style="padding-left: 20px; margin: 0;">
-    <li style="margin-bottom: 10px; font-size: 14px;">{{content}} <span style="color: #888;">(Source)</span></li>
+    <li style="margin-bottom: 10px; font-size: 14px;"><strong>{{Topic}}:</strong> {{content}} <span style="color: #888;">(Source)</span></li>
   </ul>
 
   <!-- Section 2: Market & Macro -->
@@ -414,8 +428,9 @@ Use inline styles only (no <style> blocks). Every digest must look identical in 
   <!-- Styling rules for all sections: -->
   <!-- Section headers: h2, 18px, border-bottom, numbered as above -->
   <!-- Content: ul/li for bullets, 14px, 10px margin-bottom -->
+  <!-- Every bullet opens with its bolded lead word: <strong>Topic:</strong> -->
   <!-- Sources: span with color #888, always at end of bullet -->
-  <!-- Tickers: <strong>$TICK</strong> whenever a ticker appears -->
+  <!-- Tickers: <strong>$TICK</strong> (Company Name) whenever a ticker appears -->
   <!-- Hyperlinks: <a href="URL" style="color: #1a5276;">linked text</a> -->
 
 </div>
@@ -851,9 +866,14 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "a one-line genuinely-new-angle reference (the TL;DR is exempt — compression is its "
             "job).\n"
             "4. Check that every bullet has a source tag.\n"
-            "5. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
-            "and fixes any errors and repetition. Keep the exact same HTML template and "
-            "formatting.\n\n"
+            "5. Check the FORMAT rules: every bullet starts with its bolded lead word + colon "
+            "(<strong>Topic:</strong>); every cited ticker carries the issuer name in "
+            "parentheses when the name is in the sources; Market & Macro contains no bullet "
+            "that merely restates a snapshot-table level or move without added analysis "
+            "(delete any such bullet).\n"
+            "6. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
+            "and fixes any errors, repetition, and format violations. Keep the exact same HTML "
+            "template and formatting.\n\n"
             "If the draft was already comprehensive, return it mostly unchanged — don't pad it "
             "with filler.\n\n"
             "Output ONLY the final digest HTML itself — begin at the opening <div> and end at "
