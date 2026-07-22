@@ -6,15 +6,17 @@
 >
 > **Companion docs:** `WORKLOG.md` = the full dated narrative of every change ever made and why
 > (the archive — start here for the *why* behind anything below). `OPERATIONS.md` = the jared-facing
-> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active specs:**
+> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active spec:**
 > `REDUCE_REPEATS_SPEC.md` (anti-repetition, 15 ideas; Bundle 1 BUILT 2026-07-22, Bundle 2+ pending
-> a week of live `repetition_scores.json` data — see its decision checklist) and
-> `ALERT_COMMANDS_SPEC.md` (email-managed alerts/watchlist, BUILT 2026-07-22, parse seam
-> live-validated; **Part II per-user alerts BUILT same day** — owner-scoped alerts,
-> per-recipient sends with personalized alert boxes, batched eval fan-out — remaining: first
-> real command reply on the server + reply-monitor restart after the pull).
-> *(Retired/deleted 2026-07-21, once the deploy finished, to keep the doc set lean — all preserved in
-> git history: `DEPLOY_PROGRESS.md` (live cutover-resume doc → folded into §1 + WORKLOG 07-20/21);
+> a week of live `repetition_scores.json` data — see its decision checklist; retire it after that
+> decision).
+> *(Retired/deleted, once built and distilled, to keep the doc set lean — all preserved in
+> git history: `ALERT_COMMANDS_SPEC.md` (retired 2026-07-22 same-day-as-built: email-managed
+> alerts/watchlist Parts I+II incl. per-user alerts — everything shipped + live-spot-checked;
+> how-it-works → §4 rows + OPERATIONS + MAINTENANCE §1, build narrative + design decisions →
+> WORKLOG 2026-07-22 entries; remaining live validation = first real command reply on the server,
+> debugged from code/WORKLOG if needed, not the spec);
+> `DEPLOY_PROGRESS.md` (2026-07-21; live cutover-resume doc → folded into §1 + WORKLOG 07-20/21);
 > `NEXT_STEPS_SPEC.md` (the forward roadmap + deploy/cutover checklist — every track done, the deploy
 > executed; live watch items → §1/§11.B, deploy record → WORKLOG 07-20/21); and the completed-track
 > specs `CLEANUP_SPEC.md` / `CLEANUP_REFACTOR_SPEC.md` / `TEAM_DIGEST_SPEC.md` → intent distilled in

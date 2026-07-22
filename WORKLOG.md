@@ -27,6 +27,10 @@ lines. The block below is the 7/21 deploy-era state, kept for the S4U/stored-pas
 
 ## 2026-07-22 (latest) — ALERT_COMMANDS Part II: per-user thematic alerts
 
+*(Spec retired same day, pre-pull: `ALERT_COMMANDS_SPEC.md` deleted per the built-and-distilled
+convention — full text incl. Part II + §17 validation findings in git history; how-it-works lives
+in HANDOFF §4 / OPERATIONS / MAINTENANCE, the decisions in this entry and the two below.)*
+
 **Design locked with the operator, then spec→validate→implement→verify (Part II appended to
 `ALERT_COMMANDS_SPEC.md`, incl. §17 validation findings):** every thematic alert now has exactly
 ONE owner — owner-only visibility/editing/listing ("what alerts are set up?" shows yours only);
