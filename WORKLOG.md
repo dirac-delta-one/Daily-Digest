@@ -19,7 +19,29 @@ kept for the S4U/stored-password findings.
 
 ---
 
-## 2026-07-22 (late session) — ALERT_COMMANDS: email-managed alerts & watchlist; format tweaks
+## 2026-07-22 (late session) — ALERT_COMMANDS: email-managed alerts & watchlist; format tweaks; ops-alert split
+
+**Ops-alert split (operator request, after the ALERT_COMMANDS commit):** the digest's red ⚠️
+ALERTS box now carries CONTENT alerts only (LLM triggers, Fed stress, watch-item-expired renewal
+notices — the last stays in-digest deliberately: the renewal flow needs recipients to see it).
+OPERATIONAL signals — "Team config missing" (config guard) + "Source degradation" (O3) — moved to
+`ops_alerts` and go out post-send as ONE separate "⚙️ Digest operational alerts — <date>" email
+(amber box, `digest._build_ops_email_html`) to the operator channel = the `DIGEST_TO`-driven
+recipients, matching `run_alert.py`'s failure alerts. Subject deliberately lacks
+`DIGEST_SUBJECT_PREFIX` (reply-bot query anchors on the prefix); bot-sent, so ingestion-safe via
+`is_self_artifact`. Non-fatal try/except; sent only when non-empty, after `commit_seen()`.
+Harness send-stub now records subject; misconfig-guard test rewritten (config alert asserted OUT
+of the digest html, IN the ops email, to `DIGEST_RECIPIENTS`); new `test_ops_alerts_split_routing`
+pins both directions of the split. Docs synced (OPERATIONS "emails you might get", HANDOFF §1a/§5/
+§7.2/§8, README env sample).
+
+**Expiry lifecycle polish (operator, after seeing a sample email):** added
+`alert_commands.expiring_today()` — a read-only "Watch item expiring … renew it now" advance
+warning on an item's LAST active day (fires exactly once; the removal + "expired" notice stays
+next-day via `consume_expired`). Formatting per two sample emails sent to acohen: expiry rows
+render in the alert box BELOW a thin `<hr>` separator (`build_alerts_html` grew an
+`expiry_alerts` second arg; separator only when both sections present) and carry NO source tag
+(the "(alert commands)" tag dropped). `pytest` **427**.
 
 **Format tweaks (committed separately as "some formatting fixes"):** tickers are now bolded ONLY
 as a bullet's lead word (mid-bullet tickers stay plain `$TICK` — prompt rule + glossary examples +

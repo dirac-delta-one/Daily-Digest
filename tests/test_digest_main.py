@@ -71,7 +71,7 @@ def harness(tmp_path, monkeypatch):
         digest, "send_digest_email",
         lambda service, html, recipients=None, subject=None:
         calls.append(("send", tuple(recipients) if recipients else ("FULL",),
-                      marker.exists(), html)))
+                      marker.exists(), html, subject)))
     monkeypatch.setattr(
         digest, "commit_seen",
         lambda: calls.append(("commit_seen", marker.exists())))
@@ -158,8 +158,9 @@ def test_team_active_wiring(harness, monkeypatch):
 
 def test_post_activation_misconfig_guard(harness, monkeypatch):
     # CLEANUP_SPEC 2.1: activation recorded in config but DIGEST_TO_TEAM empty
-    # -> the run completes and sends, but memory is NOT fed the full digest,
-    # and the sent email carries a loud config alert.
+    # -> the run completes and sends, but memory is NOT fed the full digest.
+    # Since the ops-alert split (2026-07-22) the config alert arrives as its
+    # own ⚙️ operational email, NOT inside the digest's alert box.
     calls, marker = harness
     monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
     monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", "2026-07-13")
@@ -169,10 +170,42 @@ def test_post_activation_misconfig_guard(harness, monkeypatch):
 
     assert "update_memory" not in names          # shared store protected
     assert ("update_substack", 1) in calls       # jared-personal store unaffected
-    assert names.count("send") == 1              # the run still delivers
     assert marker.exists()                       # and still completes (O2)
-    sent_html = next(c[3] for c in calls if c[0] == "send")
-    assert "Team config missing" in sent_html    # visible in the email itself
+
+    sends = [c for c in calls if c[0] == "send"]
+    digest_sends = [c for c in sends if not (c[4] or "").startswith("⚙️")]
+    ops_sends = [c for c in sends if (c[4] or "").startswith("⚙️")]
+    assert len(digest_sends) == 1                # the run still delivers
+    assert len(ops_sends) == 1                   # plus ONE operational email
+    assert "Team config missing" not in digest_sends[0][3]   # out of the digest…
+    assert "Team config missing" in ops_sends[0][3]          # …into the ops email
+    assert ops_sends[0][1] == tuple(digest.DIGEST_RECIPIENTS)  # operator channel
+
+
+def test_ops_alerts_split_routing(harness, monkeypatch):
+    # 2026-07-22 split: operational signals (source degradation) leave the
+    # digest for the separate ⚙️ email; content signals (watch-item expiry)
+    # stay in both the digest's red box.
+    calls, _marker = harness
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
+    monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
+    monkeypatch.setattr(
+        digest, "record_and_check",
+        lambda counts: ["news: 0 items for 3 straight runs"])
+    monkeypatch.setattr(
+        digest.alert_commands, "consume_expired",
+        lambda: ['Alert "Timed" expired 2026-07-21 and was removed.'])
+
+    digest.main()
+    sends = [c for c in calls if c[0] == "send"]
+    digest_html = [c for c in sends if not (c[4] or "").startswith("⚙️")][0][3]
+    ops_sends = [c for c in sends if (c[4] or "").startswith("⚙️")]
+
+    assert len(ops_sends) == 1
+    assert "Source degradation" in ops_sends[0][3]
+    assert "Source degradation" not in digest_html
+    assert "Watch item expired" in digest_html
+    assert "Watch item expired" not in ops_sends[0][3]
 
 
 # --- Receiving-side policy + self-ingestion guard (CLEANUP_SPEC 2.5) ---

@@ -138,9 +138,9 @@ the cache). **The TEAM digest is the indexed one** and the one that feeds the sh
 (so team askers' reply-bot retrieval never sees Substack). The reply bot answers each asker at
 their tier: `FULL_ACCESS_SENDERS` (jtramontano only) get Substack; everyone else gets the team
 view. **Deploy-critical:** the server's `env.bat` **must** carry `DIGEST_TO_TEAM` — a
-post-activation run without it is code-treated as misconfigured (warn + in-email alert + digest
-chunks un-indexed + memory frozen; escape hatch = set `config.TEAM_ACTIVATION_DATE` back to `None`
-if the team variant is ever deliberately retired).
+post-activation run without it is code-treated as misconfigured (warn + a separate ⚙️ operational
+alert email to the operator channel + digest chunks un-indexed + memory frozen; escape hatch = set
+`config.TEAM_ACTIVATION_DATE` back to `None` if the team variant is ever deliberately retired).
 
 ---
 
@@ -236,7 +236,8 @@ TEAM digest's recipients — **must be set on the server**; empty = team generat
 ## 5. Risks
 
 - **Silent degradation:** the `try/except`-everywhere design means a broken source yields an empty
-  section, not a crash. Mitigated by the O3 content monitor (per-source zero-streak → digest alert)
+  section, not a crash. Mitigated by the O3 content monitor (per-source zero-streak → the separate
+  ⚙️ operational-alerts email since 2026-07-22; the digest's red box carries content alerts only)
   but still: read logs.
 - **LLM-output coupling:** `_assemble_digest_html` finds insertion points by string-matching the
   Opus-generated HTML. Stable in practice (heavily-pinned prompt) but brittle if the template drifts.
@@ -316,7 +317,7 @@ OPERATIONS "Backups & restore" are the path. Requirements the deploy implemented
    `substack_cookie.txt` + `substack_memory.json`.
 4. **Reliability & observability — all code halves DONE:** dated log rotation + 30-day prune (O1);
    failure alerting (`run_alert.py`, nonzero exit → red alert email with log tail); source-empty
-   content monitor (O3 → digest alert box, arms after ~6 runs); hung-run watchdog
+   content monitor (O3 → the separate ⚙️ ops-alert email, arms after ~6 runs); hung-run watchdog
    (`run_alert.py digest --check-completed`, its 09:00 task registered by `setup_tasks.ps1`).
    Sessions still need occasional human care: Substack auto-renews (OTP-code via Gmail); **13D will
    eventually need a manual re-login** — documented in OPERATIONS.md.
@@ -361,8 +362,8 @@ race on the shared bot inbox; two digests double-send).
   override," but its VALUES are the production recipients (jtramontano + apain + acohen). Any manual
   dev run MUST explicitly override: `DIGEST_TO=acohen@acorninv.com` and `DIGEST_TO_TEAM=` (empty —
   which also triggers the §1a misconfig guard: FULL-only, memory frozen, digest chunks un-indexed —
-  the correct state for a dev test run; the red "Team config missing" alert box in the email is
-  expected). Loading `env.bat` from PowerShell: parse the `set` lines (see WORKLOG 2026-07-22) —
+  the correct state for a dev test run; a separate ⚙️ ops-alert email carrying "Team config
+  missing" is expected — since 2026-07-22 it no longer appears in the digest itself). Loading `env.bat` from PowerShell: parse the `set` lines (see WORKLOG 2026-07-22) —
   bare `call env.bat` fails under `NoDefaultCurrentDirectoryInExePath`.
 
 ---

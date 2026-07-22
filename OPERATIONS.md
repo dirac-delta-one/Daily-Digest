@@ -27,8 +27,12 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
   run hung or never started (machine off/asleep, or a login prompt is blocking —
   see the two manual fixes below). Check the machine is on; re-run
   `run_digest.bat` by hand.
-- **Red "⚠️ ALERTS" box at the top of a digest** — market/content alerts. Two
-  operational ones to know:
+- **Red "⚠️ ALERTS" box at the top of a digest** — market/content alerts only
+  (your configured alert triggers, Fed stress signals, and "Watch item
+  expiring"/"expired" notices for timed alerts/watchlist tickers — reply to
+  renew those). Nothing in the red box is a system problem.
+- **"⚙️ Digest operational alerts — …"** (separate email, arrives just after
+  the digest) — system-health notices. The two to know:
   - **"Source degradation: <source>: 0 items for 3 straight runs…"** — a data
     source silently died. `substack` → do the Substack cookie fix below.
     `wiltw` → do the 13D re-login below. Anything else → developer.
@@ -89,9 +93,10 @@ your work address. The bot understands things like:
 You'll get a confirmation reply within ~5 minutes stating exactly what
 changed; the change takes effect on the next morning's digest. Anyone who
 receives a digest can do this, and everyone shares the same lists. Items with
-a time limit expire on their own: the first digest after the end date shows a
-one-line **"Watch item expired"** notice in the alerts box — reply to renew
-if you still want it. If the bot isn't sure what you meant, it replies asking
+a time limit expire on their own: on the last active day the digest shows a
+**"Watch item expiring"** advance warning (renew by reply before coverage
+lapses), and the first digest after the end date shows a one-line
+**"Watch item expired"** notice — reply to renew if you still want it. If the bot isn't sure what you meant, it replies asking
 you to rephrase instead of guessing (and a reply that's just a question is
 answered normally — asking questions hasn't changed).
 

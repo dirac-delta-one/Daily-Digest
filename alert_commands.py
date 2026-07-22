@@ -172,6 +172,30 @@ def watchlist_names():
             if isinstance(e, dict) and e.get("ticker") and e.get("name")}
 
 
+def expiring_today(today=None):
+    """Advance-warning strings for entries whose LAST active day is today
+    (today == expires) — read-only, nothing is removed: tomorrow's run drops
+    the entry via consume_expired. The digest runs once a day, so the warning
+    naturally renders exactly once, the day before the expiry notice."""
+    today = _today(today)
+    warnings = []
+
+    payload, _ = _read_state(ALERTS_FILE, _default_alerts_payload())
+    for a in payload.get("alerts", []):
+        if a.get("expires") == today:
+            warnings.append(f'Alert "{a.get("name", "?")}" ends after today\'s run '
+                            f'(expires {today}).')
+
+    payload, _ = _read_state(WATCHLIST_FILE, _default_watchlist_payload())
+    for t in payload.get("tickers", []):
+        if t.get("expires") == today:
+            name = f" ({t['name']})" if t.get("name") else ""
+            warnings.append(f'Watchlist ticker {t.get("ticker", "?")}{name} ends after '
+                            f'today\'s run (expires {today}).')
+
+    return warnings
+
+
 def consume_expired(today=None):
     """Notice strings for entries past their expiry, REMOVING them from the
     files — remove-on-read gives exactly-one-notice semantics with no

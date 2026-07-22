@@ -100,6 +100,10 @@ single owner of the path).
   and tickers) whose `expires` < today, **removing them from the files** as it returns them.
   Called once per digest run; the remove-on-read gives exactly-one-notice semantics with no
   "notified" flag. Returns `[]` and removes nothing when nothing expired.
+- `expiring_today(today=None)` → advance-warning strings for entries whose LAST active day is
+  today (`expires == today`), read-only (added 2026-07-22 after the initial build). Renders in
+  the digest as "Watch item expiring … reply to renew it now", one day before the expired
+  notice — the once-daily digest run makes it fire exactly once.
 
 Note the two horizons: `load_*` treats `today > expires` as inactive (so an expired-but-not-
 yet-consumed entry can never fire an alert or a fetch), while `consume_expired` is what

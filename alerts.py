@@ -156,13 +156,10 @@ def evaluate_alerts(source_text, watchlist=None):
         return []
 
 
-def build_alerts_html(triggered_alerts):
-    """Render triggered alerts as a prominent HTML box."""
-    if not triggered_alerts:
-        return ""
-
+def _alert_items_html(alerts):
+    """The <li> rows for one group of alert dicts (shared by both box sections)."""
     items = ""
-    for alert in triggered_alerts:
+    for alert in alerts:
         name = alert.get("name", "Alert")
         detail = alert.get("detail", "")
         source = alert.get("source", "")
@@ -174,13 +171,37 @@ def build_alerts_html(triggered_alerts):
             f'<strong>{esc(name)}:</strong> {esc(detail)}{source_tag}'
             f'</li>\n'
         )
+    return items
+
+
+def build_alerts_html(triggered_alerts, expiry_alerts=None):
+    """Render triggered alerts as a prominent HTML box.
+
+    expiry_alerts \u2014 the watch-item expiring/expired lifecycle notices
+    (ALERT_COMMANDS_SPEC) \u2014 render inside the same box but BELOW a thin
+    separator, so renewal housekeeping reads apart from the actual
+    market/content alerts (operator formatting request 2026-07-22)."""
+    expiry_alerts = expiry_alerts or []
+    if not triggered_alerts and not expiry_alerts:
+        return ""
+
+    body = ""
+    if triggered_alerts:
+        body += (f'<ul style="padding-left: 20px; margin: 0;">\n'
+                 f'{_alert_items_html(triggered_alerts)}</ul>\n')
+    if expiry_alerts:
+        if triggered_alerts:
+            body += ('<hr style="margin: 12px 0; border: none; '
+                     'border-top: 1px solid #e0b9b3;">\n')
+        body += (f'<ul style="padding-left: 20px; margin: 0;">\n'
+                 f'{_alert_items_html(expiry_alerts)}</ul>\n')
 
     html = (
         '<div style="background: #fdf2f2; border: 2px solid #c0392b; border-radius: 6px; '
         'padding: 16px 20px; margin-bottom: 24px;">\n'
         '<h2 style="font-size: 18px; color: #c0392b; margin: 0 0 10px;">'
         '\u26a0\ufe0f ALERTS</h2>\n'
-        f'<ul style="padding-left: 20px; margin: 0;">\n{items}</ul>\n'
+        f'{body}'
         '</div>\n'
     )
 

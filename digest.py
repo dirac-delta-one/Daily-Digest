@@ -1352,6 +1352,42 @@ def _digest_subject(full=False):
     return f"{FULL_SUBJECT_MARKER}{subject}" if full else subject
 
 
+def _ops_alert_subject():
+    """Subject for the operational-alerts email. Deliberately does NOT carry
+    DIGEST_SUBJECT_PREFIX — the reply bot's Gmail query anchors on the prefix,
+    and replies to an ops email aren't digest questions."""
+    day = datetime.date.today().day
+    return f"⚙️ Digest operational alerts — {datetime.date.today().strftime(f'%A, %B {day}')}"
+
+
+def _build_ops_email_html(ops_alerts):
+    """Body of the operator-facing operational-alerts email (config guards,
+    source degradation — the signals that used to sit in the digest's red
+    alert box but are actionable only by whoever runs the system)."""
+    items = ""
+    for alert in ops_alerts:
+        source = alert.get("source", "")
+        source_tag = f' <span style="color: #888;">({esc(source)})</span>' if source else ""
+        items += (
+            f'<li style="margin-bottom: 10px; font-size: 14px;">'
+            f'<strong>{esc(alert.get("name", "Alert"))}:</strong> '
+            f'{esc(alert.get("detail", ""))}{source_tag}</li>\n'
+        )
+    return (
+        '<div style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; '
+        'color: #1a1a1a; line-height: 1.6;">\n'
+        '<div style="background: #fff8ec; border: 2px solid #b9770e; border-radius: 6px; '
+        'padding: 16px 20px;">\n'
+        '<h2 style="font-size: 18px; color: #b9770e; margin: 0 0 10px;">'
+        '⚙️ Operational alerts</h2>\n'
+        '<p style="font-size: 13px; color: #555; margin: 0 0 10px;">System-health notices '
+        'from today\'s digest run — nothing here affects the digest content itself. '
+        'Fix guidance is in OPERATIONS.md on the server.</p>\n'
+        f'<ul style="padding-left: 20px; margin: 0;">\n{items}</ul>\n'
+        '</div>\n</div>\n'
+    )
+
+
 def send_digest_email(service, html_body, recipients=DIGEST_RECIPIENTS, subject=None):
     """Send a digest email via Gmail, with retry for transient SSL errors.
 
@@ -1654,13 +1690,21 @@ def main():
         except Exception as e:
             print(f"Team alert evaluation failed: {e} — continuing without.")
 
-    # --- Deterministic signals (appended to BOTH variants' alert boxes) ---
+    # --- Deterministic signals ---
+    # Two routes (operator request 2026-07-22): CONTENT signals (market/credit
+    # facts the whole audience should see — Fed stress, watch-item expiry) join
+    # both variants' red alert boxes via deterministic_alerts; OPERATIONAL
+    # signals (config guards, source degradation — actionable only by whoever
+    # runs the system) go to ops_alerts and are sent post-send as ONE separate
+    # ⚙️ email to the operator channel (the DIGEST_TO-driven recipients,
+    # matching run_alert.py's failure alerts) instead of cluttering the digest.
     deterministic_alerts = []
+    ops_alerts = []
 
     # Team config guard (CLEANUP_SPEC 2.1): make the misconfiguration visible
-    # in the sent email itself, not just the log nobody reads unattended.
+    # in a sent email, not just the log nobody reads unattended.
     if team_misconfigured:
-        deterministic_alerts.append({
+        ops_alerts.append({
             "name": "Team config missing",
             "detail": ("DIGEST_TO_TEAM is unset but team activation is recorded "
                        "(config.TEAM_ACTIVATION_DATE) — only the FULL digest was "
@@ -1706,7 +1750,7 @@ def main():
             **{key: len(fetched[key]) for key in fetched},
         }
         for signal in record_and_check(counts):
-            deterministic_alerts.append({
+            ops_alerts.append({
                 "name": "Source degradation",
                 "detail": signal,
                 "source": "content monitor",
@@ -1714,15 +1758,24 @@ def main():
     except Exception as e:
         print(f"Content monitor failed: {e} — continuing.")
 
-    # Expired watch items (ALERT_COMMANDS_SPEC): the first run after an
-    # email-managed alert/watchlist item passes its expiry date gets a
-    # one-line notice; consume_expired removes the entry as it reports it.
+    # Watch-item expiry lifecycle (ALERT_COMMANDS_SPEC): on an item's LAST
+    # active day a "expiring" advance warning renders (read-only), and the
+    # first run after the expiry date gets the "expired" notice —
+    # consume_expired removes the entry as it reports it. These render in the
+    # alert box BELOW a separator, with no source tag (formatting, 2026-07-22).
+    expiry_alerts = []
     try:
         for notice in alert_commands.consume_expired():
-            deterministic_alerts.append({
+            expiry_alerts.append({
                 "name": "Watch item expired",
                 "detail": f"{notice} Reply to this digest to renew.",
-                "source": "alert commands",
+                "source": "",
+            })
+        for notice in alert_commands.expiring_today():
+            expiry_alerts.append({
+                "name": "Watch item expiring",
+                "detail": f"{notice} Reply to this digest to renew it now.",
+                "source": "",
             })
     except Exception as e:
         print(f"Watch-item expiry check failed: {e} — continuing.")
@@ -1731,8 +1784,8 @@ def main():
     team_alerts.extend(deterministic_alerts)
 
     # --- Build pre-formatted HTML sections (shared by both variants) ---
-    alerts_html = build_alerts_html(triggered_alerts)
-    team_alerts_html = build_alerts_html(team_alerts)
+    alerts_html = build_alerts_html(triggered_alerts, expiry_alerts)
+    team_alerts_html = build_alerts_html(team_alerts, expiry_alerts)
     # mirror rows: 20Y UST (FRED) + HYG/LQD OAS (iShares) into Market Snapshot
     market_html = build_market_table_html(market_data, macro_data + ishares_oas)
     rates_html = build_rates_table_html(macro_data)
@@ -1802,6 +1855,18 @@ def main():
         commit_seen()
     except Exception as e:
         print(f"PACER seen-state commit failed: {e} — continuing.")
+
+    # --- Operational alerts (config guards, source degradation): one separate
+    # ⚙️ email to the operator channel, not the digest's alert box. Post-send
+    # and non-fatal — a failure here must never take down a delivered run.
+    if ops_alerts:
+        try:
+            print(f"Sending operational alert email ({len(ops_alerts)} item(s))...")
+            send_digest_email(service, _build_ops_email_html(ops_alerts),
+                              recipients=DIGEST_RECIPIENTS,
+                              subject=_ops_alert_subject())
+        except Exception as e:
+            print(f"Operational alert email failed: {e} — continuing.")
 
     # --- Completion marker: the O2 watchdog (run_alert --check-completed) reads
     # archive/<today>/digest_sent_at.txt to tell a hung/missing run from a done one ---

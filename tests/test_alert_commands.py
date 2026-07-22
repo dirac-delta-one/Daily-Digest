@@ -101,6 +101,26 @@ def test_consume_expired_notices_once_and_prunes():
     assert ac.consume_expired(today=TODAY) == []
 
 
+def test_expiring_today_warns_without_removing():
+    _seed_alert(TODAY)
+    ac.WATCHLIST_FILE.write_text(json.dumps({"tickers": [
+        {"ticker": "WOLF", "name": "Wolfspeed", "expires": TODAY},
+        {"ticker": "CCC", "expires": FUTURE},
+        {"ticker": "DDD", "expires": None},
+    ]}), encoding="utf-8")
+
+    warnings = ac.expiring_today(today=TODAY)
+    assert len(warnings) == 2
+    assert any('"Timed"' in w and "ends after today's run" in w for w in warnings)
+    assert any("WOLF (Wolfspeed)" in w for w in warnings)
+
+    # read-only: nothing removed, item still active, consume finds nothing yet
+    assert [a["name"] for a in ac.load_alerts(today=TODAY)] == ["Timed"]
+    assert ac.consume_expired(today=TODAY) == []
+    # and future/permanent entries never warn
+    assert ac.expiring_today(today=YESTERDAY) == []
+
+
 def test_consume_expired_nothing_expired_touches_nothing():
     _seed_alert(FUTURE)
     before = ac.ALERTS_FILE.read_text(encoding="utf-8")
@@ -250,12 +270,28 @@ def test_confirmation_html_escapes_and_teaches():
 def test_expiry_notice_renders_in_alert_box():
     _seed_alert(YESTERDAY)
     ac.WATCHLIST_FILE.write_text(json.dumps({"tickers": []}), encoding="utf-8")
-    deterministic = [
+    expiry = [
         {"name": "Watch item expired", "detail": f"{n} Reply to this digest to renew.",
-         "source": "alert commands"}
+         "source": ""}
         for n in ac.consume_expired(today=TODAY)
     ]
-    html = build_alerts_html(deterministic)
+    # expiry-only box: renders, no source tag, no separator (nothing above it)
+    html = build_alerts_html([], expiry)
     assert "Watch item expired" in html
     assert "Reply to this digest to renew." in html
     assert "ALERTS" in html
+    assert "alert commands" not in html
+    assert "<hr" not in html
+
+
+def test_expiry_notices_render_below_separator():
+    content = [{"name": "HY spread blowout", "detail": "widened 31bps", "source": "FRED"}]
+    expiry = [{"name": "Watch item expiring", "detail": "ends after today's run",
+               "source": ""}]
+    html = build_alerts_html(content, expiry)
+    # one separator, content above it, expiry below it
+    assert html.count("<hr") == 1
+    assert html.index("HY spread blowout") < html.index("<hr") < html.index("Watch item expiring")
+    # content alerts alone -> no separator; nothing at all -> no box
+    assert "<hr" not in build_alerts_html(content)
+    assert build_alerts_html([], []) == ""

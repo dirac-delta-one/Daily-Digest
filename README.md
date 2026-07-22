@@ -71,7 +71,7 @@ set ANTHROPIC_API_KEY=sk-ant-...
 set FRED_API_KEY=...                  REM Macro Dashboard + Fed balance sheet
 set SUBSTACK_EMAIL=owner@gmail.com    REM Substack renews via a one-time code emailed here
 REM Team-digest recipients (the Substack-free variant). REQUIRED in production:
-REM a missing value pauses digest indexing + memory as a privacy guard and raises an in-digest alert.
+REM a missing value pauses digest indexing + memory as a privacy guard and sends a separate ops-alert email.
 set DIGEST_TO_TEAM=teammate@acorninv.com
 REM On a TEST machine, route ALL digest/alert/reply email to yourself instead of the
 REM production recipients (leave UNSET in production — defaults to the production owner):
