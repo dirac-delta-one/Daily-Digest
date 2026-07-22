@@ -272,3 +272,173 @@ watching; it exercises no new Claude paths beyond the parse call already tested.
 5. `.gitignore` + `git rm --cached` + `run_backup.bat`.
 6. Docs (OPERATIONS, MAINTENANCE, HANDOFF, WORKLOG).
 7. `check.bat` (ruff + full pytest) green; then the permissioned parse spot-check.
+
+---
+---
+
+# PART II — Per-user thematic alerts (design locked 2026-07-22)
+
+> Every thematic alert belongs to exactly ONE user; the SEC watchlist stays fully shared.
+> Each digest recipient gets a personalized alert box over an otherwise identical digest.
+> Operator-locked decisions: no shared alert baseline; owner-only visibility/editing/listing;
+> current 7 alerts migrate to two independent copies (jtramontano@acorninv.com +
+> acohen@acorninv.com — "ava" = acohen); apain and ALL future onboarded users start with zero
+> thematic alerts; onboarding = add the address to DIGEST_TO_TEAM, everything else self-serve
+> by reply; orphaned alerts (owner no longer a recipient) are skipped at eval with a one-time
+> ops-email note.
+
+## 9. Data model & migration
+
+`alerts_config.json` entries gain `"owner": "<email, lowercase>"`. Watchlist entries get NO
+owner — shared is the whole point.
+
+**Legacy migration (idempotent, in the loader):** any alert entry WITHOUT an `owner` key is
+legacy. On the first load that finds one, the payload is migrated in memory — each ownerless
+entry is replaced by one copy per `LEGACY_ALERT_OWNERS = ["jtramontano@acorninv.com",
+"acohen@acorninv.com"]` — and persisted once (atomic write; skipped if the file is corrupt →
+in-memory only, same posture as Part I). This transparently migrates BOTH the dev and server
+files on their next run, and any user-added post-Part-I alerts (which also lack owners —
+they're duplicated the same way, acceptable for the ~1-day-old feature). `DEFAULT_ALERTS`
+becomes the 14 migrated entries (7 × 2 owners) so fresh seeds need no migration.
+
+**Name uniqueness is per-owner** (two owners can each have "Bank failure"); remove/update
+match on (owner, name).
+
+## 10. alert_commands.py API changes
+
+- `load_alerts(today=None, owner=None)` — `owner` filters to that owner's active alerts
+  (compared lowercase); `None` returns all active (internal/eval use). Runs the §9 migration.
+- `owners_with_alerts(today=None)` → set of owner emails having ≥1 active alert (orphan check).
+- `classify_and_parse(reply_text, today=None, owner=None)` — the CURRENT ALERTS grounding
+  block lists ONLY the owner's alerts (privacy + correct remove/extend grounding). Watchlist
+  grounding unchanged (shared).
+- `apply_actions(actions, asker, today=None)` — alert actions are owner-scoped to `asker`:
+  add_alert stamps `owner=asker`; remove_alert / update_expiry(kind=alert) match within the
+  asker's alerts only (unknown-target outcome lists the asker's names only); name-collision
+  suffixing is per-owner. list_config renders the asker's alerts + the shared watchlist.
+  Ticker actions unchanged (shared).
+- `consume_expired(today=None)` / `expiring_today(today=None)` — return shape changes from
+  `[str]` to `[{"owner": <email or None>, "notice": str}]`: alert notices carry their owner,
+  watchlist notices carry `owner=None` (shared). Semantics (remove-on-read / read-only last
+  active day) unchanged.
+- `orphan_notices(current_recipients, today=None)` → one-time ops-email lines. Computes
+  orphans = owners_with_alerts − current_recipients (lowercased), diffs against
+  `payload["_meta"]["known_orphans"]`, persists the updated meta list (add new, drop
+  re-recipiented), and returns a notice string per NEW orphan ("N alert(s) owned by X are
+  paused — X no longer receives the digest."). Evaluation skip needs no state: the digest only
+  evaluates current recipients' alerts by construction.
+- Confirmation footer wording: "alerts are personal to you; the watchlist is shared."
+
+## 11. alerts.py — batched per-owner evaluation
+
+- `evaluate_alerts(source_text, watchlist=None, alerts=None)` — gains the optional explicit
+  `alerts` list (the batcher passes eval units); `None` keeps loading all active (standalone
+  `__main__` behavior).
+- NEW `evaluate_owner_alerts(source_text, owner_alerts, watchlist=None)` →
+  `{owner: [triggered]}`. Mechanics:
+  1. Collect eval UNITS: dedupe identical `(name.lower(), trigger)` across owners (the
+     migrated 7×2 collapse back to 7 units — cost stays flat as users onboard).
+  2. Name collisions with DIFFERENT triggers get a disambiguated eval name ("Bank failure
+     ~2") so the model's name-keyed results can't merge them; the mapping restores each
+     owner's real alert name in the fan-out.
+  3. ONE `evaluate_alerts(..., alerts=units)` call per invocation; empty union → no call,
+     empty dict.
+  4. Fan out: each triggered unit's result is copied to every (owner, alert) behind it.
+- digest calls it once per tier: FULL recipients' alerts vs `source_text`, TEAM recipients'
+  alerts vs `team_source_text` — still ≤2 Claude calls per run regardless of user count.
+  FULL/TEAM privacy invariant preserved: a team user's alert detail can never quote Substack.
+
+## 12. digest.py — per-recipient assembly & send
+
+- **Evaluation:** `full_results = evaluate_owner_alerts(source_text, {r: load_alerts(owner=r)
+  for r in DIGEST_RECIPIENTS}, WATCHLIST)`; same for TEAM (team_source_text, TEAM_RECIPIENTS)
+  when team is active. Owners with zero alerts contribute nothing.
+- **Expiry routing:** shared notices (`owner=None`, i.e. watchlist) render in EVERY box and
+  the neutral base; owned alert notices render only in that owner's box (and nowhere if the
+  owner isn't a recipient — the entry still expires/prunes silently).
+- **Boxes:** per-recipient box = `build_alerts_html(own_triggered + deterministic_alerts,
+  shared_expiry + own_expiry)`. **Neutral base box** = `build_alerts_html(
+  deterministic_alerts, shared_expiry)` — deterministic content signals (Fed stress) are for
+  everyone.
+- **Neutral base html is the canonical artifact:** `save_daily_digest` (weekly-wrap inputs),
+  the archive, the index, and the memory update all consume the neutral-base assembly of
+  their variant — personal boxes exist ONLY in sent emails. (Index/memory already use the
+  TEAM variant; this just fixes WHICH box that variant carries.)
+- **Send loop:** one email per recipient, personalized box, same subject per variant. A
+  per-recipient send failure is caught and logged, remaining recipients still send, and the
+  run raises at the end if any send failed (so run_alert's failure email fires). commit_seen
+  runs only if ALL sends succeeded (conservative: a partial failure re-surfaces PACER entries
+  rather than losing them for the failed recipient — same all-or-nothing as today).
+- **Ops email:** append `orphan_notices(DIGEST_RECIPIENTS + TEAM_RECIPIENTS)` output.
+- **Dev-test behavior:** `DIGEST_TO=acohen` override → the FULL box carries acohen's alerts —
+  correct and useful for testing.
+
+## 13. reply_monitor.py
+
+`_handle_command` passes `owner=asker` to `classify_and_parse`. Everything else unchanged
+(auth, tiering, rate limit, combined replies).
+
+## 14. Limitations (operator-stated, recorded so they aren't attempted)
+
+- **No forwarding, no attachments.** The command channel reads ONLY the typed top-of-reply
+  text (`_extract_question` stops at quote markers); forwarded email bodies below the reply
+  and attachments of any kind are never parsed for commands. Creating alerts from forwarded
+  research or attached files is out of scope — commands are plain typed sentences.
+- Per-user SEC watchlists: explicitly rejected — shared forever.
+- Cross-user alert visibility (labeled listing): rejected — own-only everywhere.
+- Seeding new users with starter alerts: rejected — start empty, self-serve.
+
+## 15. Tests (all offline unless marked)
+
+1. Migration: legacy 7-entry file → 14 owned entries, persisted once, idempotent on reload;
+   corrupt file still never written.
+2. Owner scoping: load_alerts(owner=…) filters; apply_actions add stamps asker; remove/update
+   can't touch another owner's alert (unknown-target outcome lists own names only);
+   list_config shows own alerts + shared watchlist; per-owner name-collision suffix.
+3. classify_and_parse grounding: prompt contains the owner's alert names, NOT another
+   owner's.
+4. evaluate_owner_alerts (Claude call mocked): identical-alert dedupe → 1 unit, result fans
+   out to both owners; name-collision-different-trigger → 2 disambiguated units mapped back;
+   empty union → no call.
+5. Expiry routing: owned alert notice → owner's box only; watchlist notice → all boxes +
+   neutral base; consume/expiring return the new dict shape.
+6. Orphan notices: first run after an owner leaves recipients → one notice; second run →
+   none; owner re-added → meta cleared (a later re-orphaning notices again).
+7. digest harness: two TEAM recipients → two team sends with DIFFERENT boxes (each sees own
+   alert, not the other's); saved/indexed/memory html = neutral base (no personal alerts);
+   partial send failure → remaining sends attempted, run raises, commit_seen NOT called.
+8. reply_monitor: owner passed through to classify_and_parse.
+9. **Live (small, step-5):** one classify_and_parse with owner grounding (~$0.005) + one
+   evaluate_owner_alerts against a ~1-page synthetic source (~$0.02–0.05) validating real
+   fan-out. NO full digest run without separate explicit permission.
+
+## 16. Build order
+
+1. alert_commands: schema/migration/owner scoping + tests.
+2. alerts.py: evaluate_owner_alerts + tests.
+3. digest.py: eval wiring, expiry routing, neutral base, send loop + harness tests.
+4. reply_monitor + test.
+5. Docs (OPERATIONS wording, HANDOFF, WORKLOG, MAINTENANCE).
+6. ruff + pytest; live spot-checks.
+
+## 17. Part-II validation-pass findings (2026-07-22, pre-build)
+
+Verified against the code; corrections folded into the plan:
+
+1. **Neutral-base cascade confirmed:** `final_html`/`team_final_html` are the single artifacts
+   feeding repetition scoring, save_daily_digest, archive (digest_html/digest_team_html
+   kwargs), the index (reads the archive), and update_memory — so building THEM as the
+   neutral base covers all five consumers in one move. Repetition scores therefore rate the
+   neutral base (stable/deterministic — an improvement, personal boxes would have made
+   scores owner-dependent).
+2. **Case: recipient env values are not normalized** (`_recipients_from_env` strips only).
+   All owner comparisons lowercase both sides; owner keys in results dicts are lowercase.
+3. **Harness impact:** test_digest_main's fixture stubs `digest.evaluate_alerts` — it must
+   stub `digest.evaluate_owner_alerts` instead, and the `["SRC", "SRC (team)"]` assertions
+   change shape (record source + owner map keys).
+4. **Part-I tests written against the global-alert world need updating with the migration:**
+   seed count 7 → 14 (owned copies); name-collision suffix is now per-owner (adding "Bank
+   failure" as a NEW user no longer collides); list_config shows the asker's alerts only;
+   remove-unknown outcome lists own names only.
+5. **Orphan notices ride the existing ops_alerts list** (built in the deterministic-signals
+   block → the ⚙️ email), as `{"name": "Paused alerts", …}` entries — no new send path.

@@ -101,20 +101,24 @@ def _build_alert_prompt(alerts, source_text, watchlist=None):
     )
 
 
-def evaluate_alerts(source_text, watchlist=None):
+def evaluate_alerts(source_text, watchlist=None, alerts=None):
     """
-    Evaluate all configured alerts against today's source material.
+    Evaluate alert definitions against today's source material.
 
     Args:
         source_text: The full source material text sent to Opus for the digest.
         watchlist: optional list of tickers the word "watchlist" in a trigger
             resolves to (digest.py passes `sec_filings.WATCHLIST`). None leaves
             "watchlist" to the model's own interpretation (legacy behavior).
+        alerts: optional explicit alert-dict list (evaluate_owner_alerts passes
+            its deduped eval units). None loads every active alert (standalone
+            __main__ / legacy behavior).
 
     Returns:
         List of triggered alerts with details.
     """
-    alerts = _load_alerts_config()
+    if alerts is None:
+        alerts = _load_alerts_config()
     if not alerts:
         print("  No alerts configured — skipping.")
         return []
@@ -154,6 +158,63 @@ def evaluate_alerts(source_text, watchlist=None):
     except Exception as e:
         print(f"  Alert evaluation failed: {e}")
         return []
+
+
+def evaluate_owner_alerts(source_text, owner_alerts, watchlist=None):
+    """Per-user thematic alerts (ALERT_COMMANDS_SPEC Part II): evaluate every
+    owner's alerts in ONE Claude call and fan results back out per owner —
+    cost stays flat as users onboard.
+
+    Args:
+        owner_alerts: {owner_email: [alert dicts]} — typically
+            {r: alert_commands.load_alerts(owner=r) for r in recipients}.
+    Returns:
+        {owner: [triggered results]} with each result carrying the owner's own
+        alert name. Owners with no alerts get an empty list; an empty union
+        makes NO Claude call.
+
+    Mechanics: identical (name, trigger) pairs across owners collapse into one
+    eval unit (the migrated 7×2 defaults collapse back to 7); same-name units
+    with DIFFERENT triggers get a disambiguated eval name ("Bank failure ~2")
+    so the model's name-keyed results can't merge them — the fan-out restores
+    each owner's real name.
+    """
+    units = []          # deduped alert dicts handed to evaluate_alerts
+    unit_members = []   # parallel: [(owner, real_name), ...] per unit
+    by_key = {}         # (name_lower, trigger) -> unit index
+    name_counts = {}    # name_lower -> units so far with this name
+
+    for owner, alerts in owner_alerts.items():
+        for a in alerts or []:
+            name = a.get("name") or ""
+            key = (name.lower(), a.get("trigger") or "")
+            if key in by_key:
+                unit_members[by_key[key]].append((owner, name))
+                continue
+            n = name_counts.get(key[0], 0) + 1
+            name_counts[key[0]] = n
+            eval_name = name if n == 1 else f"{name} ~{n}"
+            by_key[key] = len(units)
+            units.append({"name": eval_name, "trigger": a.get("trigger", ""),
+                          "priority": a.get("priority", "medium")})
+            unit_members.append([(owner, name)])
+
+    if not units:
+        return {owner: [] for owner in owner_alerts}
+
+    print(f"  {sum(len(v or []) for v in owner_alerts.values())} owned alert(s) "
+          f"across {len(owner_alerts)} recipient(s) -> {len(units)} eval unit(s).")
+    triggered = evaluate_alerts(source_text, watchlist=watchlist, alerts=units)
+
+    unit_index = {u["name"]: i for i, u in enumerate(units)}
+    out = {owner: [] for owner in owner_alerts}
+    for t in triggered:
+        idx = unit_index.get(t.get("name"))
+        if idx is None:
+            continue
+        for owner, real_name in unit_members[idx]:
+            out[owner].append({**t, "name": real_name})
+    return out
 
 
 def _alert_items_html(alerts):

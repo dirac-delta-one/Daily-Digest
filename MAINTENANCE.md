@@ -23,6 +23,9 @@ Three entry points, all Python, all scheduled via `run_*.bat` wrappers → Task 
   archive. Also the write path for the email-managed watch config (ALERT_COMMANDS_SPEC,
   2026-07-22): replies that are alert/watchlist commands ("watch for X until Aug 15") are parsed
   by Sonnet in `alert_commands.py`, applied to the state files, and confirmed in-thread.
+  **Thematic alerts are per-user** (Part II, same day): each alert has one owner, only the owner
+  sees/edits it, and each digest recipient gets their own email with a personalized alert box
+  (the archived/indexed copy carries a neutral box). The SEC watchlist stays shared.
 - `run_alert.py` — invoked by the wrappers on nonzero exit (failure alert) and by the 9 AM watchdog
   (`--check-completed`); deliberately self-contained (imports nothing that could have failed). Also
   drives the weekday `Backup` task's off-box copy alerting.

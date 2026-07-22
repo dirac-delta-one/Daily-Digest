@@ -726,7 +726,8 @@ def _handle_command(question, asker):
     archive question that rode along in the same reply (answered separately
     and appended below the confirmation by the caller)."""
     try:
-        parsed = alert_commands.classify_and_parse(question)
+        # owner=asker (Part II): the parse grounds on THIS user's alerts only
+        parsed = alert_commands.classify_and_parse(question, owner=asker)
     except Exception as e:
         print(f"  Command parse failed ({e}) — treating as a question.")
         return None

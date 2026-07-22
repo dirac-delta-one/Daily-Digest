@@ -19,6 +19,47 @@ kept for the S4U/stored-password findings.
 
 ---
 
+## 2026-07-22 (latest) — ALERT_COMMANDS Part II: per-user thematic alerts
+
+**Design locked with the operator, then spec→validate→implement→verify (Part II appended to
+`ALERT_COMMANDS_SPEC.md`, incl. §17 validation findings):** every thematic alert now has exactly
+ONE owner — owner-only visibility/editing/listing ("what alerts are set up?" shows yours only);
+NO shared baseline. The pre-Part-II 7 alerts migrate to two independent copies owned by
+jtramontano + acohen (**"ava" = acohen**); apain and all future users start empty (onboarding =
+add to `DIGEST_TO_TEAM`, self-serve by reply). The SEC watchlist stays fully shared. Mechanics:
+- **Migration:** ownerless (legacy) entries found in `alerts_config.json` are duplicated per
+  `LEGACY_ALERT_OWNERS` and persisted once (idempotent, in `_load_alerts_payload`); seeds ship
+  pre-migrated (14 entries).
+- **Batched eval, flat cost:** `alerts.evaluate_owner_alerts(source, {owner: alerts})` dedupes
+  identical (name, trigger) units across owners (7×2 defaults → 7 units), disambiguates same-name/
+  different-trigger collisions ("Bank failure ~2") for the model then restores real names in the
+  per-owner fan-out. Still ≤2 Claude calls/run (FULL recipients vs full source, TEAM recipients vs
+  team source — Substack invariant intact) no matter how many users onboard.
+- **Per-recipient sends:** each recipient gets their own email with a personalized alert box (own
+  triggered alerts + shared deterministic content; own + shared expiry notices below the
+  separator). The **neutral base** (deterministic + shared-expiry box only) is what gets saved to
+  digests/, archived, indexed, fed to memory, and repetition-scored — personal boxes exist only in
+  sent emails. Partial send failure: remaining recipients still send, run raises at the end
+  (failure alert fires), `commit_seen` skipped.
+- **Orphans:** owners who stop being recipients have alerts skipped by construction;
+  `orphan_notices` reports each NEW orphaning once (tracked in `_meta.known_orphans`) via the ⚙️
+  ops email — relevant at the 7/31 acohen departure.
+- **Limitations recorded (operator):** no forwarding/attachments in the command channel — commands
+  are typed reply text only; per-user watchlists and cross-user visibility explicitly rejected.
+- reply_monitor grounds the command parse on the asker's own alerts (`owner=asker`).
+- `ruff` clean; `pytest` **439** (was 427; +12 incl. migration, cross-owner isolation, fan-out
+  dedupe/disambiguation, per-recipient boxes, partial-send failure, orphan once-semantics,
+  owner-grounded parse prompt).
+- **Verified live ($0.02, 3 calls):** the dev `alerts_config.json` migrated in place (7→14,
+  idempotent on re-run); owner grounding held (apain removing "the bank failure alert" → correct
+  "you have no active alerts" clarification, no cross-user leak; jared's same request → exact-name
+  update_expiry with "two weeks" → 2026-08-05); and one real Opus eval collapsed 14 owned alerts →
+  7 units → the synthetic FDIC-failure source triggered "Bank failure" for BOTH owners off the
+  single call. Remaining live validation rides the server: pull + ReplyMonitor restart + first
+  real command replies.
+
+---
+
 ## 2026-07-22 (late session) — ALERT_COMMANDS: email-managed alerts & watchlist; format tweaks; ops-alert split
 
 **Ops-alert split (operator request, after the ALERT_COMMANDS commit):** the digest's red ⚠️

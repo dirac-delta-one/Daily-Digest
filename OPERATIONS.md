@@ -79,6 +79,14 @@ triggers checked every morning — e.g. "Any new Chapter 11 filing with over
 $500M in liabilities" — hits show in the red ⚠️ ALERTS box) and the **SEC
 watchlist** (tickers whose SEC filings and earnings dates are monitored).
 
+**Alerts are personal; the watchlist is shared.** Each person's alerts are
+their own: only you see them (your digest's alert box is yours alone), only
+you can add/remove/list them, and nobody else's alerts appear in your digest.
+The SEC watchlist is one shared list the whole team (Jared included) can
+edit. **Onboarding someone new** = add their @acorninv.com address to
+`DIGEST_TO_TEAM` in the server's `env.bat` — they start with no alerts and
+set up their own by replying to their first digest.
+
 **To change either, just reply to any digest email** in plain English from
 your work address. The bot understands things like:
 
@@ -92,7 +100,7 @@ your work address. The bot understands things like:
 
 You'll get a confirmation reply within ~5 minutes stating exactly what
 changed; the change takes effect on the next morning's digest. Anyone who
-receives a digest can do this, and everyone shares the same lists. Items with
+receives a digest can do this. Items with
 a time limit expire on their own: on the last active day the digest shows a
 **"Watch item expiring"** advance warning (renew by reply before coverage
 lapses), and the first digest after the end date shows a one-line

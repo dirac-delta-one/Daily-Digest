@@ -54,7 +54,7 @@ from memory import (
     get_substack_memory_context, update_substack_memory,
 )
 import alert_commands
-from alerts import evaluate_alerts, build_alerts_html
+from alerts import evaluate_owner_alerts, build_alerts_html
 from earnings import fetch_earnings_calendar, build_earnings_html, format_earnings_for_prompt
 from pacer import fetch_pacer_docket, format_pacer_for_prompt, build_pacer_html, commit_seen
 from ratings import fetch_rating_actions, format_ratings_for_prompt
@@ -1673,20 +1673,29 @@ def main():
     except Exception as e:
         print(f"Ticker-name cache commit failed: {e} — continuing.")
 
-    # --- Custom Alerts (per variant — the team box is evaluated on the team
-    # source text, so it can never cite a Substack pub) ---
+    # --- Custom Alerts (per OWNER, batched per variant/tier — Part II) ---
+    # Each recipient's alerts evaluate against their tier's source text (FULL
+    # recipients see the Substack-inclusive text, team recipients the team
+    # text — the team invariant: a team alert detail can never cite a Substack
+    # pub). One batched Claude call per tier regardless of user count.
     print("Evaluating custom alerts...")
     try:
-        triggered_alerts = evaluate_alerts(source_text, watchlist=WATCHLIST)
+        full_alert_results = evaluate_owner_alerts(
+            source_text,
+            {r: alert_commands.load_alerts(owner=r) for r in DIGEST_RECIPIENTS},
+            watchlist=WATCHLIST)
     except Exception as e:
         print(f"Alert evaluation failed: {e} — continuing without.")
-        triggered_alerts = []
+        full_alert_results = {}
 
-    team_alerts = []
+    team_alert_results = {}
     if team_active:
         print("Evaluating custom alerts (team source)...")
         try:
-            team_alerts = evaluate_alerts(team_source_text, watchlist=WATCHLIST)
+            team_alert_results = evaluate_owner_alerts(
+                team_source_text,
+                {r: alert_commands.load_alerts(owner=r) for r in TEAM_RECIPIENTS},
+                watchlist=WATCHLIST)
         except Exception as e:
             print(f"Team alert evaluation failed: {e} — continuing without.")
 
@@ -1763,29 +1772,51 @@ def main():
     # first run after the expiry date gets the "expired" notice —
     # consume_expired removes the entry as it reports it. These render in the
     # alert box BELOW a separator, with no source tag (formatting, 2026-07-22).
-    expiry_alerts = []
+    # Part II routing: watchlist notices (owner None) are shared — every box +
+    # the neutral base; alert notices render only in their OWNER's box.
+    shared_expiry = []
+    owned_expiry = {}  # {owner_lower: [box entries]}
     try:
-        for notice in alert_commands.consume_expired():
-            expiry_alerts.append({
-                "name": "Watch item expired",
-                "detail": f"{notice} Reply to this digest to renew.",
-                "source": "",
-            })
-        for notice in alert_commands.expiring_today():
-            expiry_alerts.append({
-                "name": "Watch item expiring",
-                "detail": f"{notice} Reply to this digest to renew it now.",
-                "source": "",
-            })
+        expiry_items = (
+            [("Watch item expired", " Reply to this digest to renew.", i)
+             for i in alert_commands.consume_expired()]
+            + [("Watch item expiring", " Reply to this digest to renew it now.", i)
+               for i in alert_commands.expiring_today()]
+        )
+        for name, suffix, item in expiry_items:
+            entry = {"name": name, "detail": f"{item['notice']}{suffix}", "source": ""}
+            if item.get("owner"):
+                owned_expiry.setdefault(item["owner"], []).append(entry)
+            else:
+                shared_expiry.append(entry)
     except Exception as e:
         print(f"Watch-item expiry check failed: {e} — continuing.")
 
-    triggered_alerts.extend(deterministic_alerts)
-    team_alerts.extend(deterministic_alerts)
+    # Orphaned alerts (Part II): owners who no longer receive any digest have
+    # their alerts skipped by construction (only recipients' alerts evaluate);
+    # surface each NEW orphaning once in the ops email.
+    try:
+        for notice in alert_commands.orphan_notices([*DIGEST_RECIPIENTS,
+                                                     *TEAM_RECIPIENTS]):
+            ops_alerts.append({"name": "Paused alerts", "detail": notice,
+                               "source": "alert commands"})
+    except Exception as e:
+        print(f"Orphan-alert check failed: {e} — continuing.")
 
     # --- Build pre-formatted HTML sections (shared by both variants) ---
-    alerts_html = build_alerts_html(triggered_alerts, expiry_alerts)
-    team_alerts_html = build_alerts_html(team_alerts, expiry_alerts)
+    # Alert boxes are per-RECIPIENT (Part II): own triggered alerts + the
+    # shared deterministic signals above the separator; shared + own expiry
+    # notices below it. The NEUTRAL box (deterministic + shared only) goes
+    # into the canonical artifacts (saved/archived/indexed/memory) — personal
+    # boxes exist only in sent emails.
+    def _recipient_alerts_html(recipient, owner_results):
+        own = (owner_results or {}).get(recipient) or []
+        own_exp = owned_expiry.get(recipient.lower()) or []
+        return build_alerts_html(own + deterministic_alerts,
+                                 shared_expiry + own_exp)
+
+    neutral_alerts_html = build_alerts_html(list(deterministic_alerts),
+                                            list(shared_expiry))
     # mirror rows: 20Y UST (FRED) + HYG/LQD OAS (iShares) into Market Snapshot
     market_html = build_market_table_html(market_data, macro_data + ishares_oas)
     rates_html = build_rates_table_html(macro_data)
@@ -1808,9 +1839,12 @@ def main():
     funds_html = build_funds_html(fund_results)
     fed_bs_html = build_fed_bs_table_html(fed_bs)
 
-    # --- Assemble final digest(s) ---
+    # --- Assemble final digest(s) — the NEUTRAL-base artifacts (Part II) ---
+    # These carry the neutral alert box and feed everything durable:
+    # repetition scoring, digests/ saves (weekly wrap), the archive, the
+    # index, and memory. Personalized assemblies happen at send time below.
     final_html = _assemble_digest_html(
-        digest_html, alerts_html, market_html, rates_html,
+        digest_html, neutral_alerts_html, market_html, rates_html,
         credit_html, private_html, ai_html,
         earnings_html, news_html, pacer_html,
         funds_html, fed_bs_html,
@@ -1818,7 +1852,7 @@ def main():
     team_final_html = None
     if team_active:
         team_final_html = _assemble_digest_html(
-            team_digest_html, team_alerts_html, market_html, rates_html,
+            team_digest_html, neutral_alerts_html, market_html, rates_html,
             credit_html, private_html, ai_html,
             earnings_html, team_news_html, pacer_html,
             funds_html, fed_bs_html,
@@ -1842,12 +1876,42 @@ def main():
         except Exception as e:
             print(f"Failed to save team daily digest: {e}")
 
-    # --- Send digest(s) ---
+    # --- Send digest(s): one email per recipient, personalized alert box
+    # over the identical body (Part II). A single recipient's failure doesn't
+    # block the others; ANY failure raises after the loop so run_alert's
+    # failure email fires and commit_seen below never runs (conservative:
+    # PACER entries re-surface tomorrow rather than being lost).
+    send_failures = []
     print("Sending digest email...")
-    send_digest_email(service, final_html, subject=_digest_subject(full=True))
+    for recipient in DIGEST_RECIPIENTS:
+        personalized = _assemble_digest_html(
+            digest_html, _recipient_alerts_html(recipient, full_alert_results),
+            market_html, rates_html, credit_html, private_html, ai_html,
+            earnings_html, news_html, pacer_html, funds_html, fed_bs_html,
+        )
+        try:
+            send_digest_email(service, personalized, recipients=[recipient],
+                              subject=_digest_subject(full=True))
+        except Exception as e:
+            print(f"  Send to {recipient} FAILED: {e}")
+            send_failures.append(recipient)
     if team_final_html:
         print("Sending TEAM digest email...")
-        send_digest_email(service, team_final_html, recipients=TEAM_RECIPIENTS)
+        for recipient in TEAM_RECIPIENTS:
+            personalized = _assemble_digest_html(
+                team_digest_html, _recipient_alerts_html(recipient, team_alert_results),
+                market_html, rates_html, credit_html, private_html, ai_html,
+                earnings_html, team_news_html, pacer_html, funds_html, fed_bs_html,
+            )
+            try:
+                send_digest_email(service, personalized, recipients=[recipient])
+            except Exception as e:
+                print(f"  Send to {recipient} FAILED: {e}")
+                send_failures.append(recipient)
+    if send_failures:
+        raise RuntimeError(
+            f"Digest send failed for {len(send_failures)} recipient(s): "
+            f"{', '.join(send_failures)}")
 
     # --- PACER seen-state (F1a-4): persist only now that the digest(s) actually
     # sent — a crash anywhere earlier leaves the entries unseen for the next run.

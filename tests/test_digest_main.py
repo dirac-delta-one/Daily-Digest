@@ -61,9 +61,16 @@ def harness(tmp_path, monkeypatch):
     monkeypatch.setattr(digest, "summarize_with_claude", fake_summarize)
 
     monkeypatch.setattr(digest, "get_substack_memory_context", lambda: "")
+    # Part II: recipients pinned (real defaults are env-driven), per-owner eval
+    # stubbed, and the state-touching alert_commands hooks neutralized so the
+    # wiring tests don't depend on seeded tmp state.
+    monkeypatch.setattr(digest, "DIGEST_RECIPIENTS", ["jared@acorninv.com"])
     monkeypatch.setattr(
-        digest, "evaluate_alerts",
-        lambda source, watchlist=None: calls.append(("alerts", source)) or [])
+        digest, "evaluate_owner_alerts",
+        lambda source, owner_alerts, watchlist=None:
+        calls.append(("alerts", source, tuple(owner_alerts))) or {})
+    monkeypatch.setattr(digest.alert_commands, "orphan_notices",
+                        lambda recipients, today=None: [])
     monkeypatch.setattr(
         digest, "record_and_check",
         lambda counts: calls.append(("o3", dict(counts))) or [])
@@ -142,8 +149,8 @@ def test_team_active_wiring(harness, monkeypatch):
     assert calls[commit_i][1] is False
     assert marker.exists()
 
-    # full send uses the default recipients; team send carries the team list
-    assert calls[send_is[0]][1] == ("FULL",)
+    # per-recipient sends (Part II): full first, then the team recipient
+    assert calls[send_is[0]][1] == ("jared@acorninv.com",)
     assert calls[send_is[1]][1] == ("team@acorninv.com",)
 
     # the substack-cleanse invariant: shared memory learns from the TEAM html
@@ -194,7 +201,8 @@ def test_ops_alerts_split_routing(harness, monkeypatch):
         lambda counts: ["news: 0 items for 3 straight runs"])
     monkeypatch.setattr(
         digest.alert_commands, "consume_expired",
-        lambda: ['Alert "Timed" expired 2026-07-21 and was removed.'])
+        lambda: [{"owner": None,
+                  "notice": "Watchlist ticker BBB expired 2026-07-21 and was removed."}])
 
     digest.main()
     sends = [c for c in calls if c[0] == "send"]
@@ -206,6 +214,83 @@ def test_ops_alerts_split_routing(harness, monkeypatch):
     assert "Source degradation" not in digest_html
     assert "Watch item expired" in digest_html
     assert "Watch item expired" not in ops_sends[0][3]
+
+
+def test_per_recipient_alert_boxes(harness, monkeypatch):
+    # Part II: each recipient's email carries THEIR alerts; the neutral base
+    # (saved / fed to memory) carries nobody's.
+    calls, _marker = harness
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS",
+                        ["apain@acorninv.com", "acohen@acorninv.com"])
+    monkeypatch.setattr(
+        digest, "evaluate_owner_alerts",
+        lambda source, owner_alerts, watchlist=None: {
+            "apain@acorninv.com": [{"name": "APAIN ONLY", "detail": "x", "source": "s"}],
+            "acohen@acorninv.com": [{"name": "ACOHEN ONLY", "detail": "y", "source": "s"}],
+        })
+    # owned expiry notice routes to its owner's box only
+    monkeypatch.setattr(
+        digest.alert_commands, "expiring_today",
+        lambda: [{"owner": "apain@acorninv.com",
+                  "notice": 'Alert "APAIN TIMED" ends after today\'s run.'}])
+
+    digest.main()
+    sends = {c[1][0]: c[3] for c in calls if c[0] == "send"
+             and not (c[4] or "").startswith("⚙️")}
+
+    apain_html = sends["apain@acorninv.com"]
+    acohen_html = sends["acohen@acorninv.com"]
+    assert "APAIN ONLY" in apain_html and "ACOHEN ONLY" not in apain_html
+    assert "ACOHEN ONLY" in acohen_html and "APAIN ONLY" not in acohen_html
+    assert "APAIN TIMED" in apain_html and "APAIN TIMED" not in acohen_html
+
+    # neutral base: saved for the weekly wrap + fed to memory — no personal alerts
+    mem_html = next(c[1] for c in calls if c[0] == "update_memory")
+    for personal in ("APAIN ONLY", "ACOHEN ONLY", "APAIN TIMED"):
+        assert personal not in mem_html
+
+
+def test_partial_send_failure_raises_after_all_attempts(harness, monkeypatch):
+    # Part II send loop: one recipient failing doesn't block the others, the
+    # run still fails loudly at the end, and commit_seen never runs (PACER
+    # entries must re-surface tomorrow).
+    calls, marker = harness
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS",
+                        ["apain@acorninv.com", "acohen@acorninv.com"])
+
+    def flaky_send(service, html, recipients=None, subject=None):
+        calls.append(("send", tuple(recipients), marker.exists(), html, subject))
+        if recipients == ["apain@acorninv.com"]:
+            raise OSError("smtp exploded")
+
+    monkeypatch.setattr(digest, "send_digest_email", flaky_send)
+
+    with pytest.raises(RuntimeError, match="apain@acorninv.com"):
+        digest.main()
+
+    sent_to = [c[1][0] for c in calls if c[0] == "send"]
+    # all three recipients were attempted (jared FULL + both team)
+    assert sent_to == ["jared@acorninv.com", "apain@acorninv.com",
+                       "acohen@acorninv.com"]
+    assert "commit_seen" not in [c[0] for c in calls]
+    assert not marker.exists()
+
+
+def test_orphan_notice_reaches_ops_email(harness, monkeypatch):
+    calls, _marker = harness
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
+    monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
+    monkeypatch.setattr(
+        digest.alert_commands, "orphan_notices",
+        lambda recipients, today=None:
+        ["7 alert(s) owned by ghost@acorninv.com are paused — ghost@acorninv.com "
+         "no longer receives the digest."])
+
+    digest.main()
+    ops_sends = [c for c in calls if c[0] == "send" and (c[4] or "").startswith("⚙️")]
+    assert len(ops_sends) == 1
+    assert "Paused alerts" in ops_sends[0][3]
+    assert "ghost@acorninv.com" in ops_sends[0][3]
 
 
 # --- Receiving-side policy + self-ingestion guard (CLEANUP_SPEC 2.5) ---

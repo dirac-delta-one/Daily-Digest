@@ -17,6 +17,9 @@ TODAY = "2026-07-22"
 YESTERDAY = "2026-07-21"
 FUTURE = "2026-08-05"
 
+JARED = "jtramontano@acorninv.com"
+AVA = "acohen@acorninv.com"
+
 
 # --- seeding ---
 
@@ -24,8 +27,28 @@ def test_load_alerts_seeds_defaults_when_missing():
     assert not ac.ALERTS_FILE.exists()
     alerts = ac.load_alerts(today=TODAY)
     assert ac.ALERTS_FILE.exists()
+    # Part II: seeds ship pre-migrated — 7 alerts x 2 legacy owners
+    assert len(alerts) == 14
     assert [a["name"] for a in alerts] == [a["name"] for a in ac.DEFAULT_ALERTS]
-    assert len(alerts) == 7
+    assert {a["owner"] for a in alerts} == {JARED, AVA}
+    # per-owner view: each owner sees exactly their 7
+    assert len(ac.load_alerts(today=TODAY, owner=JARED)) == 7
+    assert len(ac.load_alerts(today=TODAY, owner=AVA.upper())) == 7  # case-blind
+    assert ac.load_alerts(today=TODAY, owner="apain@acorninv.com") == []
+
+
+def test_legacy_ownerless_file_migrates_once():
+    ac.ALERTS_FILE.write_text(json.dumps({"alerts": [
+        {"name": "Timed", "trigger": "t", "priority": "low", "expires": None},
+    ]}), encoding="utf-8")
+    alerts = ac.load_alerts(today=TODAY)
+    # duplicated per legacy owner, persisted
+    assert [(a["name"], a["owner"]) for a in alerts] == [
+        ("Timed", JARED), ("Timed", AVA)]
+    on_disk = json.loads(ac.ALERTS_FILE.read_text(encoding="utf-8"))["alerts"]
+    assert all("owner" in a for a in on_disk) and len(on_disk) == 2
+    # idempotent: a second load doesn't duplicate again
+    assert len(ac.load_alerts(today=TODAY)) == 2
 
 
 def test_load_watchlist_seeds_defaults_when_missing():
@@ -39,7 +62,7 @@ def test_load_watchlist_seeds_defaults_when_missing():
 def test_corrupt_file_left_untouched_and_defaults_used():
     ac.ALERTS_FILE.write_text("{not json", encoding="utf-8")
     alerts = ac.load_alerts(today=TODAY)
-    assert len(alerts) == 7  # in-memory defaults
+    assert len(alerts) == 14  # in-memory defaults (pre-migrated)
     assert ac.ALERTS_FILE.read_text(encoding="utf-8") == "{not json"  # never overwritten
 
 
@@ -54,9 +77,10 @@ def test_corrupt_file_blocks_writes():
 
 # --- expiry filtering ---
 
-def _seed_alert(expires):
+def _seed_alert(expires, owner=JARED):
     ac.ALERTS_FILE.write_text(json.dumps({"alerts": [
-        {"name": "Timed", "trigger": "t", "priority": "low", "expires": expires},
+        {"name": "Timed", "trigger": "t", "priority": "low", "expires": expires,
+         "owner": owner},
     ]}), encoding="utf-8")
 
 
@@ -91,8 +115,11 @@ def test_consume_expired_notices_once_and_prunes():
 
     notices = ac.consume_expired(today=TODAY)
     assert len(notices) == 2
-    assert any('"Timed"' in n and YESTERDAY in n for n in notices)
-    assert any("BBB (Bravo Corp)" in n for n in notices)
+    # Part II shape: alert notices carry their owner; watchlist ones are shared
+    alert_n = next(n for n in notices if '"Timed"' in n["notice"])
+    assert alert_n["owner"] == JARED and YESTERDAY in alert_n["notice"]
+    wl_n = next(n for n in notices if "BBB (Bravo Corp)" in n["notice"])
+    assert wl_n["owner"] is None
 
     # pruned from the files; second call is silent
     assert json.loads(ac.ALERTS_FILE.read_text(encoding="utf-8"))["alerts"] == []
@@ -111,8 +138,11 @@ def test_expiring_today_warns_without_removing():
 
     warnings = ac.expiring_today(today=TODAY)
     assert len(warnings) == 2
-    assert any('"Timed"' in w and "ends after today's run" in w for w in warnings)
-    assert any("WOLF (Wolfspeed)" in w for w in warnings)
+    alert_w = next(w for w in warnings if '"Timed"' in w["notice"])
+    assert alert_w["owner"] == JARED
+    assert "ends after today's run" in alert_w["notice"]
+    wl_w = next(w for w in warnings if "WOLF (Wolfspeed)" in w["notice"])
+    assert wl_w["owner"] is None
 
     # read-only: nothing removed, item still active, consume finds nothing yet
     assert [a["name"] for a in ac.load_alerts(today=TODAY)] == ["Timed"]
@@ -135,28 +165,50 @@ def test_add_and_remove_alert_roundtrip():
         {"action": "add_alert", "name": "Argentina watch",
          "trigger": "Any news on Argentina sovereign debt",
          "priority": "high", "expires": FUTURE},
-    ], "acohen@acorninv.com", today=TODAY)
+    ], AVA, today=TODAY)
     assert changed
     assert "Added alert" in results[0] and FUTURE in results[0]
 
-    names = [a["name"] for a in ac.load_alerts(today=TODAY)]
-    assert "Argentina watch" in names
+    # owner-stamped and visible only in the asker's view
+    assert "Argentina watch" in [a["name"] for a in ac.load_alerts(today=TODAY, owner=AVA)]
+    assert "Argentina watch" not in [a["name"]
+                                     for a in ac.load_alerts(today=TODAY, owner=JARED)]
     stored = [a for a in json.loads(ac.ALERTS_FILE.read_text(encoding="utf-8"))["alerts"]
               if a["name"] == "Argentina watch"][0]
-    assert stored["added_by"] == "acohen@acorninv.com"
+    assert stored["added_by"] == AVA
+    assert stored["owner"] == AVA
     assert stored["added_on"] == TODAY
 
     results, changed = ac.apply_actions(
         [{"action": "remove_alert", "name": "argentina watch"}],  # case-insensitive
-        "acohen@acorninv.com", today=TODAY)
+        AVA, today=TODAY)
     assert changed and "Removed alert" in results[0]
     assert "Argentina watch" not in [a["name"] for a in ac.load_alerts(today=TODAY)]
 
 
-def test_add_alert_name_collision_gets_suffix():
+def test_cannot_touch_another_owners_alert():
+    ac.apply_actions([{"action": "add_alert", "name": "Ava only", "trigger": "x"}],
+                     AVA, today=TODAY)
+    # jared can't remove or re-expire ava's alert — and isn't told her names
+    results, changed = ac.apply_actions(
+        [{"action": "remove_alert", "name": "Ava only"},
+         {"action": "update_expiry", "kind": "alert", "target": "Ava only",
+          "expires": FUTURE}],
+        JARED, today=TODAY)
+    assert not changed
+    assert all("No alert of yours" in r for r in results)
+    assert all("Ava only" not in r.split("your active alerts:")[1] for r in results)
+    assert "Ava only" in [a["name"] for a in ac.load_alerts(today=TODAY, owner=AVA)]
+
+
+def test_add_alert_name_collision_gets_suffix_per_owner():
     add = {"action": "add_alert", "name": "Bank failure", "trigger": "x"}
-    results, _ = ac.apply_actions([add], "a@b.com", today=TODAY)
+    # jared already owns "Bank failure" -> suffix
+    results, _ = ac.apply_actions([add], JARED, today=TODAY)
     assert '"Bank failure (2)"' in results[0]
+    # a brand-new user owns nothing -> no collision, plain name
+    results, _ = ac.apply_actions([dict(add)], "apain@acorninv.com", today=TODAY)
+    assert '"Bank failure"' in results[0] and "(2)" not in results[0]
 
 
 def test_add_alert_without_trigger_is_polite_noop():
@@ -165,11 +217,16 @@ def test_add_alert_without_trigger_is_polite_noop():
     assert not changed and "no trigger" in results[0]
 
 
-def test_remove_alert_unknown_lists_active_names():
+def test_remove_alert_unknown_lists_own_active_names():
     results, changed = ac.apply_actions(
-        [{"action": "remove_alert", "name": "Nonexistent"}], "a@b.com", today=TODAY)
+        [{"action": "remove_alert", "name": "Nonexistent"}], JARED, today=TODAY)
     assert not changed
     assert '"Nonexistent"' in results[0] and '"Large Chapter 11"' in results[0]
+    # a user with no alerts sees "(none)", not someone else's names
+    results, _ = ac.apply_actions(
+        [{"action": "remove_alert", "name": "Nonexistent"}],
+        "apain@acorninv.com", today=TODAY)
+    assert "(none)" in results[0] and "Large Chapter 11" not in results[0]
 
 
 def test_add_ticker_and_duplicate():
@@ -214,22 +271,33 @@ def test_update_expiry_alert_and_ticker():
          "expires": FUTURE},
         {"action": "update_expiry", "kind": "ticker", "target": "MSTR",
          "expires": FUTURE},
-    ], "a@b.com", today=TODAY)
+    ], JARED, today=TODAY)
     assert changed
     assert f"expires {FUTURE}" in results[0] and f"expires {FUTURE}" in results[1]
     stored = json.loads(ac.ALERTS_FILE.read_text(encoding="utf-8"))["alerts"]
-    assert [a for a in stored if a["name"] == "Bank failure"][0]["expires"] == FUTURE
+    jared_bf = [a for a in stored
+                if a["name"] == "Bank failure" and a["owner"] == JARED][0]
+    ava_bf = [a for a in stored
+              if a["name"] == "Bank failure" and a["owner"] == AVA][0]
+    assert jared_bf["expires"] == FUTURE      # jared's copy updated…
+    assert ava_bf["expires"] is None          # …ava's untouched
 
 
-def test_list_config_renders_current_state():
+def test_list_config_renders_own_alerts_and_shared_watchlist():
     results, changed = ac.apply_actions(
-        [{"action": "list_config"}], "a@b.com", today=TODAY)
+        [{"action": "list_config"}], JARED, today=TODAY)
     assert not changed
     joined = "\n".join(results)
-    assert "Active alerts (7):" in joined
+    assert "Your alerts (7):" in joined
     assert '"Large Chapter 11"' in joined
-    assert "SEC watchlist (16):" in joined
+    assert "Shared SEC watchlist (16):" in joined
     assert "PGY (Pagaya Technologies)" in joined
+    # a user with no alerts still sees the shared watchlist
+    results, _ = ac.apply_actions(
+        [{"action": "list_config"}], "apain@acorninv.com", today=TODAY)
+    joined = "\n".join(results)
+    assert "Your alerts (0):" in joined
+    assert "Shared SEC watchlist (16):" in joined
 
 
 def test_no_tmp_files_left_behind():
@@ -251,9 +319,46 @@ def test_parse_prompt_grounds_on_state_and_date():
     assert "stop watching MSTR" in prompt          # the reply text itself
 
 
+def test_parse_prompt_owner_grounding_excludes_other_owners():
+    ac.apply_actions([{"action": "add_alert", "name": "Ava thing", "trigger": "x"}],
+                     AVA, today=TODAY)
+    prompt = ac._build_parse_prompt(
+        "remove my chapter 11 alert",
+        ac.load_alerts(today=TODAY, owner=JARED),
+        ac.load_watchlist(today=TODAY), TODAY)
+    assert '"Large Chapter 11"' in prompt   # jared's own alerts ground the parse
+    assert "Ava thing" not in prompt        # ava's never leak into his prompt
+
+
 def test_parse_prompt_empty_state():
     prompt = ac._build_parse_prompt("hello", [], [], TODAY)
     assert "- (none)" in prompt and "(none)" in prompt
+
+
+# --- orphaned alerts (Part II) ---
+
+def test_orphan_notices_fire_once_and_reset():
+    ac.load_alerts(today=TODAY)  # seed (owners: jared + ava)
+    everyone = [JARED, AVA]
+
+    # both owners are recipients -> no orphans
+    assert ac.orphan_notices(everyone, today=TODAY) == []
+
+    # ava dropped -> ONE notice naming her, counting her alerts
+    notices = ac.orphan_notices([JARED], today=TODAY)
+    assert len(notices) == 1
+    assert AVA in notices[0] and "7 alert(s)" in notices[0]
+    # second run with the same recipients -> silent
+    assert ac.orphan_notices([JARED], today=TODAY) == []
+
+    # ava re-added -> meta clears; a later re-orphaning notices again
+    assert ac.orphan_notices(everyone, today=TODAY) == []
+    assert len(ac.orphan_notices([JARED], today=TODAY)) == 1
+
+
+def test_orphan_check_ignores_expired_alerts():
+    _seed_alert(YESTERDAY, owner=AVA)  # ava's only alert is already expired
+    assert ac.orphan_notices([JARED], today=TODAY) == []
 
 
 # --- confirmation HTML ---
@@ -271,9 +376,10 @@ def test_expiry_notice_renders_in_alert_box():
     _seed_alert(YESTERDAY)
     ac.WATCHLIST_FILE.write_text(json.dumps({"tickers": []}), encoding="utf-8")
     expiry = [
-        {"name": "Watch item expired", "detail": f"{n} Reply to this digest to renew.",
+        {"name": "Watch item expired",
+         "detail": f"{item['notice']} Reply to this digest to renew.",
          "source": ""}
-        for n in ac.consume_expired(today=TODAY)
+        for item in ac.consume_expired(today=TODAY)
     ]
     # expiry-only box: renders, no source tag, no separator (nothing above it)
     html = build_alerts_html([], expiry)

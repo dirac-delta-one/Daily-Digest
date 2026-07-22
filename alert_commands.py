@@ -39,34 +39,46 @@ WATCHLIST_FILE = SCRIPT_DIR / "watchlist.json"
 
 _SEED = {"added_by": "seed", "added_on": "2026-07-22", "expires": None}
 
+# Part II (per-user alerts): every thematic alert has exactly ONE owner.
+# The pre-Part-II alerts (ownerless) belong to these two — legacy entries
+# found on disk are duplicated per owner by the §9 migration in
+# _load_alerts_payload, and the seeds below ship already-migrated.
+LEGACY_ALERT_OWNERS = ["jtramontano@acorninv.com", "acohen@acorninv.com"]
+
 # The pre-spec alerts_config.json contents (git history: tracked until
 # 2026-07-22). Seeded to disk when the file is missing — which includes the
 # server's first pull after the file left git tracking (git deletes the
 # working-tree copy on that pull; the seed makes the deletion lossless).
-DEFAULT_ALERTS = [
+_BASE_ALERTS = [
     {"name": "Large Chapter 11",
      "trigger": "Any new Chapter 11 bankruptcy filing with over $500M in liabilities",
-     "priority": "high", **_SEED},
+     "priority": "high"},
     {"name": "Insider selling",
      "trigger": "Any Form 4 showing insider selling over $1M in watchlist names",
-     "priority": "high", **_SEED},
+     "priority": "high"},
     {"name": "HY spread blowout",
      "trigger": "HY OAS widens more than 25bps in a single day",
-     "priority": "high", **_SEED},
+     "priority": "high"},
     {"name": "Fed surprise",
      "trigger": "Any unexpected Fed action or emergency meeting",
-     "priority": "high", **_SEED},
+     "priority": "high"},
     {"name": "Distressed exchange",
      "trigger": "Any distressed exchange, liability management exercise, or "
                 "cooperation agreement mentioned",
-     "priority": "medium", **_SEED},
+     "priority": "medium"},
     {"name": "Rating downgrade",
      "trigger": "Any downgrade of a watchlist company or any downgrade to "
                 "junk/speculative grade (fallen angel)",
-     "priority": "high", **_SEED},
+     "priority": "high"},
     {"name": "Bank failure",
      "trigger": "Any FDIC bank failure detected",
-     "priority": "high", **_SEED},
+     "priority": "high"},
+]
+
+DEFAULT_ALERTS = [
+    {**a, "owner": owner, **_SEED}
+    for owner in LEGACY_ALERT_OWNERS
+    for a in _BASE_ALERTS
 ]
 
 # The pre-spec sec_filings.WATCHLIST (tickers + their comment names).
@@ -139,12 +151,85 @@ def _is_active(entry, today):
     return not expires or today <= expires
 
 
-def load_alerts(today=None):
-    """Active alert dicts (expired filtered out) — what alerts.py evaluates."""
+def _load_alerts_payload():
+    """(payload, writable) with the Part-II §9 owner migration applied: legacy
+    (ownerless) alert entries are duplicated per LEGACY_ALERT_OWNERS and the
+    migrated payload persisted once. Idempotent — a migrated file never
+    matches again; corrupt files stay in-memory (writable=False) as usual."""
+    payload, writable = _read_state(ALERTS_FILE, _default_alerts_payload())
+    alerts = payload.get("alerts", [])
+    if any(isinstance(a, dict) and "owner" not in a for a in alerts):
+        migrated = []
+        for a in alerts:
+            if not isinstance(a, dict) or a.get("owner"):
+                migrated.append(a)
+            else:
+                migrated.extend({**a, "owner": owner} for owner in LEGACY_ALERT_OWNERS)
+        payload["alerts"] = migrated
+        if writable:
+            _atomic_write(ALERTS_FILE, payload)
+        print(f"  alerts_config.json migrated to per-owner alerts "
+              f"({len(alerts)} -> {len(migrated)} entries).")
+    return payload, writable
+
+
+def load_alerts(today=None, owner=None):
+    """Active alert dicts (expired filtered out) — what alerts.py evaluates.
+
+    owner=<email> filters to that owner's alerts (case-insensitive) — the
+    per-user view (Part II: alerts are personal; owner-only visibility).
+    owner=None returns all owners' active alerts (internal/legacy use)."""
     today = _today(today)
-    payload, _ = _read_state(ALERTS_FILE, _default_alerts_payload())
-    return [a for a in payload.get("alerts", [])
-            if isinstance(a, dict) and a.get("name") and _is_active(a, today)]
+    payload, _ = _load_alerts_payload()
+    alerts = [a for a in payload.get("alerts", [])
+              if isinstance(a, dict) and a.get("name") and _is_active(a, today)]
+    if owner is not None:
+        o = owner.lower()
+        alerts = [a for a in alerts if (a.get("owner") or "").lower() == o]
+    return alerts
+
+
+def owners_with_alerts(today=None):
+    """Lowercased owner emails holding >=1 active alert (the orphan check)."""
+    today = _today(today)
+    payload, _ = _load_alerts_payload()
+    return {(a.get("owner") or "").lower()
+            for a in payload.get("alerts", [])
+            if isinstance(a, dict) and a.get("owner") and _is_active(a, today)}
+
+
+def orphan_notices(current_recipients, today=None):
+    """One-time ops-email lines for owners whose alerts are paused because
+    they no longer receive the digest (Part II: evaluation covers current
+    recipients only, so a departed owner's alerts silently stop running).
+    Known orphans are tracked in the payload's `_meta` so each orphaning is
+    noticed exactly once; an owner who becomes a recipient again is dropped
+    from the list (a later re-orphaning notices again)."""
+    today = _today(today)
+    payload, writable = _load_alerts_payload()
+    recipients = {(r or "").lower() for r in (current_recipients or [])}
+    owners = {(a.get("owner") or "").lower()
+              for a in payload.get("alerts", [])
+              if isinstance(a, dict) and a.get("owner") and _is_active(a, today)}
+    orphans = sorted(owners - recipients)
+
+    meta = payload.get("_meta") or {}
+    known = sorted((k or "").lower() for k in (meta.get("known_orphans") or []))
+    new = [o for o in orphans if o not in known]
+
+    if known != orphans and writable:
+        payload["_meta"] = {**meta, "known_orphans": orphans}
+        _atomic_write(ALERTS_FILE, payload)
+
+    notices = []
+    for o in new:
+        n = sum(1 for a in payload.get("alerts", [])
+                if isinstance(a, dict) and (a.get("owner") or "").lower() == o
+                and _is_active(a, today))
+        notices.append(f"{n} alert(s) owned by {o} are paused — {o} no longer "
+                       "receives the digest. They resume if the address is "
+                       "re-added, or can be deleted from alerts_config.json.")
+    return notices
 
 
 def load_watchlist(today=None):
@@ -172,38 +257,53 @@ def watchlist_names():
             if isinstance(e, dict) and e.get("ticker") and e.get("name")}
 
 
+def _owner_of(entry):
+    """Lowercased owner of an alert entry, or None (watchlist/shared)."""
+    owner = (entry.get("owner") or "").lower()
+    return owner or None
+
+
 def expiring_today(today=None):
-    """Advance-warning strings for entries whose LAST active day is today
+    """Advance warnings for entries whose LAST active day is today
     (today == expires) — read-only, nothing is removed: tomorrow's run drops
-    the entry via consume_expired. The digest runs once a day, so the warning
-    naturally renders exactly once, the day before the expiry notice."""
+    the entry via consume_expired. Returns [{"owner": email|None, "notice":
+    str}] (Part II): alert warnings carry their owner so the digest can route
+    them to that recipient's box only; watchlist warnings are shared (None).
+    The digest runs once a day, so each warning renders exactly once."""
     today = _today(today)
     warnings = []
 
-    payload, _ = _read_state(ALERTS_FILE, _default_alerts_payload())
+    payload, _ = _load_alerts_payload()
     for a in payload.get("alerts", []):
         if a.get("expires") == today:
-            warnings.append(f'Alert "{a.get("name", "?")}" ends after today\'s run '
-                            f'(expires {today}).')
+            warnings.append({
+                "owner": _owner_of(a),
+                "notice": f'Alert "{a.get("name", "?")}" ends after today\'s run '
+                          f'(expires {today}).',
+            })
 
     payload, _ = _read_state(WATCHLIST_FILE, _default_watchlist_payload())
     for t in payload.get("tickers", []):
         if t.get("expires") == today:
             name = f" ({t['name']})" if t.get("name") else ""
-            warnings.append(f'Watchlist ticker {t.get("ticker", "?")}{name} ends after '
-                            f'today\'s run (expires {today}).')
+            warnings.append({
+                "owner": None,
+                "notice": f'Watchlist ticker {t.get("ticker", "?")}{name} ends after '
+                          f'today\'s run (expires {today}).',
+            })
 
     return warnings
 
 
 def consume_expired(today=None):
-    """Notice strings for entries past their expiry, REMOVING them from the
+    """Expiry notices for entries past their expiry, REMOVING them from the
     files — remove-on-read gives exactly-one-notice semantics with no
-    'notified' flag. Called once per digest run; [] when nothing expired."""
+    'notified' flag. Same [{"owner": …, "notice": …}] shape as
+    expiring_today. Called once per digest run; [] when nothing expired."""
     today = _today(today)
     notices = []
 
-    payload, writable = _read_state(ALERTS_FILE, _default_alerts_payload())
+    payload, writable = _load_alerts_payload()
     if writable:
         keep = [a for a in payload.get("alerts", []) if _is_active(a, today)]
         dropped = [a for a in payload.get("alerts", []) if not _is_active(a, today)]
@@ -211,8 +311,11 @@ def consume_expired(today=None):
             payload["alerts"] = keep
             _atomic_write(ALERTS_FILE, payload)
             for a in dropped:
-                notices.append(f'Alert "{a.get("name", "?")}" expired '
-                               f'{a.get("expires")} and was removed.')
+                notices.append({
+                    "owner": _owner_of(a),
+                    "notice": f'Alert "{a.get("name", "?")}" expired '
+                              f'{a.get("expires")} and was removed.',
+                })
 
     payload, writable = _read_state(WATCHLIST_FILE, _default_watchlist_payload())
     if writable:
@@ -223,8 +326,11 @@ def consume_expired(today=None):
             _atomic_write(WATCHLIST_FILE, payload)
             for t in dropped:
                 name = f" ({t['name']})" if t.get("name") else ""
-                notices.append(f'Watchlist ticker {t.get("ticker", "?")}{name} expired '
-                               f'{t.get("expires")} and was removed.')
+                notices.append({
+                    "owner": None,
+                    "notice": f'Watchlist ticker {t.get("ticker", "?")}{name} expired '
+                              f'{t.get("expires")} and was removed.',
+                })
 
     return notices
 
@@ -313,18 +419,24 @@ def _build_parse_prompt(reply_text, alerts, tickers, today):
     ) or "- (none)"
     return (
         f"TODAY: {today}\n\n"
-        f"CURRENT ALERTS (exact names):\n{alert_lines}\n\n"
-        f"CURRENT WATCHLIST TICKERS: {', '.join(tickers) or '(none)'}\n\n"
+        f"THIS USER'S CURRENT ALERTS (exact names; alerts are personal — other users' "
+        f"alerts are invisible here):\n{alert_lines}\n\n"
+        f"CURRENT SHARED WATCHLIST TICKERS: {', '.join(tickers) or '(none)'}\n\n"
         f"REPLY EMAIL:\n{'=' * 40}\n{reply_text}\n{'=' * 40}\n"
     )
 
 
-def classify_and_parse(reply_text, today=None):
+def classify_and_parse(reply_text, today=None, owner=None):
     """One Sonnet call: reply text -> {actions, question, clarification}.
     Raises on API failure — the reply monitor catches and falls through to
-    the Q&A path, so a parse outage degrades to today's behavior."""
+    the Q&A path, so a parse outage degrades to today's behavior.
+
+    owner (Part II) = the asker's email: the CURRENT ALERTS grounding block
+    lists only THEIR alerts (privacy + correct remove/extend grounding);
+    None grounds on all alerts (internal/legacy use)."""
     today = _today(today)
-    prompt = _build_parse_prompt(reply_text, load_alerts(today), load_watchlist(today), today)
+    prompt = _build_parse_prompt(reply_text, load_alerts(today, owner=owner),
+                                 load_watchlist(today), today)
 
     client = anthropic.Anthropic()
     response = client.messages.create(
@@ -360,22 +472,33 @@ def apply_actions(actions, asker, today=None):
     """Apply parsed actions to the state files. Returns (results, changed):
     results = per-action outcome strings for the confirmation reply, changed =
     whether anything was written. Deterministic; every failure mode (unknown
-    target, duplicate, unreadable file) becomes a polite outcome string."""
+    target, duplicate, unreadable file) becomes a polite outcome string.
+
+    Part II owner scoping: thematic-alert actions see and touch ONLY the
+    asker's alerts (add stamps owner=asker; remove/update/list match within
+    the asker's set). Watchlist actions stay shared — anyone edits."""
     today = _today(today)
+    asker_l = (asker or "").lower()
     results = []
 
-    a_payload, a_writable = _read_state(ALERTS_FILE, _default_alerts_payload())
+    a_payload, a_writable = _load_alerts_payload()
     w_payload, w_writable = _read_state(WATCHLIST_FILE, _default_watchlist_payload())
     a_dirty = w_dirty = False
 
-    def _active_alerts():
-        return [a for a in a_payload.get("alerts", []) if _is_active(a, today)]
+    def _own(entry):
+        return (entry.get("owner") or "").lower() == asker_l
+
+    def _own_alerts():
+        return [a for a in a_payload.get("alerts", []) if _own(a)]
+
+    def _active_own_alerts():
+        return [a for a in _own_alerts() if _is_active(a, today)]
 
     def _active_tickers():
         return [t for t in w_payload.get("tickers", []) if _is_active(t, today)]
 
     def _alert_names():
-        return ", ".join(f'"{a["name"]}"' for a in _active_alerts()) or "(none)"
+        return ", ".join(f'"{a["name"]}"' for a in _active_own_alerts()) or "(none)"
 
     for act in actions or []:
         action = (act or {}).get("action")
@@ -397,13 +520,12 @@ def apply_actions(actions, asker, today=None):
             priority = (act.get("priority") or "medium").lower()
             if priority not in ("high", "medium", "low"):
                 priority = "medium"
-            existing = {a["name"].lower() for a in a_payload.get("alerts", [])
-                        if a.get("name")}
+            existing = {a["name"].lower() for a in _own_alerts() if a.get("name")}
             name = _unique_alert_name((act.get("name") or "Custom alert").strip(), existing)
             a_payload.setdefault("alerts", []).append({
                 "name": name, "trigger": trigger, "priority": priority,
-                "expires": act.get("expires"), "added_by": asker or "unknown",
-                "added_on": today,
+                "expires": act.get("expires"), "owner": asker_l or "unknown",
+                "added_by": asker or "unknown", "added_on": today,
             })
             a_dirty = True
             results.append(f'Added alert "{name}" — {trigger} '
@@ -411,11 +533,11 @@ def apply_actions(actions, asker, today=None):
 
         elif action == "remove_alert":
             name = (act.get("name") or "").strip().lower()
-            match = [a for a in a_payload.get("alerts", [])
+            match = [a for a in _own_alerts()
                      if (a.get("name") or "").lower() == name]
             if not match:
-                results.append(f'No alert named "{act.get("name")}" — active alerts: '
-                               f'{_alert_names()}.')
+                results.append(f'No alert of yours named "{act.get("name")}" — your '
+                               f'active alerts: {_alert_names()}.')
                 continue
             a_payload["alerts"] = [a for a in a_payload["alerts"] if a not in match]
             a_dirty = True
@@ -442,11 +564,11 @@ def apply_actions(actions, asker, today=None):
                 if not a_writable:
                     results.append("The alerts file is unreadable — no changes applied.")
                     continue
-                match = [a for a in a_payload.get("alerts", [])
+                match = [a for a in _own_alerts()
                          if (a.get("name") or "").lower() == target.lower()]
                 if not match:
-                    results.append(f'No alert named "{target}" — active alerts: '
-                                   f'{_alert_names()}.')
+                    results.append(f'No alert of yours named "{target}" — your '
+                                   f'active alerts: {_alert_names()}.')
                     continue
                 match[0]["expires"] = expires
                 a_dirty = True
@@ -496,8 +618,8 @@ def apply_actions(actions, asker, today=None):
                                "earnings coverage will be empty until a ticker is added.")
 
         elif action == "list_config":
-            alerts = _active_alerts()
-            results.append(f"Active alerts ({len(alerts)}):")
+            alerts = _active_own_alerts()
+            results.append(f"Your alerts ({len(alerts)}):")
             for a in alerts:
                 results.append(f'[{a.get("priority", "medium")}] "{a["name"]}" — '
                                f'{a.get("trigger", "")} ({_fmt_expiry(a.get("expires"))})')
@@ -510,7 +632,7 @@ def apply_actions(actions, asker, today=None):
                 if t.get("expires"):
                     bit += f" [until {t['expires']}]"
                 ticker_bits.append(bit)
-            results.append(f"SEC watchlist ({len(tickers)}): "
+            results.append(f"Shared SEC watchlist ({len(tickers)}): "
                            f"{', '.join(ticker_bits) or '(empty)'}")
 
         else:
@@ -544,7 +666,8 @@ def build_confirmation_html(results):
         '<hr style="margin: 20px 0; border: none; border-top: 1px solid #ccc;">\n'
         '<p style="font-size: 11px; color: #888;">Manage alerts by replying to any digest — '
         'e.g. &quot;watch for X until Aug 15&quot;, &quot;add CRWV to the watchlist&quot;, '
-        '&quot;stop watching MSTR&quot;, &quot;what alerts are set up?&quot;.</p>\n'
+        '&quot;stop watching MSTR&quot;, &quot;what alerts are set up?&quot;. '
+        'Alerts are personal to you; the SEC watchlist is shared with the whole team.</p>\n'
         '</div>'
     )
 
@@ -552,7 +675,7 @@ def build_confirmation_html(results):
 if __name__ == "__main__":
     print(f"Active alerts ({ALERTS_FILE}):")
     for a in load_alerts():
-        print(f'  [{a.get("priority", "?")}] {a["name"]}: {a.get("trigger", "")} '
-              f'({_fmt_expiry(a.get("expires"))})')
+        print(f'  [{a.get("owner", "?")}] [{a.get("priority", "?")}] {a["name"]}: '
+              f'{a.get("trigger", "")} ({_fmt_expiry(a.get("expires"))})')
     print(f"\nActive watchlist ({WATCHLIST_FILE}):")
     print(f'  {", ".join(load_watchlist()) or "(empty)"}')
