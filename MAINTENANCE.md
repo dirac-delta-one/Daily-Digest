@@ -203,7 +203,7 @@ loss). Harmless; no action.
   **once** on a **small** input, **with permission**, and route all email to a test address — never
   the production recipients, never a loop. `count_tokens` calls are free. Substack/13D scraping is
   free to test (flat subscriptions, no Claude call — except 13D's embedded summary).
-- **The gate:** `check.bat` = `ruff check` + `pytest` (336 tests). Both must pass before commit.
+- **The gate:** `check.bat` = `ruff check` + `pytest` (360 tests). Both must pass before commit.
 - **The eval harness:** `tools/eval_retrieval.py` + `tools/eval_golden.json` measure retrieval
   quality (current baseline: hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses,
   `tools/eval_results/2026-07-15_post_index_filter.json`). Re-run and compare after any change to
@@ -212,6 +212,16 @@ loss). Harmless; no action.
 - **Module convention:** source fetchers expose `fetch_X()` / `format_X_for_prompt()` /
   `build_X_html()`. A new source is one module in that shape plus a row in `digest.py`'s fetch
   registry (pinned by `tests/test_source_registry.py` / `test_digest_prompt.py`).
+- **Alerts & the watchlist — two separate levers.** The top-of-digest alert *triggers* live in
+  `alerts_config.json` (plain JSON — add/edit/tune freely, no code, re-read each run). The *ticker
+  universe* is `WATCHLIST` in `sec_filings.py` (a Python list — a **code** edit) and is the single
+  source of truth for SEC filings, earnings, entity tagging, **and** — since 2026-07-21 — the
+  scoping of the two "watchlist"-referencing alerts (Insider selling, Rating downgrade), which
+  `digest.py` injects into the alert prompt. So editing that one list updates all four at once. The
+  event-based triggers (Large Chapter 11, HY spread blowout, Fed surprise, Bank failure, Distressed
+  exchange) are watchlist-independent and fire on the event regardless of ticker. Alerts are
+  evaluated **per variant** (FULL sees Substack; TEAM doesn't), so a Substack-sourced alert appears
+  only in the owner's box — by design.
 - **Commits:** `main` is the working/authoritative branch (since 2026-07-20 — the server tracks it;
   the old `ava-updates` branch was retired with Jared's instance). Commit and deploy from `main`;
   use a short-lived feature branch only for risky in-progress work. Keep the WORKLOG habit — a dated

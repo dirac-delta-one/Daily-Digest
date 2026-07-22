@@ -32,7 +32,7 @@ FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 server (`ShawnArmstrong`) is the SOLE instance, running unattended: four scheduled tasks Ready under
 a **stored-password** principal (MorningDigest 08:00 / Watchdog 09:00 / Backup 09:45 / ReplyMonitor;
 the MiddayAlert task was removed 2026-07-21), `DIGEST_UNATTENDED=1` machine-wide, production digests
-delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **357 green**,
+delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **360 green**,
 retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
 (`tools/eval_results/2026-07-15_post_index_filter.json`). Operator `acohen@acorninv.com`; **Jared's
 instance is decommissioned.**

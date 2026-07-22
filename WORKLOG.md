@@ -19,9 +19,10 @@ live-resume doc was retired/deleted 2026-07-21 — deploy done; its content is f
 the 7/20/21 entries and preserved in git history.)* Full 7/20 cutover sequence + the S4U finding below.
 
 **What's LIVE on the server:**
-- Code on `main` at `df29a59` — includes the `-StoredPassword` fallback, the `-u` reply-log fix,
-  the O4 backup code, **and the pass-2 changelog-leak fix (verified live on the box)**; memory 87
-  active after the 7/21 run.
+- Code on `main` at `d75a923` (latest; server pulled) — includes the `-StoredPassword` fallback, the
+  `-u` reply-log fix, the O4 backup code, the pass-2 changelog-leak fix, the snapshot-footnote
+  cleanup, the midday-alert removal, and the alerts↔`sec_filings.WATCHLIST` binding. `ruff` clean,
+  `pytest` **360**; working tree clean, nothing unpushed. Memory 87 active after the 7/21 run.
 - Secrets in place via Plan B (dev token pair copied — no interactive mint; MFA lockout never
   cleared and was routed around entirely). 13D session live (probe: no login redirect).
 - **Four** tasks under a **stored-password** principal (NOT S4U — see the finding below):
