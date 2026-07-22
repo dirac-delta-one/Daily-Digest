@@ -21,10 +21,10 @@ personalized boxes; neutral base archived/indexed), (WSJ) tag red, reply-channel
 **Deployed to the server the same evening:** pull done; `alert_commands.py` smoke seeded the
 state files fresh (14 owned alerts + 16 tickers verified — the pull deletes the formerly-tracked
 `alerts_config.json` by design); ReplyMonitor restarted; **live command round-trip PASSED**
-(operator's "what alerts are set up?" reply → correct confirmation email). One follow-up landed
-after that pull — the list_config reply reformat (expiry buckets + watchlist bullets) — which
-needs its own **push → server pull → ReplyMonitor restart**. **Thu 2026-07-23 08:00 is the
-biggest-change debut run since deploy:** check the 3 individual sends, the
+(operator's "what alerts are set up?" reply → correct confirmation email). The list_config reply
+reformat (expiry buckets + watchlist bullets) followed and was **also pushed, pulled, and the
+ReplyMonitor restarted the same night — the server is fully current with `main`.**
+**Thu 2026-07-23 08:00 is the biggest-change debut run since deploy:** check the 3 individual sends, the
 "…-> 7 eval unit(s)" line, `Repetition:` lines, ~2x cost lines, per-user boxes + footer in the
 emails. The block below is the 7/21 deploy-era state, kept for the S4U/stored-password findings.
 
@@ -53,10 +53,9 @@ SEC watchlist"). `pytest` **440**.
 
 **Post-deploy follow-up (same night, after seeing the live reply):** the list_config reply
 reformat (see the paragraph above — sections, expiry buckets, watchlist bullets, priority note;
-3 samples emailed to acohen incl. the permanent-only everyday case, all approved). ⚠ This landed
-AFTER the server pull below, so it needs its own push → server pull → **ReplyMonitor restart**
-(the daemon holds `alert_commands.py` in memory; until restarted, list replies render the old
-format).
+3 samples emailed to acohen incl. the permanent-only everyday case, all approved). Landed after
+the server pull below, so it got its own push → server pull → ReplyMonitor restart the same
+night — **DEPLOYED; the server is fully current with `main`.**
 
 **Server deploy, same evening (2026-07-22 night):** pulled on `ShawnArmstrong`;
 `alert_commands.py` smoke run seeded `alerts_config.json` (fresh, pre-migrated: 14 owned

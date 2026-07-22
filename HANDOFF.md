@@ -79,12 +79,17 @@ one-time ops note); **(WSJ) tag red**; **reply-channel teaching footer** (in the
 standalone when no box). Live-validated cheaply: parse seam 5+3 calls ($0.05 total), real
 fan-out eval, 4 formatting sample emails to acohen.
 
-**Server DEPLOYED same evening (2026-07-22 night):** pulled through the spec-retirement commit,
-`alert_commands.py` smoke run seeded both state files fresh (the pull deletes the formerly-tracked
-`alerts_config.json`; seed-on-missing recreated it pre-migrated — 14 owned alerts + 16 tickers
-verified), **ReplyMonitor restarted**, and the **live command round-trip PASSED** (operator
-replied "what alerts are set up?" from her inbox → confirmation email listing her 7 alerts + the
-shared watchlist). The email-command path is live-validated end to end.
+**Server DEPLOYED same evening (2026-07-22 night, two pulls):** pulled through the
+spec-retirement commit, `alert_commands.py` smoke run seeded both state files fresh (the pull
+deletes the formerly-tracked `alerts_config.json`; seed-on-missing recreated it pre-migrated —
+14 owned alerts + 16 tickers verified), **ReplyMonitor restarted**, and the **live command
+round-trip PASSED** (operator replied "what alerts are set up?" from her inbox → confirmation
+email listing her 7 alerts + the shared watchlist). A same-night follow-up — the list_config
+reply reformat (expiry-bucket grouping, watchlist bullets, priority tag hidden; 3 approved
+samples) — was pushed, pulled, and the ReplyMonitor restarted again. **The server is fully
+current with `main`; the email-command path is live-validated end to end.** (Durable rule: any
+pull touching `reply_monitor.py`/`alert_commands.py` needs `schtasks /End` + `/Run` on
+`\DailyDigest\ReplyMonitor` — the daemon holds old code until restarted.)
 
 **What's next:** the Thu 2026-07-23 08:00 run is still the biggest-change debut since deploy
 (first production Fable run + first per-recipient sends). Read its log closely: THREE individual
