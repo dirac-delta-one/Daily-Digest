@@ -193,6 +193,7 @@ if the team variant is ever deliberately retired).
 | `reply_monitor.py` | Email-reply RAG bot; asker-tiered (config-driven allow-list); `--once` mode + `while True` daemon. |
 | `alerts.py`, `archive.py`, `cost.py`, `claude_utils.py`, `content_monitor.py`, `run_alert.py` | Plain-English alerts; raw-content archiver; per-run cost accounting; JSON/structured-output helpers; O3 source-count degradation monitor; failure-alert + O2 completion watchdog. |
 | `ticker_names.py` | Ticker→issuer-name glossary for the prompt (2026-07-22): SEC registry titles + a learned cache of digest-rendered "$TICK (Name)" pairs validated against that day's sources. Staged collect() / single post-variants commit() so the TEAM/FULL cache prefix can't fork mid-run. |
+| `repetition.py` | Cross-section repetition metric (REDUCE_REPEATS Idea 12, 2026-07-22): deterministic scorer over assembled digest HTML, logged per run + persisted to `repetition_scores.json`. The yardstick for all anti-repetition prompt work. |
 | Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
 | `net_utils.py`, `feeds.py`, `html_utils.py` | Shared EDGAR fetch + unverified-SSL context; RSS feed/date/recency helpers; HTML strippers + Gmail body extractor + `parse_forwarded_from`. |
 | `run_*.bat`, `setup_tasks.ps1`, `check.bat` | Task Scheduler wiring: 4 `%~dp0`-relative wrappers (dated logs + 30-day prune, clean `exit /b 0`) + the PowerShell provisioning script (run-whether-logged-on, wake/catch-up/network, the 09:00 watchdog, `DIGEST_UNATTENDED`). `check.bat` = ruff + pytest. |
@@ -204,7 +205,7 @@ if the team variant is ever deliberately retired).
 `credentials.json`, `token.json` (Gmail — the durable *production* token minted 2026-07-10),
 `substack_cookie.txt`, `thirteen_d_session.json`, `env.bat`, plus caches/state (`*_cache.json`
 incl. `ticker_names_cache.json`, `pacer_seen.json`, `memory.json`, `substack_memory.json`,
-`source_counts.json`).
+`source_counts.json`, `repetition_scores.json`).
 *(`credentials_JARED.json` is a dev-machine backup only — do NOT copy it to the server.)*
 
 **Env vars:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),
@@ -431,7 +432,9 @@ What remains is only what a future session might still act on.)*
 - **F9 extract Gmail auth/send into `gmail_utils.py`**: DECLINED as churn (satellites importing
   `digest` is deliberate).
 - **F10 hoist Haiku news-ranking out of `build_news_html`**: DECLINED (never move it into the free
-  `python news.py` path).
+  `python news.py` path). *SUPERSEDED 2026-07-22 (REDUCE_REPEATS Idea 13): the hoist happened —
+  ranking moved to `main()` so news renders per variant with digest-dedupe filtering — but F10's
+  rationale is fully respected: ranking stays in digest.py's paid path, `news.py` untouched.*
 - **F11 FULL/TEAM variant loop in `main()`**: DECLINED — explicitness is valued (§2); every branch
   is pinned.
 - **F4 pin a CA bundle** instead of the unverified-SSL contexts for Treasury/CFTC: cosmetic; do

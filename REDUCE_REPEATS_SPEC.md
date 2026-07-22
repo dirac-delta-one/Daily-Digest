@@ -16,19 +16,19 @@
 
 | # | Idea | Type | Cost/yr | Effort | Status |
 |---|---|---|---|---|---|
-| 1 | Sequential-exclusion rule | Prompt | $0 | S | |
-| 2 | Cross-reference device (→ §N) | Prompt | $0 | S | |
+| 1 | Sequential-exclusion rule | Prompt | $0 | S | **BUILT 2026-07-22** |
+| 2 | Cross-reference device (→ §N) | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 3 | Top Takeaways redefinition (variant a or b) | Prompt | $0 | S | |
 | 4 | One-number-one-place rule | Prompt | $0 | S | |
-| 5 | Plan-first nudge (Fable) | Prompt | $0 | S | |
+| 5 | Plan-first nudge (Fable) | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 6 | Bullet caps on §2–5 | Prompt | $0 | S | |
 | 7 | Multi-source merge, mechanical form | Prompt | $0 | S | |
 | 8 | De-prescribe (ALTERNATIVE to 1/2/4 stacking) | Prompt | $0 | S | |
-| 9 | Pass-2 dedup mandate first + concrete method | Prompt | $0 | S | |
+| 9 | Pass-2 dedup mandate first + concrete method | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 10 | Dedicated dedup pass 2.5 | Code+LLM | ~$75–110 | M | |
 | 11 | Deterministic tripwire gating 10 | Code | ~$0–20 | M | |
-| 12 | Standing repetition metric + log line | Code | $0 | S–M | |
-| 13 | WSJ/FT appended-section dedupe | Code | $0 | M | |
+| 12 | Standing repetition metric + log line | Code | $0 | S–M | **BUILT 2026-07-22** |
+| 13 | WSJ/FT appended-section dedupe | Code | $0 | M | **BUILT 2026-07-22** |
 | 14 | Memory storyline "only if changed" rule | Prompt | $0 | S | |
 | 15 | Merge overlapping sections | Prompt/structural | $0 | M | |
 

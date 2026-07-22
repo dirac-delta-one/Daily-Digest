@@ -37,6 +37,7 @@ import cost
 from html_utils import extract_gmail_body, parse_forwarded_from, strip_forward_header
 from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings, company_names, WATCHLIST
+import repetition
 import ticker_names
 from news import fetch_wsj_ft_articles
 from market_data import (
@@ -304,6 +305,10 @@ You are creating a daily research digest for a professional credit/distressed in
 Your job is to take the day's inbox — research reports, newsletters, market commentary, \
 investment ideas — and produce a sharp, useful briefing.
 
+Before writing, plan: list the day's distinct stories and assign each to exactly ONE \
+home section. Write from that allocation — the plan is for your reasoning only; never \
+include it in the output.
+
 SECTIONS — If a section has no content, OMIT IT ENTIRELY and renumber the remaining \
 sections sequentially (1, 2, 3...). Do not include empty sections or "none found" messages. \
 Do not leave numbering gaps.
@@ -382,10 +387,15 @@ parenthetical where the name is already immediately adjacent \
 (e.g. "SpaceX (<strong>$SPCX</strong>)" needs no second copy of the name).
 - If multiple sources discuss the same topic, synthesize them and note where they agree \
 or disagree.
-- NO REPETITION ACROSS SECTIONS. Each story or data point appears ONCE with full detail, \
-in its single best-fit section. If a later section has a genuinely NEW angle on a story \
-covered earlier (e.g. a contrarian take on a Top Takeaways item), give ONLY the new angle \
-in one line — do not restate the numbers or re-tell the story.
+- SECTIONS ARE EXCLUSIVE, IN ORDER. Work top-down: once a story has appeared in any \
+section, later sections may not re-tell it. When a story qualifies for several sections, \
+it lives in the EARLIEST qualifying section. If a later section has a genuinely NEW \
+angle on it, give ONLY the new angle in one clause with a cross-reference pointer — \
+never restate the numbers or re-tell the story.
+- CROSS-REFERENCES: when a bullet must touch a story covered elsewhere, point to its \
+home section instead of restating it: "…the new angle here <em>(→ §1)</em>." Number \
+references against YOUR final output's numbering (after omitting empty sections), and \
+only point at your own numbered sections.
 - Tag each claim with its source in parentheses at the end, e.g. "(Grant's)" or "(Greenmantle)". \
 Be consistent — always at the end of the bullet, never woven into the sentence. \
 Only cite real sources: publication names (Grant's, FT, Bloomberg), SEC filing types, \
@@ -431,6 +441,7 @@ Use inline styles only (no <style> blocks). Every digest must look identical in 
   <!-- Every bullet opens with its bolded lead word: <strong>Topic:</strong> -->
   <!-- Sources: span with color #888, always at end of bullet -->
   <!-- Tickers: <strong>$TICK</strong> (Company Name) whenever a ticker appears -->
+  <!-- Cross-refs: <em>(→ §N)</em> when touching a story whose home is another section -->
   <!-- Hyperlinks: <a href="URL" style="color: #1a5276;">linked text</a> -->
 
 </div>
@@ -887,16 +898,19 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "Above is all of today's original source material.\n\n"
             "Below is a DRAFT DIGEST you produced from it. Review the draft against the "
             "source material above:\n"
-            "1. Identify any important items that were MISSED — specific data points, trade "
+            "1. DEDUPLICATE — this is the primary review goal. Method: list every ticker and "
+            "every specific figure (price, spread, %, target, $ amount) that appears in more "
+            "than one section of the draft. For each, choose the home section (the earliest "
+            "qualifying one), keep the full detail there, and in every other section either "
+            "delete the mention or reduce it to a one-clause new angle with a <em>(→ §N)</em> "
+            "pointer. Verify every (→ §N) points at a section that exists in the final "
+            "numbering. Also confirm there is NO TL;DR / summary box before section 1 — if "
+            "the draft opens with one, delete it so the digest starts at section 1.\n"
+            "2. Identify any important items that were MISSED — specific data points, trade "
             "ideas, tickers, price targets, key arguments, or surprising findings that should "
             "have been included but weren't.\n"
-            "2. Check for any ERRORS — wrong numbers, misattributed sources, or mischaracterized "
+            "3. Check for any ERRORS — wrong numbers, misattributed sources, or mischaracterized "
             "arguments.\n"
-            "3. Check for REPETITION — the same story or data point restated in more than one "
-            "section. Keep the full detail in its single best-fit section; elsewhere keep at most "
-            "a one-line genuinely-new-angle reference.\n"
-            "   Also confirm there is NO TL;DR / summary box before section 1 — if the draft "
-            "opens with one, delete it so the digest starts at section 1.\n"
             "4. Check that every bullet has a source tag.\n"
             "5. Check the FORMAT rules: every bullet starts with its bolded lead word + colon "
             "(<strong>Topic:</strong>); every ticker is $-prefixed and bolded EVERYWHERE it "
@@ -1039,13 +1053,75 @@ def _rank_news_articles(articles, max_articles=15):
         return articles[:max_articles]
 
 
-def build_news_html(articles):
-    """Generate the WSJ/FT section as pre-formatted HTML with real hyperlinks."""
+# Title tokens too generic to indicate story identity (REDUCE_REPEATS Idea 13).
+_TITLE_STOPWORDS = {
+    "the", "and", "for", "with", "that", "this", "from", "have", "will",
+    "after", "over", "amid", "says", "said", "into", "more", "than", "what",
+    "when", "where", "their", "they", "been", "were", "would", "could",
+    "should", "about", "market", "markets", "stocks", "shares", "investors",
+    "billion", "million", "percent", "report", "reports", "year", "years",
+    "week", "wall", "street",
+}
+
+
+def _title_covered(title, digest_text):
+    """True when the digest text already covers this headline's story
+    (REDUCE_REPEATS Idea 13). Deterministic, strict bar — a false drop hides a
+    headline from the reader; a false keep is just the old status quo.
+
+    Signals, any of which trips coverage:
+    - a $TICK from the title appears in the digest;
+    - a distinctive proper-noun bigram (two consecutive Capitalized words,
+      e.g. "Gray Media") appears in the digest;
+    - >=60% of the title's content tokens (len>=4, non-stopword; at least 3
+      of them, else the title is too generic to judge) appear in the digest.
+    """
+    if not title or not digest_text:
+        return False
+    text_lower = digest_text.lower()
+
+    for tick in re.findall(r"\$[A-Z][A-Z0-9.]{1,7}\b", title):
+        if tick.lower() in text_lower:
+            return True
+
+    for m in re.finditer(r"\b([A-Z][a-z]{2,})\s+([A-Z][a-z]{2,})\b", title):
+        bigram = f"{m.group(1)} {m.group(2)}".lower()
+        if bigram in text_lower and not all(
+                w in _TITLE_STOPWORDS for w in bigram.split()):
+            return True
+
+    tokens = [t for t in re.findall(r"[a-z']{4,}", title.lower())
+              if t not in _TITLE_STOPWORDS]
+    if len(tokens) >= 3:
+        hits = sum(1 for t in tokens if t in text_lower)
+        if hits / len(tokens) >= 0.6:
+            return True
+    return False
+
+
+def build_news_html(articles, exclude_text=""):
+    """Generate the WSJ/FT section as pre-formatted HTML with real hyperlinks.
+
+    Expects PRE-RANKED articles — the Haiku ranking was hoisted to main() so
+    it runs once while this renders per variant (REDUCE_REPEATS Idea 13;
+    supersedes the F10 decline — ranking stays in digest.py's paid path,
+    never in the free news.py path). `exclude_text` is that variant's
+    Opus-written digest HTML: headlines whose story the digest already covers
+    are dropped, closing the blind spot where the model can't dedup against a
+    section appended after generation."""
     if not articles:
         return ""
 
-    # Rank and trim to top 15
-    articles = _rank_news_articles(articles, max_articles=15)
+    if exclude_text:
+        kept = [a for a in articles
+                if not _title_covered(a.get("title", ""), exclude_text)]
+        dropped = len(articles) - len(kept)
+        if dropped:
+            print(f"  WSJ/FT: dropped {dropped} of {len(articles)} ranked "
+                  "headline(s) already covered in the digest.")
+        articles = kept
+        if not articles:
+            return ""
 
     html = (
         '<h2 style="font-size: 18px; border-bottom: 1px solid #ccc; '
@@ -1649,7 +1725,13 @@ def main():
     private_html = build_private_credit_html(market_data)
     ai_html = build_ai_html(market_data)
     earnings_html = build_earnings_html(earnings)
-    news_html = build_news_html(news_articles)
+    # Rank once (Haiku), render per variant with that variant's digest text as
+    # the dedupe filter (REDUCE_REPEATS Idea 13) — each variant's appended
+    # news list drops headlines its own digest already covers.
+    ranked_news = _rank_news_articles(news_articles) if news_articles else []
+    news_html = build_news_html(ranked_news, exclude_text=digest_html)
+    team_news_html = (build_news_html(ranked_news, exclude_text=team_digest_html)
+                      if team_active else "")
     pacer_html = build_pacer_html(pacer_entries)
     # No ratings section is pre-built here — Opus writes the §9 "Rating Actions" section itself from
     # the rating data (see SYSTEM_PROMPT), unlike other sources which pre-render their section.
@@ -1669,9 +1751,16 @@ def main():
         team_final_html = _assemble_digest_html(
             team_digest_html, team_alerts_html, market_html, rates_html,
             credit_html, private_html, ai_html,
-            earnings_html, news_html, pacer_html,
+            earnings_html, team_news_html, pacer_html,
             funds_html, fed_bs_html,
         )
+
+    # Repetition metric (REDUCE_REPEATS Idea 12): deterministic, $0, never
+    # raises. Scores the assembled HTML — the same surface save_daily_digest
+    # persists, so live scores and any digests/ backfill are comparable.
+    repetition.record_score("full", final_html)
+    if team_final_html:
+        repetition.record_score("team", team_final_html)
 
     # --- Save daily digest(s) for weekly summary (each non-fatal on its own) ---
     try:

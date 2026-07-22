@@ -13,6 +13,7 @@ pacer_seen.json
 wiltw_cache.json
 ishares_oas_cache.json
 ticker_names_cache.json
+repetition_scores.json
 memory.json
 memory_v1_backup.json
 substack_memory.json
