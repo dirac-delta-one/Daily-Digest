@@ -481,7 +481,10 @@ What remains is only what a future session might still act on.)*
   run logs `Repetition: N strong + M weak signal(s)` and appends to `repetition_scores.json`
   (server-side). Shipped 2026-07-23 after readers noticed repetition in the first Fable production
   run: ideas 4+7+14, then a second batch (idea 3 variant (a), idea 6 soft caps, pointer-echo
-  tightening) — two ~$3.35 validated test runs to acohen. **Metric recalibrated same day (v2):**
+  tightening), then the evening "self-contained §1" upgrade (idea 3(a+), **jared-approved
+  2026-07-23**: §1 = complete per-story compilation w/ nested sub-bullets incl. Contrarian:;
+  later sections = bare (→ §1) pointers only; commit `31ca28e`) — three validated test runs
+  to acohen (best score: 0 strong). **Metric recalibrated same day (v2):**
   the content-mandated sections (SEC Filings, Rating Actions) are excluded like the data tables —
   structural ticker collisions were inflating STRONG past the old ≥3 threshold on digests with
   ZERO story-level repetition. Entries carry `"metric": 2` since then; v1 entries (server history

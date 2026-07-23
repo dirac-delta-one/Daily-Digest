@@ -18,7 +18,7 @@
 |---|---|---|---|---|---|
 | 1 | Sequential-exclusion rule | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 2 | Cross-reference device (→ §N) | Prompt | $0 | S | **BUILT 2026-07-22** |
-| 3 | Top Takeaways redefinition (variant a or b) | Prompt | $0 | S | **BUILT 2026-07-23 (variant a); upgraded same day to "self-contained §1" (a+), PENDING JARED SIGN-OFF** |
+| 3 | Top Takeaways redefinition (variant a or b) | Prompt | $0 | S | **BUILT 2026-07-23 (variant a); upgraded same day to "self-contained §1" (a+) — JARED APPROVED 2026-07-23** |
 | 4 | One-number-one-place rule | Prompt | $0 | S | **BUILT 2026-07-23** |
 | 5 | Plan-first nudge (Fable) | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 6 | Bullet caps on §2–5 | Prompt | $0 | S | **BUILT 2026-07-23 (soft cap)** |
@@ -159,8 +159,8 @@ today's reading flow; recommended); (b) makes §1 skimmable but forces readers
 to jump. Both kill the 8-of-13 Opus dupes involving §1. Choose ONE.
 
 **Variant (a+) — "self-contained §1" (BUILT 2026-07-23 evening, operator
-request; PENDING JARED SIGN-OFF — revert = `git revert` the commit that added
-it).** Variant (a) taken to its conclusion: §1 is COMPLETE per story (all
+request; JARED APPROVED same day — the standing §1 format; rollback if ever
+needed = `git revert 31ca28e`, keeping the truncation-guard commit 8197495).** Variant (a) taken to its conclusion: §1 is COMPLETE per story (all
 sources merged, every angle as an indented sub-bullet, contrarian takes as a
 `Contrarian:` sub-bullet — carved OUT of §5); later sections carry ZERO §1
 content, at most a bare `(→ §1)` pointer; assignment rule = "primary subject
