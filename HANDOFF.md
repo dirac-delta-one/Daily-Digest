@@ -244,7 +244,7 @@ alert email to the operator channel + digest chunks un-indexed + memory frozen; 
 | `alert_commands.py` | Email-managed alerts + SEC watchlist (ALERT_COMMANDS_SPEC, 2026-07-22; Part II same day): owns `alerts_config.json`/`watchlist.json` (seed-on-missing, atomic writes, expiry, the Part-II owner migration), the Sonnet command classify/parse (owner-grounded), deterministic apply + confirmation HTML, expiry lifecycle (`consume_expired`/`expiring_today`, owner-attributed), and `orphan_notices`. **Thematic alerts are per-user** (owner-only visibility/editing; jared + acohen own the migrated originals; new users start empty); the watchlist is shared. Reply-channel = contamination-safe (`is_self_artifact()` exclusion). |
 | `ticker_names.py` | Ticker→issuer-name glossary for the prompt (2026-07-22): SEC registry titles + a learned cache of digest-rendered "$TICK (Name)" pairs validated against that day's sources. Staged collect() / single post-variants commit() so the TEAM/FULL cache prefix can't fork mid-run. |
 | `repetition.py` | Cross-section repetition metric (REDUCE_REPEATS Idea 12, 2026-07-22): deterministic scorer over assembled digest HTML, logged per run + persisted to `repetition_scores.json`. The yardstick for all anti-repetition prompt work. |
-| Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
+| Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `treasury_yields.py` (2026-07-23: Treasury.gov daily par curves — the Rates Snapshot's T-1 source + NY Fed SOFR; FRED = fallback), `cliffwater_data.py` (2026-07-23: Cliffwater BDC index, jared-approved SPBDCUP substitute), `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
 | `net_utils.py`, `feeds.py`, `html_utils.py` | Shared EDGAR fetch + unverified-SSL context; RSS feed/date/recency helpers; HTML strippers + Gmail body extractor + `parse_forwarded_from`. |
 | `run_*.bat`, `setup_tasks.ps1`, `check.bat` | Task Scheduler wiring: 4 `%~dp0`-relative wrappers (dated logs + 30-day prune, clean `exit /b 0`) + the PowerShell provisioning script (run-whether-logged-on, wake/catch-up/network, the 09:00 watchdog, `DIGEST_UNATTENDED`). `check.bat` = ruff + pytest. |
 
@@ -445,7 +445,9 @@ What remains is only what a future session might still act on.)*
     silently break if the page layout changes, with a licensed feed. So this row is both
     *approximate* and *fragile* today; BBG fixes both. This is the ONLY currently-shipping item here.
   - **(ii) Completely missing — no free source at all (BBG is the only way to get them):**
-    - **S&P BDC index (SPBDCUP)** — publisher page bot-blocked (403); BIZD proxy declined.
+    - ~~**S&P BDC index (SPBDCUP)**~~ — *SUBSTITUTED 2026-07-23, jared-approved: the free daily
+      **Cliffwater BDC Index** ships via `cliffwater_data.py` (labeled Cliffwater, never S&P).
+      SPBDCUP itself remains paid-only; on a BBG cutover jared can choose to swap back.*
     - **BCRED '32 / ARCC '32 G-spreads**, **SpaceX '56 G-spread**, **Oracle '66 G-spread**,
       **QTS G-spread** — no free issuer-level spread source.
     - **CoreWeave '32 + Core Scientific '31 bond prices** — bond-level data = TRACE ($9k/yr,
@@ -480,21 +482,22 @@ What remains is only what a future session might still act on.)*
   **Watch:** the first Monday run (2026-07-27) logs the 72h line + weekend content appears; PACER
   section shows only fresh filings; cross-day repeats in jared's read; prompt cost +~5-6k input
   tokens/run (cached) from the context block.
-- **Snapshot-table T-1 lag — LOOK INTO (flagged 2026-07-23, prompted by a "treasury yields are
-  wrong" comment).** At the 08:00 run, effectively EVERY Snapshot-table row is prior-trading-session
-  (T-1) data, not live: FRED rows (Rates + Corporate Credit OAS) publish a day in arrears; Yahoo
-  rows (Market/Private Credit/AI + the IGLB/IGIB credit-ETF rows) are daily closes and the US
-  session hasn't opened at 8 AM; iShares portfolio OAS (HYG/LQD) is fund-reported T-1. The values
-  are correct and each table already prints a subtle 10px-gray "as of <date>" footnote
-  ([macro_data.py:361](macro_data.py:361), [market_data.py:343](market_data.py:343)) — so it's
-  stale-but-labeled, not a data bug (verified: 7/22 run rendered rates "as of 2026-07-21", ~a few
-  bps off BBG because CMT par yields ≠ BBG on-the-run). Open questions to resolve before any fix:
-  (a) make the as-of/prior-close framing PROMINENT section-wide (both builders already compute the
-  date — styling/labeling change, no data change); (b) confirm which if any 24/7 rows (BTC, and
-  likely WTI/DXY) carry a same-day value at 8 AM — `market_data` stores `as_of` DATE-only
-  ([market_data.py:124](market_data.py:124)), so add per-row timestamp logging and read a real 08:00
-  production run to settle it (a run at any other hour can't reproduce 8 AM — the market's open
-  state differs). Everything here is free to test (no Claude). Not started.
+- **Snapshot-table data lag — see `SNAPSHOT_UPDATE.md` (the authoritative spec; this entry's
+  earlier T-1 claim was WRONG).** The 2026-07-23 investigation established the Rates + Corporate
+  Credit OAS rows were **T-2** at the 08:00 run (FRED republishes H.15, which posts ~4:15 PM for
+  the PRIOR day; this entry's original "verified T-1" was checked against an evening dev run, not
+  a production 08:00 email). SHIPPED same day: **Treasury.gov source switch** (`treasury_yields.py`
+  — same par curves, published same-day → Rates rows now T-1; per-series FRED fallback) and
+  **lag-honest footnotes on all five snapshot tables** (`market_data.as_of_label`: majority date +
+  per-date outlier enumeration, replacing the freshness-overstating `max(dates)`; each table now
+  states its lag class — prior close / same-day 24h rows / OAS "published the morning after each
+  close"). Also shipped 2026-07-23: **NY Fed SOFR direct** (`treasury_yields.fetch_sofr_series`,
+  wins the 8 AM publish race most days, FRED fallback) and the **freshness log line**
+  (`market_data._freshness_summary` — "Freshness: same-day bars: … | prior-session: …").
+  STILL OPEN from the spec's §5 sequence: **read the Freshness line from the first real 08:00
+  server log** to settle the same-day rows (§2.4), the Cliffwater-BDC-index question for jared
+  (§4 row 3), and the paid-data lanes (§3.1). ICE OAS rows stay T-2 — no free source is fresher;
+  now honestly labeled.
 - **Repetition score (REDUCE_REPEATS Bundles 1+2 + second batch, shipped 2026-07-22/23).** Every
   run logs `Repetition: N strong + M weak signal(s)` and appends to `repetition_scores.json`
   (server-side). Shipped 2026-07-23 after readers noticed repetition in the first Fable production

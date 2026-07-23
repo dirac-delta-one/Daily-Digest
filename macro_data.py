@@ -80,12 +80,37 @@ def fetch_macro_data():
     today = datetime.date.today()
     start = today - datetime.timedelta(days=45)
 
+    # Fresher-than-FRED sources first (SNAPSHOT_UPDATE §2.1/§2.2, 2026-07-23):
+    # at the 08:00 run FRED's H.15 republication is T-2; Treasury.gov
+    # publishes the same par curves same-day → T-1, and the NY Fed publishes
+    # SOFR directly each morning. Same numbers, one session fresher. FRED
+    # stays the per-series fallback.
+    alt_series = {}  # series_id -> (series, source label)
+    try:
+        from treasury_yields import fetch_treasury_series
+        for sid, s in fetch_treasury_series(start).items():
+            alt_series[sid] = (s, "U.S. Treasury")
+        if alt_series:
+            print(f"  Treasury.gov par curves: {len(alt_series)} series "
+                  "(T-1; FRED fallback for the rest).")
+    except Exception as e:
+        print(f"  Treasury.gov fetch failed ({e}) — FRED fallback for rates.")
+    try:
+        from treasury_yields import fetch_sofr_series
+        alt_series["SOFR"] = (fetch_sofr_series(start), "NY Fed")
+    except Exception as e:
+        print(f"  NY Fed SOFR fetch failed ({e}) — FRED fallback.")
+
     results = []
     raw_rates = {}
 
     for series_id, (label, unit, section, metric) in FRED_SERIES.items():
         try:
-            data = fred.get_series(series_id, observation_start=start)
+            if series_id in alt_series:
+                data, row_source = alt_series[series_id]
+            else:
+                data = fred.get_series(series_id, observation_start=start)
+                row_source = "FRED"
             data = data.dropna()
 
             if len(data) < 1:
@@ -121,6 +146,7 @@ def fetch_macro_data():
                     "prev_1w": raw_prev_1w,
                     "prev_1m": raw_prev_1m,
                     "date": current_date,
+                    "source": row_source,
                 }
 
             # Convert spreads to bps
@@ -147,6 +173,7 @@ def fetch_macro_data():
                 "metric": metric,
                 "value": current,
                 "date": current_date,
+                "source": row_source,
                 "chg_1d": chg_1d,
                 "chg_1w": chg_1w,
                 "chg_1m": chg_1m,
@@ -201,6 +228,7 @@ def _derived_row(label, a, b, *, unit, section, series_id, metric=""):
         "metric": metric,
         "value": value,
         "date": a["date"],
+        "source": a.get("source", "FRED"),
         "chg_1d": round(value - _diff("prev_1d"), 4) if _diff("prev_1d") is not None else None,
         "chg_1w": round(value - _diff("prev_1w"), 4) if _diff("prev_1w") is not None else None,
         "chg_1m": round(value - _diff("prev_1m"), 4) if _diff("prev_1m") is not None else None,
@@ -291,9 +319,22 @@ def format_macro_for_prompt(data):
 
 
 def build_rates_table_html(data):
-    """The Rates Snapshot table (jared's 2026-07-15 snapshot redesign)."""
-    return _build_fred_table(
-        [r for r in data if r.get("section") == "rates"], "Rates Snapshot")
+    """The Rates Snapshot table (jared's 2026-07-15 snapshot redesign).
+    The lag note is source-aware: Treasury.gov rows are the previous business
+    day's close (T-1 at an 08:00 send); a FRED-fallback run is a day staler."""
+    rows = [r for r in data if r.get("section") == "rates"]
+    if any(r.get("source") == "U.S. Treasury" for r in rows):
+        note = (" · UST/TIPS/breakeven = Treasury.gov daily par yield curves, "
+                "previous business day's close")
+        if any(r.get("source") == "NY Fed" for r in rows):
+            note += "; SOFR = NY Fed, prior business day's print"
+        else:
+            note += ("; SOFR publishes the following morning "
+                     "(one day further behind)")
+    else:
+        note = (" · rates via FRED publish one business day in arrears — at an "
+                "08:00 send these are two sessions old")
+    return _build_fred_table(rows, "Rates Snapshot", note_suffix=note)
 
 
 def build_credit_table_html(data, yahoo_data=None):
@@ -307,9 +348,15 @@ def build_credit_table_html(data, yahoo_data=None):
         if any(r.get("source") for r in credit_rows):
             source_suffix = " · Yahoo Finance"   # a source → before the date
     credit_rows = [r for r in data if r.get("section") == "credit"]
-    note = " · OAS = ICE BofA index option-adjusted spreads"   # a definition → after the date
+    # Definitions + honest lag notes → after the date (SNAPSHOT_UPDATE §2.5:
+    # index OAS reaches FRED the morning AFTER each close — structurally two
+    # sessions behind at an 08:00 send; no free source is fresher).
+    note = (" · OAS = ICE BofA index option-adjusted spreads, published the "
+            "morning after each close (two sessions behind at an 08:00 send)")
     if any(str(r.get("series_id", "")).startswith("ISHARES:") for r in credit_rows):
-        note += "; Portfolio OAS rows = fund-reported (ishares.com)"
+        note += "; Portfolio OAS rows = fund-reported previous close (ishares.com)"
+    if extra_rows:
+        note += "; IGLB/IGIB = previous close"
     return _build_fred_table(
         credit_rows,
         "Corporate Credit Snapshot",
@@ -322,10 +369,13 @@ def build_credit_table_html(data, yahoo_data=None):
 def table_rows_html(rows):
     """Bare <tr> rows for the given FRED items — also embedded by
     market_data's Market Snapshot table (its 20Y UST row is FRED data).
-    Columns: name | metric | value | 1D | 1W | 1M (jared 2026-07-16)."""
+    Columns: name | metric | value | 1D | 1W | 1M (jared 2026-07-16).
+    Names carry the lag marker (*/**) — see market_data.lag_marker."""
+    from market_data import lag_marker  # lazy: mirrors the existing pattern
     html = ""
     for item in rows:
         label = item["label"]
+        display = label + lag_marker(item.get("date", ""))
         unit = item["unit"]
         metric = item.get("metric", "")
 
@@ -337,7 +387,7 @@ def table_rows_html(rows):
         td = 'style="padding: 3px 8px; font-size: 12px; border-bottom: 1px solid #eee;'
         html += (
             f'<tr>'
-            f'<td {td}">{label}</td>'
+            f'<td {td}">{display}</td>'
             f'<td {td} color: #888;">{metric}</td>'
             f'<td {td} text-align: right; font-weight: 600;">{val_str}</td>'
             f'<td {td} text-align: right;">{cell_1d}</td>'
@@ -355,14 +405,25 @@ def _build_fred_table(data, title, extra_rows_html="", footnote_suffix="", note_
 
     rows = table_rows_html(data)
 
-    # Footnote — minimal: one source line + the latest "as of" across rows.
-    # (No per-series enumeration; the rows already name each series.)
-    dates = [item["date"] for item in data if item.get("date")]
-    latest = max(dates) if dates else ""
+    # Footnote — sources from the rows that actually landed, plus an as-of
+    # that is honest about mixed freshness (SNAPSHOT_UPDATE §1.6, 2026-07-23:
+    # max(dates) let SOFR's fresher date overstate the yield rows by a day).
+    # The */** legend appears whenever any row carries a lag marker.
+    from market_data import LAG_LEGEND, as_of_label, lag_marker  # lazy import
+    sources = []
+    for item in data:
+        s = item.get("source", "FRED")
+        if s not in sources:
+            sources.append(s)
+    label_frag = as_of_label([(item["label"], item.get("date", ""))
+                              for item in data])
+    if any(lag_marker(item.get("date", "")) for item in data):
+        note_suffix += LAG_LEGEND
     footnote_html = ""
     if data or footnote_suffix or note_suffix:
-        footnote = ("Source: FRED" + footnote_suffix
-                    + (f", as of {latest}" if latest else "") + note_suffix)
+        footnote = ("Source: " + (" · ".join(sources) if sources else "FRED")
+                    + footnote_suffix
+                    + (f", {label_frag}" if label_frag else "") + note_suffix)
         footnote_html = (
             '<p style="font-size: 10px; color: #aaa; margin: 4px 0 0; line-height: 1.3;">'
             f'{footnote}</p>\n'

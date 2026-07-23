@@ -13,7 +13,7 @@ EXPECTED_KEYS = [
     "sec_filings", "news_articles", "market_data", "macro_data", "earnings",
     "pacer_entries", "rating_actions", "fund_results",
     "research_articles", "treasury_auctions", "cot_data", "fed_bs",
-    "bank_failures", "ishares_oas",
+    "bank_failures", "ishares_oas", "cliffwater_bdc",
 ]
 
 
@@ -32,12 +32,14 @@ def test_registry_entries_well_formed():
 
 
 def test_registry_keys_route_to_prompt_kwargs():
-    # Every registry key except news_articles (pre-rendered HTML section, not
-    # prompt material) must be a summarize_with_claude keyword — a misnamed
+    # Every registry key must be a summarize_with_claude keyword — a misnamed
     # registry key would silently drop that source from the digest prompt.
+    # Exceptions (routed differently by design): news_articles (pre-rendered
+    # HTML section, not prompt material); cliffwater_bdc (its row is merged
+    # into market_data before summarize — see main()).
     prompt_kwargs = set(inspect.signature(digest.summarize_with_claude).parameters)
     for key in EXPECTED_KEYS:
-        if key != "news_articles":
+        if key not in ("news_articles", "cliffwater_bdc"):
             assert key in prompt_kwargs, f"registry key {key!r} not a prompt kwarg"
 
 

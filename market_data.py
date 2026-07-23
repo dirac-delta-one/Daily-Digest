@@ -8,6 +8,7 @@ FRED data lives exclusively in macro_data.py.
 section renders its own snapshot table (Gold dropped, per the same request).
 """
 
+import datetime
 import time
 
 # Yahoo Finance tickers -> (label, unit_type, section, metric)
@@ -51,6 +52,20 @@ YAHOO_TICKERS = {
 #                   CoreWeave '32 bond price, Core Scientific '31 bond price
 #   (SpaceX EQUITY came off this list 2026-07-16: it IPO'd June 12, 2026 as
 #    Nasdaq SPCX — now a normal Yahoo row above.)
+
+
+def _freshness_summary(rows, today=None):
+    """One log line answering SNAPSHOT_UPDATE §2.4: which rows carried a
+    SAME-DAY bar at fetch time. Yahoo daily bars carry no intraday timestamp,
+    so bar-date vs run-date IS the freshness signal — read this line from a
+    real 08:00 server log to settle which rows (VIX, WTI, DXY, BTC, SK Hynix)
+    are live-ish at send time; a run at any other hour can't answer that."""
+    today = (today or datetime.date.today()).isoformat()
+    same = [r["label"] for r in rows if r.get("as_of", "")[:10] == today]
+    prior = [r["label"] for r in rows
+             if r.get("as_of") and r["as_of"][:10] != today]
+    return (f"same-day bars: {', '.join(same) if same else 'none'}"
+            f" | prior-session: {', '.join(prior) if prior else 'none'}")
 
 
 def _close_series(frame, tickers):
@@ -191,6 +206,7 @@ def fetch_market_data():
         print(f"  BKLN yield fetch failed ({e}) — row skipped.")
 
     print(f"  Got {len(results)} market data points.")
+    print(f"  Freshness: {_freshness_summary(results)}")
     return results
 
 
@@ -256,6 +272,55 @@ def _fmt_change_cell(chg, pct, unit, label):
     return f'<span style="color: {color}; font-weight: 600;">{text}</span>'
 
 
+def lag_marker(as_of_date, today=None):
+    """Row-name lag marker (operator request 2026-07-23): '' for same-day
+    values, '*' for the previous business day's, '**' for two or more
+    business days old — so a lagged number is visible at a glance instead of
+    only in the 10px footnote. Business-day math: on a Monday, Friday's close
+    is one business day back → '*'. Missing/unparseable dates get no marker
+    (over-include convention)."""
+    if not as_of_date:
+        return ""
+    try:
+        d = datetime.date.fromisoformat(str(as_of_date)[:10])
+    except ValueError:
+        return ""
+    today = today or datetime.date.today()
+    if d >= today:
+        return ""
+    business_days, cur = 0, d
+    while cur < today and business_days < 2:
+        cur += datetime.timedelta(days=1)
+        if cur.weekday() < 5:
+            business_days += 1
+    return "*" if business_days <= 1 else "**"
+
+
+LAG_LEGEND = (" · * = previous business day's close; "
+              "** = two+ business days old")
+
+
+def as_of_label(pairs):
+    """'as of <date>' footnote fragment that is honest about mixed row
+    freshness (SNAPSHOT_UPDATE §1.6, 2026-07-23 — the old max(dates) let one
+    fresher row overstate the whole table, e.g. SOFR's date winning while
+    every yield row was a day older). The majority date leads; every other
+    date is enumerated with its rows' labels."""
+    dated = [(label, d) for label, d in pairs if d]
+    if not dated:
+        return ""
+    counts = {}
+    for _, d in dated:
+        counts[d] = counts.get(d, 0) + 1
+    majority = sorted(counts, key=lambda d: (-counts[d], d))[0]
+    parts = [f"as of {majority}"]
+    for d in sorted(x for x in counts if x != majority):
+        labels = [label for label, dd in dated if dd == d]
+        shown = ", ".join(labels[:4]) + ("…" if len(labels) > 4 else "")
+        parts.append(f"{shown}: {d}")
+    return "; ".join(parts)
+
+
 # Non-Yahoo rows (by series_id) mirrored into the Market Snapshot in ADDITION
 # to their own snapshot section (jared 2026-07-16: 20Y UST in Market AND
 # Rates; HYG/LQD OAS in Market AND Corporate Credit). The rows come from the
@@ -267,18 +332,27 @@ def build_market_table_html(data, fred_data=None):
     """The Market Snapshot table (S&P, VIX, WTI, DXY, BTC + the FRED/iShares
     extras above when `fred_data` — the combined macro_data + ishares_data
     fetch result — is provided). The footnote cites only the sources whose
-    rows actually landed: DGS20 → FRED; ISHARES:* → the fund-reported note
-    (same wording as the Corporate Credit table's)."""
+    rows actually landed (each mirror row carries its own `source` since the
+    2026-07-23 Treasury.gov switch)."""
     extra_rows, footnote_suffix, note_suffix = "", "", ""
     if fred_data:
         import macro_data
         extras = [r for r in fred_data if r.get("series_id") in MARKET_FRED_EXTRAS]
         if extras:
             extra_rows = macro_data.table_rows_html(extras)
-            if any(not str(r["series_id"]).startswith("ISHARES:") for r in extras):
-                footnote_suffix = " · FRED"
+            mirror_sources = []
+            for r in extras:
+                if str(r["series_id"]).startswith("ISHARES:"):
+                    continue
+                s = r.get("source", "FRED")
+                if s not in mirror_sources:
+                    mirror_sources.append(s)
+            if mirror_sources:
+                footnote_suffix = " · " + " · ".join(mirror_sources)
             if any(str(r["series_id"]).startswith("ISHARES:") for r in extras):
                 note_suffix = " · Portfolio OAS rows = fund-reported (ishares.com)"
+    note_suffix += (" · US-listed rows = previous close; WTI, DXY, BTC trade "
+                    "round-the-clock (same-day)")
     return _build_yahoo_table(data, "market", "Market Snapshot",
                               extra_rows_html=extra_rows,
                               footnote_suffix=footnote_suffix,
@@ -286,22 +360,34 @@ def build_market_table_html(data, fred_data=None):
 
 
 def build_private_credit_html(data):
-    """The Private Credit Snapshot table (RTY, ARCC, OTF, BKLN + its yield)."""
-    return _build_yahoo_table(data, "private", "Private Credit Snapshot")
+    """The Private Credit Snapshot table (RTY, ARCC, OTF, BKLN + its yield,
+    plus the Cliffwater BDC index row when its fetch landed)."""
+    rows = [r for r in data if r.get("section") == "private"]
+    suffix = (" · Cliffwater (bdcs.com)"
+              if any(str(r.get("source", "")).startswith("Cliffwater")
+                     for r in rows) else "")
+    return _build_yahoo_table(data, "private", "Private Credit Snapshot",
+                              footnote_suffix=suffix,
+                              note_suffix=" · previous close")
 
 
 def build_ai_html(data):
     """The AI Snapshot table (Nasdaq, SK Hynix, Oracle, CoreWeave)."""
-    return _build_yahoo_table(data, "ai", "AI Snapshot")
+    return _build_yahoo_table(
+        data, "ai", "AI Snapshot",
+        note_suffix=(" · US-listed rows = previous close; SK Hynix = same-day "
+                     "Seoul close"))
 
 
 def table_rows_html(rows):
     """Bare <tr> rows for the given items — also embedded by macro_data's
     Corporate Credit table (its IGLB/IGIB rows are Yahoo data).
-    Columns: name | metric | value | 1D | 1W | 1M (jared 2026-07-16)."""
+    Columns: name | metric | value | 1D | 1W | 1M (jared 2026-07-16).
+    Names carry the lag marker (*/**) — see lag_marker."""
     html = ""
     for item in rows:
         label = item["label"]
+        display = label + lag_marker(item.get("as_of", ""))
         unit = item["unit"]
         metric = item.get("metric", "")
 
@@ -313,7 +399,7 @@ def table_rows_html(rows):
         td = 'style="padding: 4px 8px; font-size: 12px; border-bottom: 1px solid #eee;'
         html += (
             f'<tr>'
-            f'<td {td}">{label}</td>'
+            f'<td {td}">{display}</td>'
             f'<td {td} color: #888;">{metric}</td>'
             f'<td {td} text-align: right; font-weight: 600;">{val_str}</td>'
             f'<td {td} text-align: right;">{cell_1d}</td>'
@@ -335,14 +421,16 @@ def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix
 
     rows = table_rows_html(data)
 
-    # Footnote — minimal: one source line + the latest "as of" across rows.
-    # (No per-ticker enumeration; the rows already name each instrument. This
-    # replaced a per-date grouping that produced a long, fragmented line when
-    # instruments carried different as-of timestamps.)
-    dates = [item["as_of"].split(" ")[0] for item in data if item.get("as_of")]
-    latest = max(dates) if dates else ""
+    # Footnote — one source line + an as-of that is honest about mixed row
+    # freshness (2026-07-23: majority date + per-date outlier enumeration
+    # replaced max(), which let one same-day row overstate the whole table).
+    # The */** legend appears whenever any row carries a lag marker.
+    label_frag = as_of_label([(item["label"], item.get("as_of", "").split(" ")[0])
+                              for item in data])
+    if any(lag_marker(item.get("as_of", "")) for item in data):
+        note_suffix += LAG_LEGEND
     footnote = ("Source: Yahoo Finance" + footnote_suffix
-                + (f", as of {latest}" if latest else "") + note_suffix)
+                + (f", {label_frag}" if label_frag else "") + note_suffix)
     footnote_html = (
         '<p style="font-size: 10px; color: #aaa; margin: 4px 0 0; line-height: 1.3;">'
         f'{footnote}</p>\n'

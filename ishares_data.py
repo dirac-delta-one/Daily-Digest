@@ -133,6 +133,7 @@ def fetch_ishares_oas():
                 "metric": "Portfolio OAS",
                 "value": oas,
                 "date": as_of,
+                "source": "ishares.com",
                 "chg_1d": chg_1d,
                 "chg_1w": chg_1w,
                 "chg_1m": chg_1m,

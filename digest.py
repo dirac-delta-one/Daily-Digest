@@ -58,6 +58,7 @@ from macro_data import (
     format_macro_for_prompt,
 )
 from ishares_data import fetch_ishares_oas, format_ishares_for_prompt
+from cliffwater_data import fetch_cliffwater_bdc
 from memory import (
     get_memory_context, update_memory,
     get_substack_memory_context, update_substack_memory,
@@ -1649,6 +1650,8 @@ SOURCE_FETCHERS = [
      fetch_failed_banks),
     ("ishares_oas", "Fetching iShares fund OAS...", "iShares OAS",
      fetch_ishares_oas),
+    ("cliffwater_bdc", "Fetching Cliffwater BDC index...", "Cliffwater BDC",
+     fetch_cliffwater_bdc),
 ]
 
 MAX_FETCH_WORKERS = 6
@@ -1773,7 +1776,9 @@ def main():
     fetched = _fetch_all_sources()
     sec_filings = fetched["sec_filings"]
     news_articles = fetched["news_articles"]
-    market_data = fetched["market_data"]
+    # Cliffwater BDC row (jared-approved 2026-07-23) joins the market rows:
+    # renders in the Private Credit table and rides the prompt with them.
+    market_data = fetched["market_data"] + fetched["cliffwater_bdc"]
     macro_data = fetched["macro_data"]
     earnings = fetched["earnings"]
     pacer_entries = fetched["pacer_entries"]
