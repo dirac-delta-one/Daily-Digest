@@ -39,6 +39,15 @@ from substack import fetch_substack_articles
 from sec_filings import fetch_recent_filings, company_names, WATCHLIST
 import repetition
 import ticker_names
+# Module references for the per-run lookback retune (_set_lookback_hours) —
+# aliased so they can't collide with same-named locals/params.
+import fed_research as _fed_research_mod
+import news as _news_mod
+import pacer as _pacer_mod
+import ratings as _ratings_mod
+import sec_filings as _sec_filings_mod
+import substack as _substack_mod
+import treasury_auctions as _treasury_mod
 from news import fetch_wsj_ft_articles
 from market_data import (
     fetch_market_data, build_market_table_html, build_private_credit_html,
@@ -436,6 +445,14 @@ never "(Greenmantle memory)".
 Mention a tracked storyline ONLY when today's sources add a development; an unchanged \
 storyline is omitted entirely — never re-summarized "for continuity". \
 Cite the original source of the data, not the memory system itself.
+- THE DIGEST IS A DAILY DELTA. When a "PREVIOUS DIGEST" block appears among the \
+sources, everything in it was already reported to the same readers. Never re-report \
+an item from it just because today's sources re-mention or recap it. Re-include a \
+story ONLY when today's sources add a genuine development — then lead with the \
+development and DATE the context against the previous digest's labeled date: \
+"issues stock TODAY after YESTERDAY's bond deal", or "after Friday's downgrade" \
+when the previous digest was Friday's. Every continuing story carries this \
+explicit sense of time.
 
 FORMAT: Output valid HTML using EXACTLY this structure. Do not deviate from this template. \
 Use inline styles only (no <style> blocks). Every digest must look identical in structure.
@@ -796,6 +813,83 @@ def _guard_truncation(pass_label, response):
         return False
 
 
+# --- Cross-day awareness (2026-07-23, jared: "it isn't really a DAILY digest") ---
+
+def _previous_run_date(today=None):
+    """Date of the most recent daily digest before `today`, read from
+    digests/*.html (the durable record of actual runs — survives failed days
+    and holidays). Fallback when none exist (fresh install): the previous
+    business day."""
+    today = today or datetime.date.today()
+    prev_dates = []
+    if DIGESTS_DIR.exists():
+        for f in DIGESTS_DIR.glob("*.html"):
+            try:
+                d = datetime.date.fromisoformat(f.stem.replace("_team", ""))
+            except ValueError:
+                continue  # weekly_* files
+            if d < today:
+                prev_dates.append(d)
+    if prev_dates:
+        return max(prev_dates)
+    d = today - datetime.timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= datetime.timedelta(days=1)
+    return d
+
+
+def _set_lookback_hours(hours):
+    """Point every per-source freshness window at the same since-previous-run
+    horizon. The flat 24h windows meant a Monday run covered only Sun 08:00 →
+    Mon 08:00, silently skipping Fri 08:00 → Sun 08:00 content (verified
+    2026-07-23). The source modules read HOURS_LOOKBACK at call time; pacer's
+    discovery freshness filter reads LOOKBACK_HOURS."""
+    for mod in (_news_mod, _ratings_mod, _sec_filings_mod, _treasury_mod,
+                _fed_research_mod, _substack_mod):
+        mod.HOURS_LOOKBACK = hours
+    _pacer_mod.LOOKBACK_HOURS = hours
+
+
+_PREV_DIGEST_CAP = 24_000  # chars — bounds the cross-day context's token cost
+
+
+def _previous_digest_block(today=None):
+    """PREVIOUS DIGEST prompt block (cross-day dedup): compact plain text of
+    the last run's digest so the model knows what readers were already told —
+    the SYSTEM_PROMPT daily-delta rule keys off this block and its date label.
+    Prefers the TEAM file (Substack-free, so it is safe for the shared
+    TEAM/FULL cache prefix); falls back to the FULL file (pre-activation
+    history). Returns "" when no prior digest file exists."""
+    today = today or datetime.date.today()
+    prev = _previous_run_date(today)
+    path = next((p for p in (DIGESTS_DIR / f"{prev.isoformat()}_team.html",
+                             DIGESTS_DIR / f"{prev.isoformat()}.html")
+                 if p.exists()), None)
+    if path is None:
+        return ""
+    try:
+        sections = repetition.section_texts(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"  Previous-digest context failed: {e} — continuing without.")
+        return ""
+    if not sections:
+        return ""
+    lines = [
+        "=" * 40,
+        f"PREVIOUS DIGEST — {prev.strftime('%A')}, {prev.isoformat()}. "
+        "Everything below was ALREADY REPORTED to the same readers. Per the "
+        "daily-delta rule: re-include one of these items ONLY if today's "
+        "sources add a genuine development, dated against this digest's day.",
+    ]
+    for title, text in sections.items():
+        lines.append(f"[{title}] {' '.join(text.split())}")
+    block = "\n\n".join(lines) + "\n" + "=" * 40
+    if len(block) > _PREV_DIGEST_CAP:
+        block = (block[:_PREV_DIGEST_CAP].rstrip()
+                 + "\n[...previous digest truncated...]\n" + "=" * 40)
+    return block
+
+
 def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           market_data=None, macro_data=None, earnings=None,
                           pacer_entries=None,
@@ -804,7 +898,8 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           research_articles=None, treasury_auctions=None,
                           cot_data=None, fed_bs=None, bank_failures=None,
                           ishares_oas=None,
-                          substack_memory_context=None, cost_label=""):
+                          substack_memory_context=None, cost_label="",
+                          previous_digest_context=None):
     """Send all sources to Claude for digest generation (2-pass).
 
     Keyword-only (Phase 3.1) — see `_build_source_prompt` for the rationale.
@@ -874,6 +969,14 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     # Build the content array for Claude's messages API
     content = [{"type": "text", "text": prompt}]
 
+    # Cross-day context: what the last digest already reported. Its own
+    # shared-prefix block, deliberately NOT appended to `prompt` — `prompt`
+    # also becomes source_text for alert evaluation below, and yesterday's
+    # digest text must never re-trigger alerts. main() passes the same string
+    # to both variants, so the TEAM/FULL cache-prefix byte-identity holds.
+    if previous_digest_context:
+        content.append({"type": "text", "text": "\n" + previous_digest_context})
+
     # Add each PDF as a document block (shared_emails only — a Substack-origin
     # email's attachments follow the same jared-personal boundary as its body)
     for e in shared_emails:
@@ -929,16 +1032,16 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "following the template and rules in the system prompt exactly."
         ),
     }]
-    # max_tokens 20000 -> 32000 (2026-07-23): Fable's thinking bills as output
-    # and normal pass outputs run 14-20k incl. thinking — 20000 was a tripwire
-    # (hit three times on 2026-07-23), not a runaway guard. Only generated
-    # tokens are billed, so the raise costs nothing on normal days. Streaming
-    # is REQUIRED at this cap: the SDK raises ValueError on non-streaming
-    # requests that could exceed 10 minutes; get_final_message() returns the
-    # same Message object create() would.
+    # max_tokens 20000 -> 32000 -> 48000 (2026-07-23): Fable's thinking bills
+    # as output and pass outputs run 14-30k incl. thinking (the cross-day
+    # context run hit 29.7k — 93% of the 32k cap; a heavy 72h Monday would
+    # cap). This is a runaway guard, not a budget: only generated tokens are
+    # billed. Streaming is REQUIRED at this size: the SDK raises ValueError
+    # on non-streaming requests that could exceed 10 minutes;
+    # get_final_message() returns the same Message object create() would.
     with client.messages.stream(
         model=CLAUDE_MODEL,
-        max_tokens=32000,
+        max_tokens=48000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": pass1_content}],
     ) as p1_stream:
@@ -1012,7 +1115,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     # Streaming for the same reason as pass 1 (SDK long-request requirement).
     with client.messages.stream(
         model=CLAUDE_MODEL,
-        max_tokens=32000,
+        max_tokens=48000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": pass2_content}],
     ) as p2_stream:
@@ -1633,9 +1736,20 @@ def main():
     print(f"[{datetime.datetime.now()}] Starting daily digest...")
     _TRUNCATIONS.clear()  # per-run; summarize_with_claude appends capped passes
 
+    # --- Cross-day window (2026-07-23): look back to the PREVIOUS run, not a
+    # flat 24h — a Monday run reaches back to Friday 08:00 (72h) instead of
+    # silently skipping Fri→Sun content. --email_time overrides still win via
+    # max(). ---
+    prev_run_date = _previous_run_date()
+    lookback_h = max(HOURS_LOOKBACK,
+                     24 * max(1, (datetime.date.today() - prev_run_date).days))
+    if lookback_h != 24:
+        print(f"Lookback window: {lookback_h}h (previous digest {prev_run_date}).")
+    _set_lookback_hours(lookback_h)
+
     # --- Gmail ---
     service = get_gmail_service()
-    emails = fetch_recent_emails(service)
+    emails = fetch_recent_emails(service, hours=lookback_h)
     pdf_count = sum(len(e["pdfs"]) for e in emails)
     print(f"Found {len(emails)} emails ({pdf_count} PDF attachments).")
 
@@ -1716,6 +1830,17 @@ def main():
     except Exception as e:
         print(f"Substack memory context failed: {e} — continuing without.")
 
+    # Cross-day context: the same string goes to BOTH variants (TEAM/FULL
+    # cache-prefix byte-identity). Built from the previous run's TEAM digest.
+    previous_digest_context = ""
+    try:
+        previous_digest_context = _previous_digest_block()
+        if previous_digest_context:
+            print(f"  Previous-digest context: {len(previous_digest_context):,} "
+                  f"chars ({prev_run_date}).")
+    except Exception as e:
+        print(f"  Previous-digest context failed: {e} — continuing without.")
+
     shared_kwargs = dict(
         emails=emails,
         sec_filings=sec_filings,
@@ -1732,6 +1857,7 @@ def main():
         fed_bs=fed_bs,
         bank_failures=bank_failures,
         ishares_oas=ishares_oas,
+        previous_digest_context=previous_digest_context,
     )
 
     team_digest_html = team_source_text = None

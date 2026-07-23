@@ -331,8 +331,12 @@ def _fetch_recent_posts(session, pub_url):
         return []
 
 
-def _is_recent(post, hours=HOURS_LOOKBACK):
-    """Check if a post was published within the lookback window."""
+def _is_recent(post, hours=None):
+    """Check if a post was published within the lookback window. `hours`
+    defaults to the module's HOURS_LOOKBACK read at CALL time (not def time)
+    so digest.main()'s per-run weekend-aware retune reaches it."""
+    if hours is None:
+        hours = HOURS_LOOKBACK
     date_str = post.get("post_date") or post.get("published_at") or ""
     if not date_str:
         return True

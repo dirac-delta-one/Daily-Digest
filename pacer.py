@@ -9,6 +9,8 @@ Two modes:
      for material entries (DIP motions, 363 sales, plans, bar dates, etc.).
 """
 
+import datetime
+import email.utils
 import json
 import re
 import time
@@ -30,6 +32,42 @@ SEEN_FILE = SCRIPT_DIR / "pacer_seen.json"
 # ======================================================================
 # DISCOVERY — Monitor courts for new Chapter 11 filings
 # ======================================================================
+
+# Freshness window for discovery (hours). digest.main() sets this per run to
+# the hours since the previous digest (72 on a Monday), so the section shows
+# only what filed since the last run. 2026-07-23: previously there was NO date
+# filter — "new" meant "unseen docket entry with petition keywords", so OLD
+# cases (LL Flooring 24-11680, F-Star 25-90607) resurfaced whenever an
+# amended/related petition entry appeared on their docket.
+LOOKBACK_HOURS = 24
+
+
+def _fresh_filing(pub_date_str, case_number, now=None):
+    """True if a discovery hit looks like a filing from the current window:
+    the docket entry's pub date is within LOOKBACK_HOURS (+6h grace for feed
+    lag) AND the case number's 2-digit year is the current year (January also
+    accepts the prior year — a Dec 31 petition surfacing Jan 2 is news; a
+    2024 case with a fresh amended-petition entry is not). Unparseable values
+    over-include, matching the codebase convention — the seen-state still
+    dedups repeats."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    try:
+        pub = email.utils.parsedate_to_datetime(pub_date_str)
+        if pub.tzinfo is None:
+            pub = pub.replace(tzinfo=datetime.timezone.utc)
+        if pub < now - datetime.timedelta(hours=LOOKBACK_HOURS + 6):
+            return False
+    except Exception:
+        pass
+    m = re.match(r"\s*(\d{2})-", case_number or "")
+    if m:
+        case_year = int(m.group(1))
+        this_year = now.year % 100
+        allowed = {this_year} | ({(this_year - 1) % 100} if now.month == 1 else set())
+        if case_year not in allowed:
+            return False
+    return True
+
 
 # Major bankruptcy courts to watch (handle ~80% of large Ch.11 filings)
 MONITORED_COURTS = [
@@ -384,6 +422,7 @@ def discover_new_filings():
     seen = _load_seen()
     disc_seen = seen.get("discovery", {})
     new_filings = []
+    stale_dropped = 0
 
     for court in MONITORED_COURTS:
         tree = _fetch_court_rss(court)
@@ -402,6 +441,14 @@ def discover_new_filings():
                 case_number, debtor = _extract_case_info(
                     item["title"], item["description"], item["link"]
                 )
+
+                if not _fresh_filing(item["pub_date"], case_number):
+                    # Stale (old case year or pre-window pub date): mark seen
+                    # so it never resurfaces, but don't show it.
+                    stale_dropped += 1
+                    court_seen.append(entry_id)
+                    court_seen_set.add(entry_id)
+                    continue
 
                 new_filings.append({
                     "court": court,
@@ -431,6 +478,10 @@ def discover_new_filings():
     seen["discovery"] = disc_seen
     _stash_seen(seen)
 
+    if stale_dropped:
+        print(f"  Freshness filter: dropped {stale_dropped} stale entr"
+              f"{'y' if stale_dropped == 1 else 'ies'} (old case year or "
+              f"pre-window pub date).")
     print(f"  Found {len(new_filings)} raw Chapter 11 filing(s).")
 
     if not new_filings:

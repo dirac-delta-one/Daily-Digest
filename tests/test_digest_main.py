@@ -35,7 +35,8 @@ def harness(tmp_path, monkeypatch):
 
     monkeypatch.setattr(digest, "DIGESTS_DIR", tmp_path / "digests")
     monkeypatch.setattr(digest, "get_gmail_service", lambda: "SERVICE")
-    monkeypatch.setattr(digest, "fetch_recent_emails", lambda service: [])
+    monkeypatch.setattr(digest, "fetch_recent_emails",
+                        lambda service, hours=None: [])
     monkeypatch.setattr(
         digest, "fetch_substack_articles",
         lambda gmail_service=None: [

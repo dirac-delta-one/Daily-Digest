@@ -240,7 +240,7 @@ alert email to the operator channel + digest chunks un-indexed + memory frozen; 
 | `search.py` | FAISS index + chunking + embeddings + hybrid/rerank (both param-gated, parked). CLI: `--rebuild`, `--index <date>`, `--retag`. |
 | `memory.py` | v2 story-timeline cross-digest memory + substack memory + reply-bot story router. |
 | `reply_monitor.py` | Email-reply RAG bot; asker-tiered (config-driven allow-list); `--once` mode + `while True` daemon. Since 2026-07-22 also the alert-command channel: `_handle_command` routes command replies to `alert_commands` before Q&A (parse failure falls through to Q&A). |
-| `alerts.py`, `archive.py`, `cost.py`, `claude_utils.py`, `content_monitor.py`, `run_alert.py` | Plain-English alerts; raw-content archiver; per-run cost accounting; JSON/structured-output helpers; O3 source-count degradation monitor; failure-alert + O2 completion watchdog. |
+| `alerts.py`, `archive.py`, `cost.py`, `claude_utils.py`, `content_monitor.py`, `run_alert.py` | Plain-English alerts; raw-content archiver; per-run cost accounting; JSON/structured-output helpers; O3 source-count degradation monitor; failure-alert + O2 completion watchdog. *(PACER discovery gained a since-last-run freshness filter 2026-07-23 — see §11.B cross-day entry.)* |
 | `alert_commands.py` | Email-managed alerts + SEC watchlist (ALERT_COMMANDS_SPEC, 2026-07-22; Part II same day): owns `alerts_config.json`/`watchlist.json` (seed-on-missing, atomic writes, expiry, the Part-II owner migration), the Sonnet command classify/parse (owner-grounded), deterministic apply + confirmation HTML, expiry lifecycle (`consume_expired`/`expiring_today`, owner-attributed), and `orphan_notices`. **Thematic alerts are per-user** (owner-only visibility/editing; jared + acohen own the migrated originals; new users start empty); the watchlist is shared. Reply-channel = contamination-safe (`is_self_artifact()` exclusion). |
 | `ticker_names.py` | Ticker→issuer-name glossary for the prompt (2026-07-22): SEC registry titles + a learned cache of digest-rendered "$TICK (Name)" pairs validated against that day's sources. Staged collect() / single post-variants commit() so the TEAM/FULL cache prefix can't fork mid-run. |
 | `repetition.py` | Cross-section repetition metric (REDUCE_REPEATS Idea 12, 2026-07-22): deterministic scorer over assembled digest HTML, logged per run + persisted to `repetition_scores.json`. The yardstick for all anti-repetition prompt work. |
@@ -462,6 +462,24 @@ What remains is only what a future session might still act on.)*
 - **Index growth** — see §5 (F13 ladder + tripwire).
 
 ### B. Watch → trigger → fix (implement only if the output says otherwise)
+- **Cross-day "daily delta" (2026-07-23 evening, jared: "it isn't really a daily digest —
+  it repeats yesterday").** Three shipped pieces: (1) **PACER freshness filter**
+  (`pacer._fresh_filing`): discovery previously had NO date filter — old cases (LL Flooring
+  24-11680) resurfaced whenever an amended-petition docket entry appeared; now entries need a
+  since-last-run pub date AND a current-year case number (January accepts prior year; unparseable
+  over-includes; stale hits are marked seen + logged "Freshness filter: dropped N"). (2)
+  **Weekend-aware lookback** (`digest._set_lookback_hours` + `_previous_run_date`): the flat 24h
+  windows meant Monday covered only Sun→Mon, silently SKIPPING Fri 08:00→Sun 08:00 content; now
+  every source window = hours since the last digest file in `digests/` (Monday = 72h; log line
+  "Lookback window: 72h ..."). (3) **PREVIOUS DIGEST prompt block + daily-delta rule**
+  (`digest._previous_digest_block`): the prior run's TEAM digest (Substack-free → shared-prefix
+  safe; ~24k char cap) rides as its own shared content block — deliberately NOT in `prompt`,
+  which feeds alert evaluation (yesterday's text must not re-trigger alerts) — and the
+  SYSTEM_PROMPT rule requires dated framing ("issues stock TODAY after YESTERDAY's bond deal";
+  "after Friday's..." on Mondays) and forbids re-reporting source re-mentions with no development.
+  **Watch:** the first Monday run (2026-07-27) logs the 72h line + weekend content appears; PACER
+  section shows only fresh filings; cross-day repeats in jared's read; prompt cost +~5-6k input
+  tokens/run (cached) from the context block.
 - **Snapshot-table T-1 lag — LOOK INTO (flagged 2026-07-23, prompted by a "treasury yields are
   wrong" comment).** At the 08:00 run, effectively EVERY Snapshot-table row is prior-trading-session
   (T-1) data, not live: FRED rows (Rates + Corporate Credit OAS) publish a day in arrears; Yahoo
