@@ -5,32 +5,128 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-22 night — soak day 2 GREEN; both dev sessions DEPLOYED to the server; command round-trip PASSED)
+## Current state (2026-07-23 night — five workstreams shipped in one day; server pulled through `b023ba4`, env.bat updated, ReplyMonitor restarted)
 
-**Soak day 2 GREEN** (Wed 7/22 08:00: both variants delivered, no changelog leak; watchdog
-silent). Then TWO large dev sessions — all committed on `main`, `ruff` clean, `pytest` **440**.
-Session 1 (the 2026-07-22 entry below): **Claude Fable 5** for digest generation; ticker
-glossary; lead-word format (tickers bold only as lead words); **TL;DR box removed**; PACER link
-fix; REDUCE_REPEATS Bundle 1 + `repetition.py`. Session 2 (the three newest entries below —
-ALERT_COMMANDS Parts I+II, spec retired same day): **email-managed alerts & SEC watchlist**
-(reply-to-digest commands, Sonnet parse, confirmations), expiry lifecycle (expiring/expired
-notices below an `<hr>`), **ops-alert split** (config/degradation → separate ⚙️ operator email),
-**per-user thematic alerts** (owner-only; old 7 → jared+acohen copies; per-recipient sends with
-personalized boxes; neutral base archived/indexed), (WSJ) tag red, reply-channel teaching footer.
+The single biggest dev day of the project (the 2026-07-23 entry below): jared's three complaints
+each got a root-cause fix — **within-digest repetition** (Bundle 2 + second batch + the
+jared-approved self-contained §1), **cross-day repetition** ("not really a daily digest" → PACER
+freshness filter, weekend-aware lookback, PREVIOUS DIGEST prompt context + daily-delta rule), and
+**stale snapshot data** ("treasury yields are wrong" → T-2 root cause found, Treasury.gov T-1
+switch, NY Fed SOFR, lag markers `*`/`**`, Cliffwater BDC row). Plus a latent silent-truncation
+production bug found and fixed (stop_reason guard, 48k caps, streaming), the repetition metric
+recalibrated (v2), and a pytest state-pollution bug fixed. `pytest` **473**, ruff clean, commits
+through **`b023ba4`**; ~$19 Claude across 5 permissioned test runs, every prompt change validated
+to acohen before it could reach jared.
 
-**Deployed to the server the same evening:** pull done; `alert_commands.py` smoke seeded the
-state files fresh (14 owned alerts + 16 tickers verified — the pull deletes the formerly-tracked
-`alerts_config.json` by design); ReplyMonitor restarted; **live command round-trip PASSED**
-(operator's "what alerts are set up?" reply → correct confirmation email). The list_config reply
-reformat (expiry buckets + watchlist bullets) followed and was **also pushed, pulled, and the
-ReplyMonitor restarted the same night — the server is fully current with `main`.**
-**Thu 2026-07-23 08:00 is the biggest-change debut run since deploy:** check the 3 individual sends, the
-"…-> 7 eval unit(s)" line, `Repetition:` lines, ~2x cost lines, per-user boxes + footer in the
-emails. The block below is the 7/21 deploy-era state, kept for the S4U/stored-password findings.
+**Server is fully staged (operator, 7/23 night):** pulled `b023ba4`, `env.bat` recipients updated,
+ReplyMonitor `/End`+`/Run` → Running. **Fri 2026-07-24 08:00 is the debut** — log:
+`Previous-digest context:` line, `Treasury.gov par curves: 7 series`, first production
+`Freshness:` line (settles SNAPSHOT_UPDATE §2.4), `Repetition:` ×2, ~$5 cost (new baseline),
+NO truncation WARNINGs, per-recipient weekly `(N/N)` lines; email: self-contained §1
+w/ sub-bullets, dated story framing, rates as of Thursday w/ `*` markers, Cliffwater row.
+**Mon 2026-07-27** completes validation: `Lookback window: 72h` + weekend content present.
 
 ---
 
-## 2026-07-22 (latest) — ALERT_COMMANDS Part II: per-user thematic alerts
+## 2026-07-23 — Repetition war (3 prompt batches + §1 redesign), cross-day daily delta, snapshot T-1 upgrade, truncation guard
+
+*(One entry for five workstreams — chronological. Specs: `REDUCE_REPEATS_SPEC.md` statuses
+updated in place; `SNAPSHOT_UPDATE.md` (written by a parallel read-only session) committed with
+its §5 sequence largely executed; HANDOFF §11.B carries the watch items + escalation plan.)*
+
+**Morning — per-recipient weekly wrap + doc fix (commit by operator).** Both weekly sends
+(FULL + TEAM) converted from one group `To:` line to one email per recipient (identical body —
+no alert box in weeklies) so readers can't reply-all to each other; per-recipient try/except,
+`sent (M/N recipient(s))` log. HANDOFF §2 corrected: the weekly wrap runs on **Fable**
+(shares `digest.CLAUDE_MODEL`), not Opus as previously listed. Also: BKLN "(Senior Loan)"
+label dropped (operator request); Bundle-2 TLDR added to the repetition spec.
+
+**Repetition, round 1 (reader complaint on the 7/23 debut).** Local `repetition_scores.json`
+found polluted with ~218 junk all-zero entries — `digest.main()` calls
+`repetition.record_score()` and the main-wiring tests never redirected `SCORES_PATH`; fixed in
+`tests/conftest.py` (autouse, same pattern as the alert-state isolation) and the dev file pruned
+to the one real baseline. Then Bundle 2 shipped as one batched SYSTEM_PROMPT edit: **Idea 4**
+(every specific figure exactly once), **Idea 7** (one story = one bullet, compound source tags
+"(FT; Stifel)"), **Idea 14** (memory storylines only on change). Test run #1 ($3.35): 2 strong +
+1 weak vs the 8-dup baseline; 11 compound tags, 6 pointers, template intact.
+
+**Repetition, round 2 (operator caught pointer-echo: "the oil surge (→ §1)… the crude spike").**
+Second batch: **Idea 3(a)** (§1 owns top stories), **Idea 6** (soft caps §2–5), pointer-echo
+tightening (name a referenced story once, never re-narrate with synonyms) + pass-2 mirrors.
+Test run #2 ($3.31): scored 4 strong — but dissection showed ALL were metric artifacts
+(incidental in-story mentions, a $2.2B numeric coincidence, mandated-§8 collisions), zero
+story-level repetition. **Metric recalibrated (v2):** SEC Filings + Rating Actions excluded like
+the data tables (content-mandated listings ≠ editorial repetition); entries carry `"metric": 2`;
+v1 read ~1–3 strong high; v2 noise floor = 1–3 → HANDOFF decision rule now "sustained ≥4".
+Run-1-vs-run-2 Gmail diff: identical ticker sets, 52→41 bullets (§3 18→6) — consolidation,
+not information loss.
+
+**§1 redesign (operator: "§1 should be a complete compilation; contrarian as sub-bullets").**
+First, **Idea 15 (merge §4+§5) was attempted and FAILED** ($3.58): BOTH passes capped at 20k
+tokens (Fable thinking bills as output) and the email truncated mid-§6 with **no warning** —
+exposing that `stop_reason` was never checked anywhere. Reverted; post-mortem in the spec.
+The failure paid for itself: **truncation guard** shipped (`_guard_truncation`: WARNING log +
+"Output truncated" ⚙️ ops-alert + pass-2→pass-1 fallback; caps 20k→32k→**48k**; **streaming
+required** above ~20k — the SDK raises ValueError on long non-streaming calls, caught when the
+first 32k run crashed pre-generation; `stream.get_final_message()` is a drop-in). Then the real
+design: **Idea 3(a+) "self-contained §1"** — §1 carries each top story COMPLETELY (all sources
+merged, angles as nested sub-bullets, `Contrarian:` sub-bullet lead, §1-only nested-`<ul>`
+template pattern); later sections carry at most a bare `(→ §1)` pointer, ZERO content; assignment
+rule = "primary subject is the §1 story → sub-bullet there; independent story merely triggered by
+it → own section + bare pointer"; §5 carved to non-§1 stories. Test run ($3.70): **0 strong**
+(first zero), 3 Contrarian: sub-bullets, flat §2–9, pass 1 ran 23.4k out (would have truncated at
+the old cap). **Committed SPLIT for revertibility** — `8197495` (guard, permanent) then `31ca28e`
+(§1 redesign; revert THAT alone if declined) — **jared APPROVED same day** (`d95de25`).
+
+**Cross-day daily delta (jared: "it isn't really a daily digest — it repeats yesterday").**
+Verified mechanics first: (a) PACER discovery had NO date filter — "new" = unseen docket entry
+w/ petition keywords, so old cases (LL Flooring 24-11680, F-Star 25-90607, seen that day) resurface
+on amended-petition entries; (b) all source windows are flat 24h → **Monday covered only Sun→Mon,
+silently skipping Fri→Sun** (a gap, not a repeat); (c) the model never sees yesterday's digest, so
+source re-coverage reads as fresh. Shipped (`8eb3672`): **`pacer._fresh_filing`** (since-last-run
+pub date AND current-year case number; Jan grace; unparseable over-includes; stale → marked seen +
+logged), **weekend-aware lookback** (`_previous_run_date` from digests/*.html + 
+`_set_lookback_hours` retuning every module's window; Monday = 72h; fixed a def-time default-arg
+trap in `substack._is_recent`), **PREVIOUS DIGEST prompt block** (prior TEAM digest via
+`repetition.section_texts`, 24k-char cap, own shared-prefix content block — deliberately NOT in
+`prompt`, which feeds alert evaluation) + **daily-delta SYSTEM_PROMPT rule** (re-report only on
+development, dated: "issues stock TODAY after YESTERDAY's bond deal"). Validation run ($5.26 —
+the new cost baseline, ~+$1.7/run for cross-day awareness): dated framing appeared verbatim
+("up from yesterday's $91 close"; QVC ruling "taken under advisement yesterday"), 2 stale PACER
+entries dropped live, no leakage of the block into output.
+
+**Snapshot freshness (SNAPSHOT_UPDATE.md, parallel session's spec — its headline: rates were
+T-2 at 08:00, not T-1; the earlier HANDOFF "verified T-1" was an evening-dev-run artifact).**
+Shipped (`b023ba4`): **`treasury_yields.py`** — Treasury.gov daily par + real yield curve XML
+(same CMT methodology FRED republishes a day later → Rates Snapshot now T-1; breakeven computed
+nominal−real, matches T10YIE exactly; per-series FRED fallback) + **NY Fed SOFR direct** (wins
+the 8:00 AM publish race most days); **lag-honest footnotes** on all five tables
+(`market_data.as_of_label`: majority date + per-date outlier enumeration, replacing `max(dates)`
+which let SOFR's fresher date overstate the yield rows; per-table lag-class notes); **row-name
+lag markers** (operator request): `*` = previous business day's close, `**` = two+ business days
+old, business-day aware (Fri→Mon = `*`), display-only (raw labels keep driving VIX/BTC format
+logic), legend auto-appends; **`Freshness:` log line** (same-day vs prior bars — read the first
+08:00 server log to settle VIX/WTI/DXY/BTC/SK Hynix; SK Hynix showed prior-session even
+mid-afternoon → Yahoo daily bars likely lag KRX, §2.7 quote-endpoint fix if confirmed);
+**`cliffwater_data.py`** — Cliffwater BDC Index row (jared APPROVED the SPBDCUP substitution;
+bdcs.com's static `ChartData.json` traced from the site's JS — full daily history, T-1, no key;
+registry-fetched → O3 zero-streak coverage; labeled Cliffwater, never S&P; JSON also carries
+CWBDC_Yield + PremDis if ever wanted). Two snapshot-only sample emails to acohen (free) verified
+markers/footnotes/row live.
+
+**Ops notes.** Commits: operator's two (weekly/BKLN/docs; batches 1–2 + metric v2) then
+`8197495` → `31ca28e` → `d95de25` → `8eb3672` → `b023ba4`. Claude spend ~$19.2 (5 permissioned
+runs: 3.35 + 3.31 + 3.58 + 3.70 + 5.26 + a $0.03 crashed attempt); all test sends to acohen only,
+`DIGEST_TO_TEAM=` empty (misconfig guard = the intended dev state). Discipline note: the FIRST
+Gmail run-comparison accidentally diffed yesterday's digest vs run 2 (a `newer_than:1d` query
+caught 5 sends incl. the 08:12 production TEAM copy) — corrected by timestamp before conclusions.
+Server staged by operator same night: pull `b023ba4`, env.bat recipients edit, ReplyMonitor
+restart (Running). Cost re-baseline: ~$5.0–5.3/run FULL → update OPERATIONS' monthly estimate
+after a week of observed numbers.
+
+---
+
+## 2026-07-22 — ALERT_COMMANDS Part II: per-user thematic alerts
 
 *(Spec retired same day, pre-pull: `ALERT_COMMANDS_SPEC.md` deleted per the built-and-distilled
 convention — full text incl. Part II + §17 validation findings in git history; how-it-works lives

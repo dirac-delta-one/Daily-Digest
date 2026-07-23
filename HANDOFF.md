@@ -42,22 +42,43 @@ FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 server (`ShawnArmstrong`) is the SOLE instance, running unattended: four scheduled tasks Ready under
 a **stored-password** principal (MorningDigest 08:00 / Watchdog 09:00 / Backup 09:45 / ReplyMonitor;
 the MiddayAlert task was removed 2026-07-21), `DIGEST_UNATTENDED=1` machine-wide, production digests
-delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **395 green**,
+delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **473 green**,
 retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
 (`tools/eval_results/2026-07-15_post_index_filter.json`). Operator `acohen@acorninv.com`; **Jared's
 instance is decommissioned.** **Digest generation runs on Claude Fable 5 since 2026-07-22**
-(`config.FABLE_MODEL` → `digest.CLAUDE_MODEL`; alerts/13D/reply bot stay on Opus) — expect ~$2.5–3.5
-per FULL 2-pass run at Fable's $10/$50 rates (accurately tiered in `cost.py`).
+(`config.FABLE_MODEL` → `digest.CLAUDE_MODEL`; alerts/13D/reply bot stay on Opus) — expect
+**~$5.0–5.5 per FULL 2-pass run since 2026-07-23** (the cross-day PREVIOUS-DIGEST context +
+self-contained-§1 output added ~$1.7/run to the earlier ~$3.5; observed $5.26 validated;
+re-baseline OPERATIONS' monthly estimate after a week). Digest passes STREAM at max_tokens
+48,000 with a truncation guard (stop_reason → WARNING + ⚙️ ops-alert + pass-2→pass-1 fallback).
 
 **Branch: work on `main`.** `ava-updates` existed only to keep refactor work off `main` while Jared
 ran production from `main`; that's retired, the server tracks `main`, so **`main` is now the
 working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
 be deleted at will.
 
-**What remains → SERVER PULL + ReplyMonitor RESTART + the 2026-07-23 debut run + a week of
-repetition data.** Soak day 2 GREEN (Wed 7/22 08:00: both variants, no changelog leak; watchdog
-silent). TWO large dev sessions followed on 7/22 (ALL COMMITTED on `main` through `f90e4ed`,
-`pytest` **440**, ruff clean; full detail in the three WORKLOG 2026-07-22 entries):
+**What remains → the Fri 2026-07-24 08:00 debut of the 7/23 mega-batch, the Mon 7/27 72h-lookback
+check, a week of metric-v2 repetition data + observed costs, and the 7/31 operator departure.**
+The Thu 7/23 dev day (WORKLOG 2026-07-23 — the biggest single day; commits through **`b023ba4`**)
+shipped, each validated on permissioned test runs to acohen before reaching jared: **anti-repetition
+Bundles 1+2 + second batch + the jared-APPROVED self-contained §1** (Idea 3(a+): §1 = complete
+per-story compilation with nested sub-bullets incl. `Contrarian:`; later sections = bare (→ §1)
+pointers only; last validated score **0 strong**; rollback = `git revert 31ca28e`, keep `8197495`);
+**metric v2** (mandated sections excluded; `"metric": 2` entries; noise floor 1–3 → escalate on
+SUSTAINED ≥4 per §11.B); **truncation guard + 48k streaming caps** (stop_reason was never checked —
+found when the FAILED Idea-15 §-merge attempt silently emailed a truncated digest; see the spec's
+post-mortem); **cross-day daily delta** (PACER `_fresh_filing` since-last-run+case-year filter;
+weekend-aware lookback — Monday = 72h, was silently skipping Fri→Sun; PREVIOUS DIGEST prompt block
++ dated-framing rule, validated live: "up from yesterday's $91 close"); **snapshot freshness per
+`SNAPSHOT_UPDATE.md`** (rates were T-2, not T-1: Treasury.gov par curves → T-1 + NY Fed SOFR,
+FRED fallback; lag-honest footnotes; `*`/`**` row lag markers — * = previous business day's CLOSE;
+`Freshness:` log line; **Cliffwater BDC row, jared-approved** SPBDCUP substitute); plus
+per-recipient weekly wraps (no more reply-all), the conftest fix for pytest polluting
+`repetition_scores.json`, and the BKLN label trim. **Server staged by the operator 7/23 night:**
+pulled `b023ba4`, `env.bat` recipients updated, ReplyMonitor restarted (Running).
+
+For historical context, the two 7/22 dev sessions that preceded this (full detail in the three
+WORKLOG 2026-07-22 entries):
 
 *Session 1 (morning):* **Fable 5 model switch** for digest generation (+ thinking-block
 `_response_text` fix + real cost tier), **ticker glossary** (`ticker_names.py`), **format changes**
@@ -91,15 +112,20 @@ current with `main`; the email-command path is live-validated end to end.** (Dur
 pull touching `reply_monitor.py`/`alert_commands.py` needs `schtasks /End` + `/Run` on
 `\DailyDigest\ReplyMonitor` — the daemon holds old code until restarted.)
 
-**What's next:** the Thu 2026-07-23 08:00 run is still the biggest-change debut since deploy
-(first production Fable run + first per-recipient sends). Read its log closely: THREE individual
-"Digest sent successfully" lines (jared FULL; apain + acohen TEAM), the "14 owned alert(s) …
--> 7 eval unit(s)" line, two `Repetition:` lines, ~2x cost lines (~$2.5–3.5); in the emails —
-per-user alert boxes (apain's has no personal alerts), teaching footer everywhere, red (WSJ)
-tags; the 09:45 backup log's state-file line now carries alerts_config/watchlist/
-repetition_scores. Then: **~1 week of repetition scores → Bundle 2 decision**
-(`REDUCE_REPEATS_SPEC.md` checklist; watch STRONG only). Drop `acohen` from `DIGEST_TO_TEAM` at
-the **2026-07-31** departure — the orphan-notice mechanism will flag her paused alerts in the ops
+**What's next — the Fri 2026-07-24 08:00 debut checklist (read the log + email closely):**
+log — one "Digest sent" per recipient, `Previous-digest context: N chars (2026-07-23)`,
+`Treasury.gov par curves: 7 series`, the **first production `Freshness:` line** (READ IT — it
+settles SNAPSHOT_UPDATE §2.4's same-day-rows question: VIX/WTI/DXY/BTC/SK Hynix; SK Hynix likely
+prior → §2.7 quote-endpoint fix if confirmed), possibly `Freshness filter: dropped N` (PACER),
+two `Repetition:` lines (v2 scale; 1–3 = noise floor), cost ~$5.0–5.5, NO truncation WARNINGs,
+weekly-wrap `(N/N recipient(s))` lines (Friday = per-recipient weekly debut too); email —
+self-contained §1 with sub-bullets + `Contrarian:` leads, dated framing on continuing stories,
+rates as of THURSDAY with `*` markers + the close-explicit legend, Cliffwater BDC row in Private
+Credit, only fresh bankruptcies. **Mon 2026-07-27:** `Lookback window: 72h` line + weekend
+content actually present. **Ongoing week:** metric-v2 STRONG counts (escalate only on sustained
+≥4 — the §11.B escalation plan: Idea 11 tripwire → gated Idea 10 dedup pass → structural, jared)
++ observed costs → update OPERATIONS' monthly burn. Drop `acohen` from `DIGEST_TO_TEAM` at the
+**2026-07-31** departure — the orphan-notice mechanism will flag her paused alerts in the ops
 email once. Finish the soak while a fixer still exists.
 
 **Key operational facts a fresh session needs (all detailed in WORKLOG 2026-07-20):**
@@ -192,9 +218,10 @@ alert email to the operator channel + digest chunks un-indexed + memory frozen; 
   never to the config recipients (jared's addresses) during testing.
 - **External tooling falls into three cost tiers — know which before testing:**
   - **Pay-per-query (the only real per-call cost): the Anthropic/Claude API.** Token-billed across
-    the 2-pass **Fable** digest (~$2.5–3.5/run since 2026-07-22) plus the **Fable** Friday weekly
-    wrap (shares `digest.CLAUDE_MODEL`), Haiku (news ranking), Sonnet (PACER size-filter, reply
-    query-extract, memory), and Opus (13D summary, alerts, reply answers).
+    the 2-pass **Fable** digest (~$5.0–5.5/run since 2026-07-23 — cross-day context + §1 redesign;
+    was ~$3.5) plus the **Fable** Friday weekly wrap (shares `digest.CLAUDE_MODEL`), Haiku (news
+    ranking), Sonnet (PACER size-filter, reply query-extract, memory), and Opus (13D summary,
+    alerts, reply answers).
     **Ask explicit permission before any test that calls Claude**, run once on a small input, and
     never loop the full digest. *(Standing exception, operator 2026-07-14: $0 `count_tokens` calls
     are pre-authorized; generation calls stay ask-first.)*
