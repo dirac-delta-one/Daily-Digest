@@ -462,11 +462,37 @@ What remains is only what a future session might still act on.)*
 - **Index growth** — see §5 (F13 ladder + tripwire).
 
 ### B. Watch → trigger → fix (implement only if the output says otherwise)
-- **Repetition score (REDUCE_REPEATS Bundle 1, shipped 2026-07-22).** Every run logs
-  `Repetition: N strong + M weak signal(s)` and appends to `repetition_scores.json` (server-side).
-  Watch the **STRONG** count (~1 week from 7/23): stays ≤1–2 → done, close the spec; stays ≥3+ →
-  build Bundle 2 per `REDUCE_REPEATS_SPEC.md` (add ideas 4+7, or A/B the idea-8 de-prescribe).
-  Weak (bare-%) collisions are mostly coincidental — ignore their wiggle.
+- **Snapshot-table T-1 lag — LOOK INTO (flagged 2026-07-23, prompted by a "treasury yields are
+  wrong" comment).** At the 08:00 run, effectively EVERY Snapshot-table row is prior-trading-session
+  (T-1) data, not live: FRED rows (Rates + Corporate Credit OAS) publish a day in arrears; Yahoo
+  rows (Market/Private Credit/AI + the IGLB/IGIB credit-ETF rows) are daily closes and the US
+  session hasn't opened at 8 AM; iShares portfolio OAS (HYG/LQD) is fund-reported T-1. The values
+  are correct and each table already prints a subtle 10px-gray "as of <date>" footnote
+  ([macro_data.py:361](macro_data.py:361), [market_data.py:343](market_data.py:343)) — so it's
+  stale-but-labeled, not a data bug (verified: 7/22 run rendered rates "as of 2026-07-21", ~a few
+  bps off BBG because CMT par yields ≠ BBG on-the-run). Open questions to resolve before any fix:
+  (a) make the as-of/prior-close framing PROMINENT section-wide (both builders already compute the
+  date — styling/labeling change, no data change); (b) confirm which if any 24/7 rows (BTC, and
+  likely WTI/DXY) carry a same-day value at 8 AM — `market_data` stores `as_of` DATE-only
+  ([market_data.py:124](market_data.py:124)), so add per-row timestamp logging and read a real 08:00
+  production run to settle it (a run at any other hour can't reproduce 8 AM — the market's open
+  state differs). Everything here is free to test (no Claude). Not started.
+- **Repetition score (REDUCE_REPEATS Bundles 1+2 + second batch, shipped 2026-07-22/23).** Every
+  run logs `Repetition: N strong + M weak signal(s)` and appends to `repetition_scores.json`
+  (server-side). Shipped 2026-07-23 after readers noticed repetition in the first Fable production
+  run: ideas 4+7+14, then a second batch (idea 3 variant (a), idea 6 soft caps, pointer-echo
+  tightening) — two ~$3.35 validated test runs to acohen. **Metric recalibrated same day (v2):**
+  the content-mandated sections (SEC Filings, Rating Actions) are excluded like the data tables —
+  structural ticker collisions were inflating STRONG past the old ≥3 threshold on digests with
+  ZERO story-level repetition. Entries carry `"metric": 2` since then; v1 entries (server history
+  ≤7/23 morning) read ~1–3 strong HIGH — not 1:1 comparable. **v2 decision rule:** observed noise
+  floor on repetition-clean digests is 1–3 strong (incidental in-story ticker mentions + numeric
+  coincidences the regex can't distinguish); escalate only on SUSTAINED ≥4 or continued reader
+  complaints → A/B the idea-8 de-prescribe (one week each arm), then Bundle 3 (idea 11 tripwire,
+  idea 10 dedup pass — needs spend sign-off). Weak (bare-%) collisions stay ignorable. NOTE:
+  pytest used to append junk zero-score entries to the real `repetition_scores.json` (any test
+  driving `digest.main()`); fixed 2026-07-23 in `tests/conftest.py` — if the server ever ran
+  `check.bat` before pulling that fix, prune the zero entries before reading the series.
 - **Ticker-name learned cache (`ticker_names_cache.json`, 2026-07-22).** Self-seeds from each run
   ("Ticker-name cache: learned N" log line; 12 entries after day one). Watch: a wrong issuer name
   appearing in a digest → inspect/delete the bad cache entry (the proper-noun + source-text guards

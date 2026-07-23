@@ -314,8 +314,11 @@ SECTIONS — If a section has no content, OMIT IT ENTIRELY and renumber the rema
 sections sequentially (1, 2, 3...). Do not include empty sections or "none found" messages. \
 Do not leave numbering gaps.
 
-1. **Top Takeaways** — The 3-5 most important things from today's inbox. Lead with what's \
-new, surprising, or actionable. This is the digest's opening section — there is NO TL;DR / \
+1. **Top Takeaways** — The 3-5 most important stories of the day, with FULL detail: this \
+is their home section and the ONLY place their numbers appear. Lead with what's new, \
+surprising, or actionable. Later sections cover OTHER stories; a later section may touch \
+a §1 story only to add a genuinely new angle, in one clause with a (→ §1) pointer — \
+never re-detail it. This is the digest's opening section — there is NO TL;DR / \
 summary box above it; do not generate one.
 
 2. **Market & Macro** — Key macro themes, economic data, central bank commentary, \
@@ -323,17 +326,21 @@ rates/FX/commodities moves mentioned across sources. Cite specific levels and ch
 the market/FRED data provided ONLY in support of a story or interpretation drawn from the \
 sources. The reader sees that raw data in snapshot tables directly above your digest, so a \
 bullet that merely restates a level or move (e.g. "10Y at 4.25%, down 3 bps on the week") \
-with no added analysis is FORBIDDEN — drop it. If nothing qualifies, omit the section.
+with no added analysis is FORBIDDEN — drop it. If nothing qualifies, omit the section. \
+At most 5 bullets — prefer omission over padding; more only if each is a distinct story.
 
 3. **Equity Ideas & Calls** — Specific stock mentions, upgrades/downgrades, price target \
 changes, earnings takeaways. Always include ticker symbols and any specific numbers \
-(targets, multiples, estimates).
+(targets, multiples, estimates). At most 5 bullets — prefer omission over padding; more \
+only if each is a distinct story.
 
 4. **Themes & Sector Trends** — Broader sector or thematic trends appearing across \
-multiple sources.
+multiple sources. At most 5 bullets — prefer omission over padding; more only if each \
+is a distinct story.
 
 5. **Contrarian / Surprising** — Anything that goes against consensus, is unexpected, \
-or where two sources disagree with each other.
+or where two sources disagree with each other. At most 5 bullets — prefer omission over \
+padding; more only if each is a distinct story.
 
 6. **Worth Reading in Full** — Flag 1-3 items. One line each: \
 <strong>Topic:</strong> <a href="URL">Title</a> (Source) — why it's worth reading. \
@@ -387,17 +394,25 @@ that does NOT appear in the source material or the glossary: if you are unsure o
 issuer, cite the bare ticker (e.g. "$TCBK") rather than guessing. Skip the \
 parenthetical where the name is already immediately adjacent \
 (e.g. "SpaceX ($SPCX)" needs no second copy of the name).
-- If multiple sources discuss the same topic, synthesize them and note where they agree \
-or disagree.
+- ONE STORY = ONE BULLET, however many sources covered it. Merge multi-source coverage \
+into a single bullet with a compound source tag — "(FT; Stifel)" — noting where the \
+sources disagree. Never write per-source bullets for the same story.
 - SECTIONS ARE EXCLUSIVE, IN ORDER. Work top-down: once a story has appeared in any \
 section, later sections may not re-tell it. When a story qualifies for several sections, \
 it lives in the EARLIEST qualifying section. If a later section has a genuinely NEW \
 angle on it, give ONLY the new angle in one clause with a cross-reference pointer — \
 never restate the numbers or re-tell the story.
 - CROSS-REFERENCES: when a bullet must touch a story covered elsewhere, point to its \
-home section instead of restating it: "…the new angle here <em>(→ §1)</em>." Number \
-references against YOUR final output's numbering (after omitting empty sections), and \
-only point at your own numbered sections.
+home section instead of restating it: "…the new angle here <em>(→ §1)</em>." Name the \
+referenced story in a few words, ONCE — then move on. Never circle back to it with \
+synonyms later in the bullet (writing "the oil surge <em>(→ §1)</em>…" and then \
+"…as the crude spike bleeds into inflation" re-tells the story twice; the second \
+mention must go). Number references against YOUR final output's numbering (after \
+omitting empty sections), and only point at your own numbered sections.
+- EVERY SPECIFIC FIGURE APPEARS EXACTLY ONCE in the digest — a price, spread, yield, \
+price target, % move, or dollar amount is stated in its story's home section and \
+nowhere else. If two sections need the same number, the story is in the wrong \
+sections — merge per the exclusivity rule, or use a cross-reference pointer.
 - Tag each claim with its source in parentheses at the end, e.g. "(Grant's)" or "(Greenmantle)". \
 Be consistent — always at the end of the bullet, never woven into the sentence. \
 Only cite real sources: publication names (Grant's, FT, Bloomberg), SEC filing types, \
@@ -406,8 +421,10 @@ and NEVER append "memory" (or any system-layer word) to a source tag — write "
 never "(Greenmantle memory)".
 - Skip promotional content, subscription upsells, and anything with no analytical substance.
 - Keep it scannable — short bullets, no filler.
-- If cross-digest memory is provided, use it to add context about evolving stories \
+- If cross-digest memory is provided, use it to add context about EVOLVING stories \
 (e.g., "tracking since Mar 28: redemptions now at 40.7%, up from 32% last week"). \
+Mention a tracked storyline ONLY when today's sources add a development; an unchanged \
+storyline is omitted entirely — never re-summarized "for continuity". \
 Cite the original source of the data, not the memory system itself.
 
 FORMAT: Output valid HTML using EXACTLY this structure. Do not deviate from this template. \
@@ -906,8 +923,13 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "qualifying one), keep the full detail there, and in every other section either "
             "delete the mention or reduce it to a one-clause new angle with a <em>(→ §N)</em> "
             "pointer. Verify every (→ §N) points at a section that exists in the final "
-            "numbering. Also confirm there is NO TL;DR / summary box before section 1 — if "
-            "the draft opens with one, delete it so the digest starts at section 1.\n"
+            "numbering. Then check story-level echo: no later section re-details a §1 story "
+            "(one-clause new angle + pointer only), and any bullet referencing another "
+            "section's story names it ONCE, briefly — delete second mentions of the same "
+            "story within a bullet (synonym re-tellings like naming an oil surge and then "
+            "'the crude spike' again). Also confirm there is NO TL;DR / summary box before "
+            "section 1 — if the draft opens with one, delete it so the digest starts at "
+            "section 1.\n"
             "2. Identify any important items that were MISSED — specific data points, trade "
             "ideas, tickers, price targets, key arguments, or surprising findings that should "
             "have been included but weren't.\n"

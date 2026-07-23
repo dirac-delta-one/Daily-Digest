@@ -18,18 +18,18 @@
 |---|---|---|---|---|---|
 | 1 | Sequential-exclusion rule | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 2 | Cross-reference device (→ §N) | Prompt | $0 | S | **BUILT 2026-07-22** |
-| 3 | Top Takeaways redefinition (variant a or b) | Prompt | $0 | S | |
-| 4 | One-number-one-place rule | Prompt | $0 | S | |
+| 3 | Top Takeaways redefinition (variant a or b) | Prompt | $0 | S | **BUILT 2026-07-23 (variant a)** |
+| 4 | One-number-one-place rule | Prompt | $0 | S | **BUILT 2026-07-23** |
 | 5 | Plan-first nudge (Fable) | Prompt | $0 | S | **BUILT 2026-07-22** |
-| 6 | Bullet caps on §2–5 | Prompt | $0 | S | |
-| 7 | Multi-source merge, mechanical form | Prompt | $0 | S | |
+| 6 | Bullet caps on §2–5 | Prompt | $0 | S | **BUILT 2026-07-23 (soft cap)** |
+| 7 | Multi-source merge, mechanical form | Prompt | $0 | S | **BUILT 2026-07-23** |
 | 8 | De-prescribe (ALTERNATIVE to 1/2/4 stacking) | Prompt | $0 | S | |
 | 9 | Pass-2 dedup mandate first + concrete method | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 10 | Dedicated dedup pass 2.5 | Code+LLM | ~$75–110 | M | |
 | 11 | Deterministic tripwire gating 10 | Code | ~$0–20 | M | |
 | 12 | Standing repetition metric + log line | Code | $0 | S–M | **BUILT 2026-07-22** |
 | 13 | WSJ/FT appended-section dedupe | Code | $0 | M | **BUILT 2026-07-22** |
-| 14 | Memory storyline "only if changed" rule | Prompt | $0 | S | |
+| 14 | Memory storyline "only if changed" rule | Prompt | $0 | S | **BUILT 2026-07-23** |
 | 15 | Merge overlapping sections | Prompt/structural | $0 | M | |
 
 Effort: S = <1h, M = 1–3h (incl. tests). All items keep `ruff` + `pytest` green
@@ -386,8 +386,10 @@ digest alert box — recommend log-only to start; the alert box is
 reader-facing).
 
 **Threshold.** Don't guess: run metric-only (Idea 12) for ~1 week, then set
-`REPEAT_TRIPWIRE` at the observed clean-day P75 + margin. Today's data
-suggests clean ≈ ≤5, bad ≥ 8, so likely 6–8.
+`REPEAT_TRIPWIRE` at the observed clean-day P75 + margin. ~~Today's data
+suggests clean ≈ ≤5, bad ≥ 8, so likely 6–8.~~ *(Stale — that was metric-v1
+scale. Under v2 (2026-07-23 recalibration) the clean floor is 1–3 strong;
+a v2 tripwire would likely sit at 4–5. Re-derive from a week of v2 data.)*
 **Cost.** $0 alone; with 10 gated, expect the pass to fire a minority of days
 → ~$0–20/yr. **Risk.** None (read-only unless gating).
 **False positives.** Bare-% collisions ("20%" twice, unrelated) inflate the
@@ -409,7 +411,14 @@ Section inventory for the scorer (splits on `<h2>`):
 - **Exclude:** the five `* Snapshot` tables, `Fed Balance Sheet (H.4.1)`,
   `Fund Position Changes (13F)` and `Bankruptcy Court Activity` (data tables —
   13F holdings legitimately list dozens of tickers that co-occur with digest
-  mentions; counting them is pure noise).
+  mentions; counting them is pure noise). *Recalibration 2026-07-23 (metric
+  v2): also exclude `Recent SEC Filings` and `Rating Actions` — model-written
+  but content-MANDATED listings (every filing/action must appear), so a ticker
+  discussed analytically + carrying a filing is a structural collision, not
+  editorial repetition. Entries carry `"metric": 2`; v1 scores read ~1–3
+  strong high. Observed v2 noise floor on story-clean digests: 1–3 strong
+  (incidental in-story mentions, numeric coincidences like two unrelated
+  $2.2B figures) — judge trends against ≥4 sustained, not single days.*
 - The earnings box and the alerts box render without `<h2>` headers, so an
   h2-based splitter never sees them — no explicit handling needed.
 
@@ -538,11 +547,39 @@ them scannable). **Rollback.** Revert prompt; next run restores 9 sections.
 - **Bundle 1 (free, low-risk core):** 12 → 1 + 2 + 5 + 9 + 13. One prompt
   revision (G1), one validation run, metric live from day one.
 - **Bundle 2 (if score doesn't drop):** add 4 + 7, or swap philosophy to 8
-  (A/B via the metric, one week each).
+  (A/B via the metric, one week each). **BUILT 2026-07-23 — shipped 4+7 (+14)
+  after readers noticed repetition in the first Fable production run; Idea 8
+  stays the fallback philosophy-swap if 4+7 don't move the metric.**
+  - **TL;DR — what Bundle 2 actually changes** (all prompt-only, $0, one batched
+    SYSTEM_PROMPT edit + one validation run per G1):
+    - **Idea 4 — one-number-one-place:** every specific figure (price, spread,
+      yield, target, %, $) appears in EXACTLY ONE section; a repeated number
+      means the story is mis-filed. The lint-rule complement to Idea 1's
+      story-level exclusivity, and the exact thing the Idea-12 metric counts.
+    - **Idea 7 — multi-source merge:** one story = one bullet no matter how many
+      sources covered it; merge into a compound tag "(FT; Stifel)" noting
+      disagreement; never per-source bullets for the same story.
+    - **Idea 8 — de-prescribe (the ALTERNATIVE, not additive):** delete the rule
+      pile (NO REPETITION block + Ideas 1/4/7) and replace with ONE editorial
+      principle ("edit like a newspaper — each story once, each fact once").
+      Mutually exclusive with 4+7 — pick a philosophy and A/B the two via the
+      Idea-12 metric, one week each (Idea 2's pointer + Idea 5's plan nudge stay
+      either way). The bet: Fable degrades under over-prescription, so fewer
+      rules may beat more.
+    - **Decision:** run Bundle 1 ~1 week; if STRONG repetition stays ≥3+, ship
+      **4+7** first (lowest-risk, additive) and only reach for **8** if 4+7 don't
+      move the metric or format quality slips (HANDOFF §11.B).
 - **Bundle 3 (escalation):** 11, then 10 gated by it. Permission gate on 10's
   recurring spend.
 - **Deferred:** 3 (pick variant with jared), 6 (real depth trade-off),
   14 (cheap, do anytime), 15 (last resort, jared sign-off).
+  *(Update 2026-07-23 second batch: 3 shipped as variant (a) — the recommended,
+  reading-flow-preserving one; (b) still needs jared if ever wanted. 6 shipped
+  as the soft cap. Also added: pointer-echo tightening — a referenced story is
+  named once, briefly, never re-narrated with synonyms ("the oil surge (→ §1)…
+  the crude spike" class, caught by a reader in the first Bundle-2 test run) —
+  mirrored in the pass-2 checklist. Remaining unbuilt: 8 (A/B fallback),
+  10+11 (Bundle 3, spend sign-off), 15 (jared sign-off).)*
 
 ## Interactions summary
 

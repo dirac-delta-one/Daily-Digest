@@ -29,7 +29,7 @@ YAHOO_TICKERS = {
     "^RUT":      ("Russell 2000",         "index",  "private", "Index"),
     "ARCC":      ("ARCC (Ares Capital)",  "dollar", "private", "Share price"),
     "OTF":       ("OTF (Blue Owl Tech)",  "dollar", "private", "Share price"),
-    "BKLN":      ("BKLN (Senior Loan)",   "dollar", "private", "ETF price"),
+    "BKLN":      ("BKLN",                 "dollar", "private", "ETF price"),
     # (BKLN trailing yield is appended as a derived row in fetch_market_data)
     # --- AI Snapshot ---
     "^IXIC":     ("Nasdaq Composite",     "index",  "ai",      "Index"),
@@ -176,7 +176,7 @@ def fetch_market_data():
             if y < 1:  # Yahoo sometimes returns a fraction (0.0659) vs 6.59
                 y *= 100
             results.append({
-                "label": "BKLN (Senior Loan)",
+                "label": "BKLN",
                 "value": float(y),
                 "unit": "pct",
                 "section": "private",
@@ -378,7 +378,7 @@ def format_market_data_for_prompt(data):
     lines = ["MARKET DATA SNAPSHOT (Yahoo Finance):"]
     for item in data:
         # Label + metric so short row names stay unambiguous in the prompt
-        # (e.g. "BKLN (Senior Loan) ETF price" vs "... 12M dist. yield").
+        # (e.g. "BKLN ETF price" vs "... 12M dist. yield").
         label = f"{item['label']} {item.get('metric', '')}".strip()
         val_str = _fmt_value(item["label"], item["value"], item["unit"])
 

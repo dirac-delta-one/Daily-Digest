@@ -18,6 +18,7 @@ corrupt real config. This autouse fixture pins both for every test:
 import pytest
 
 import alert_commands
+import repetition
 import sec_filings
 import search
 
@@ -30,6 +31,13 @@ def _pin_watch_state(tmp_path, monkeypatch):
                         tmp_path / "alerts_config.json")
     monkeypatch.setattr(alert_commands, "WATCHLIST_FILE",
                         tmp_path / "watchlist.json")
+    # repetition_scores.json is decision data for REDUCE_REPEATS Bundle 2:
+    # digest.main() calls repetition.record_score(), so any test driving
+    # main() (test_digest_main harness) appended junk zero-score entries to
+    # the REAL file — found 2026-07-23 (~200 polluted entries on dev; the
+    # server would get the same via check.bat). Same isolation as above.
+    monkeypatch.setattr(repetition, "SCORES_PATH",
+                        tmp_path / "repetition_scores.json")
 
     saved = list(sec_filings.WATCHLIST)
     sec_filings.WATCHLIST[:] = _DEFAULT_TICKERS

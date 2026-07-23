@@ -142,7 +142,7 @@ def test_yahoo_section_tables_filter_by_section():
     data = [_yahoo_row("S&P 500", "market", ticker="^GSPC"),
             _yahoo_row("ARCC (Ares Capital)", "private", ticker="ARCC",
                        metric="Share price"),
-            _yahoo_row("BKLN (Senior Loan)", "private", unit="pct", value=6.59,
+            _yahoo_row("BKLN", "private", unit="pct", value=6.59,
                        ticker="BKLN", metric="12M dist. yield"),
             _yahoo_row("CoreWeave", "ai", ticker="CRWV")]
     market = market_data.build_market_table_html(data)

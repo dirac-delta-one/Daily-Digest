@@ -12,9 +12,15 @@ Scoring surface: the ASSEMBLED variant HTML (what save_daily_digest writes),
 so the live metric and any digests/*.html backfill measure the same thing by
 construction. Pre-rendered data tables are excluded — 13F holdings and PACER
 tables legitimately repeat tickers the digest mentions, so counting them is
-noise; the appended WSJ/FT section IS scored (reader-facing repetition, the
-target of Idea 13). The earnings and alert boxes render without <h2> headers,
-so the h2 splitter never sees them.
+noise — and so are the content-mandated model sections (SEC Filings, Rating
+Actions; recalibrated 2026-07-23, see EXCLUDED_TITLES). The appended WSJ/FT
+section IS scored (reader-facing repetition, the target of Idea 13). The
+earnings and alert boxes render without <h2> headers, so the h2 splitter
+never sees them.
+
+⚠ Scale note: scores recorded before 2026-07-23 (and same-day pre-recalibration
+entries) ran the wider surface and read HIGH by roughly 1-3 strong signals —
+don't compare them 1:1 against post-recalibration numbers.
 """
 
 import datetime
@@ -26,11 +32,19 @@ SCORES_PATH = Path(__file__).parent / "repetition_scores.json"
 KEEP_DAYS = 180
 
 # <h2> titles excluded from scoring (substring match).
+# 2026-07-23 recalibration: the model-written but CONTENT-MANDATED sections
+# (SEC Filings must list every filing; Rating Actions must list every action)
+# are excluded for the same reason as the pre-rendered tables — a ticker with
+# a filing that's also discussed analytically is a structural collision, not
+# editorial repetition, and it inflated n_strong past the ≥3 escalation
+# threshold on otherwise-clean digests (both 2026-07-23 test runs).
 EXCLUDED_TITLES = (
     "Snapshot",                    # the five pre-rendered market tables
     "Fed Balance Sheet",
     "Fund Position Changes",
     "Bankruptcy Court Activity",
+    "Recent SEC Filings",          # mandated listing (number-agnostic match)
+    "Rating Actions",              # mandated listing
 )
 
 # Signals come in two strengths (2026-07-22 smoke-test finding: bare percents
@@ -103,6 +117,9 @@ def record_score(variant, digest_html, today=None):
         scores.append({
             "date": today,
             "variant": variant,
+            "metric": 2,  # v2 = 2026-07-23 recalibration (mandated sections
+                          # excluded); entries without this field are v1 and
+                          # read ~1-3 strong HIGH — don't compare 1:1.
             "n_strong": n_strong,
             "n_weak": n_weak,
             "details": details,

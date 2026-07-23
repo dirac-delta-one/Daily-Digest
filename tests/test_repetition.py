@@ -59,6 +59,24 @@ def test_excluded_sections_never_scored():
     assert "WSJ/FT Articles" in secs
 
 
+def test_mandated_sections_excluded():
+    # 2026-07-23 recalibration: SEC Filings / Rating Actions are content-
+    # mandated listings — a ticker discussed analytically AND carrying a
+    # filing is a structural collision, not editorial repetition. The
+    # substring match must survive dynamic renumbering.
+    html = (
+        _h2("3. Equity Ideas") + "<li>$CRWV (CoreWeave): BofA Buy, $140 PT</li>"
+        + _h2("8. Recent SEC Filings") + "<li>$CRWV: Form 4 insider sales</li>"
+        + _h2("9. Rating Actions") + "<li>$CRWV downgraded; 978 bps wide</li>"
+        + _h2("7. Rating Actions")  # renumbered variant also excluded
+        + "<li>$CRWV again</li>"
+    )
+    n_strong, n_weak, details = repetition.repetition_score(html)
+    assert n_strong == 0 and details == {}
+    secs = repetition.section_texts(html)
+    assert list(secs) == ["3. Equity Ideas"]
+
+
 def test_no_dupes_scores_zero():
     html = _h2("1. Top Takeaways") + "<li>$AAA only here</li>" \
         + _h2("2. Market") + "<li>$BBB only here</li>"
