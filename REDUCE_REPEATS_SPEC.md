@@ -18,7 +18,7 @@
 |---|---|---|---|---|---|
 | 1 | Sequential-exclusion rule | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 2 | Cross-reference device (→ §N) | Prompt | $0 | S | **BUILT 2026-07-22** |
-| 3 | Top Takeaways redefinition (variant a or b) | Prompt | $0 | S | **BUILT 2026-07-23 (variant a)** |
+| 3 | Top Takeaways redefinition (variant a or b) | Prompt | $0 | S | **BUILT 2026-07-23 (variant a); upgraded same day to "self-contained §1" (a+), PENDING JARED SIGN-OFF** |
 | 4 | One-number-one-place rule | Prompt | $0 | S | **BUILT 2026-07-23** |
 | 5 | Plan-first nudge (Fable) | Prompt | $0 | S | **BUILT 2026-07-22** |
 | 6 | Bullet caps on §2–5 | Prompt | $0 | S | **BUILT 2026-07-23 (soft cap)** |
@@ -157,6 +157,21 @@ the agencies <em>(→ §3)</em>". Full detail belongs in the body section, not h
 **Trade-off.** (a) preserves the "read §1 and you're done" property (closer to
 today's reading flow; recommended); (b) makes §1 skimmable but forces readers
 to jump. Both kill the 8-of-13 Opus dupes involving §1. Choose ONE.
+
+**Variant (a+) — "self-contained §1" (BUILT 2026-07-23 evening, operator
+request; PENDING JARED SIGN-OFF — revert = `git revert` the commit that added
+it).** Variant (a) taken to its conclusion: §1 is COMPLETE per story (all
+sources merged, every angle as an indented sub-bullet, contrarian takes as a
+`Contrarian:` sub-bullet — carved OUT of §5); later sections carry ZERO §1
+content, at most a bare `(→ §1)` pointer; assignment rule = "primary subject
+is the §1 story → sub-bullet there; independent story merely triggered by it →
+its own section + bare pointer". Template gained the §1-only nested-`<ul>`
+pattern; pass-2 check #1 now enforces completeness-and-containment (moves
+stray §1 detail UP, not just deletes). Validated test run 2026-07-23:
+repetition **0 strong** (first zero; prior best 1), 3 Contrarian: sub-bullets,
+flat sections 2–9, complete HTML, $3.70 — pass 1 ran 23.4k output tokens,
+which the OLD 20k cap would have truncated (needs the same-day truncation
+guard/streaming commit, which precedes this one).
 **Implementation.** Replace the §1 instruction in SYSTEM_PROMPT; add matching
 pass-2 check ("§1 stories are not re-detailed later" for (a); "§1 bullets are
 one line each" for (b)).

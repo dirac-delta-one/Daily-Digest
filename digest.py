@@ -314,12 +314,18 @@ SECTIONS — If a section has no content, OMIT IT ENTIRELY and renumber the rema
 sections sequentially (1, 2, 3...). Do not include empty sections or "none found" messages. \
 Do not leave numbering gaps.
 
-1. **Top Takeaways** — The 3-5 most important stories of the day, with FULL detail: this \
-is their home section and the ONLY place their numbers appear. Lead with what's new, \
-surprising, or actionable. Later sections cover OTHER stories; a later section may touch \
-a §1 story only to add a genuinely new angle, in one clause with a (→ §1) pointer — \
-never re-detail it. This is the digest's opening section — there is NO TL;DR / \
-summary box above it; do not generate one.
+1. **Top Takeaways** — The 3-5 most important stories of the day, COMPLETE and \
+self-contained: synthesize EVERYTHING today's sources say about each story here — all \
+sources merged, all key numbers, and each significant angle as an indented sub-bullet \
+under the story's main bullet (use a <strong>Contrarian:</strong> sub-bullet lead when \
+a source disagrees with the story's consensus read). Lead with what's new, surprising, \
+or actionable. A reader who stops after this section must have missed NOTHING about \
+these stories: later sections do not cover them at all — no re-telling, no added \
+detail, no new angles. Assignment rule: a development whose primary subject IS a §1 \
+story belongs under that takeaway as a sub-bullet; an independent story that was merely \
+triggered by one stands alone in its own section, carrying at most a bare \
+"<em>(→ §1)</em>" pointer with ZERO elaboration of the §1 story. This is the digest's \
+opening section — there is NO TL;DR / summary box above it; do not generate one.
 
 2. **Market & Macro** — Key macro themes, economic data, central bank commentary, \
 rates/FX/commodities moves mentioned across sources. Cite specific levels and changes from \
@@ -339,7 +345,9 @@ multiple sources. At most 5 bullets — prefer omission over padding; more only 
 is a distinct story.
 
 5. **Contrarian / Surprising** — Anything that goes against consensus, is unexpected, \
-or where two sources disagree with each other. At most 5 bullets — prefer omission over \
+or where two sources disagree with each other — for stories NOT covered in Top \
+Takeaways (a contrarian angle on a §1 story lives there, as that story's \
+<strong>Contrarian:</strong> sub-bullet). At most 5 bullets — prefer omission over \
 padding; more only if each is a distinct story.
 
 6. **Worth Reading in Full** — Flag 1-3 items. One line each: \
@@ -399,9 +407,11 @@ into a single bullet with a compound source tag — "(FT; Stifel)" — noting wh
 sources disagree. Never write per-source bullets for the same story.
 - SECTIONS ARE EXCLUSIVE, IN ORDER. Work top-down: once a story has appeared in any \
 section, later sections may not re-tell it. When a story qualifies for several sections, \
-it lives in the EARLIEST qualifying section. If a later section has a genuinely NEW \
-angle on it, give ONLY the new angle in one clause with a cross-reference pointer — \
-never restate the numbers or re-tell the story.
+it lives in the EARLIEST qualifying section. For a §1 story this is TOTAL: every angle \
+on it (including contrarian takes) lives inside its §1 entry as a sub-bullet; later \
+sections get at most the bare (→ §1) pointer, never content. Between the LATER sections \
+only, a genuinely NEW angle on an earlier story may appear as one clause with a \
+cross-reference pointer — never restate the numbers or re-tell the story.
 - CROSS-REFERENCES: when a bullet must touch a story covered elsewhere, point to its \
 home section instead of restating it: "…the new angle here <em>(→ §1)</em>." Name the \
 referenced story in a few words, ONCE — then move on. Never circle back to it with \
@@ -442,8 +452,15 @@ Use inline styles only (no <style> blocks). Every digest must look identical in 
   <!-- Sections use this exact pattern. Use these EXACT numbers. Omit sections with no content. -->
   <h2 style="font-size: 18px; border-bottom: 1px solid #ccc; padding-bottom: 6px; margin: 28px 0 12px;">1. Top Takeaways</h2>
   <ul style="padding-left: 20px; margin: 0;">
-    <li style="margin-bottom: 10px; font-size: 14px;"><strong>{{Topic}}:</strong> {{content}} <span style="color: #888;">(Source)</span></li>
+    <li style="margin-bottom: 10px; font-size: 14px;"><strong>{{Topic}}:</strong> {{content}} <span style="color: #888;">(Source)</span>
+      <ul style="padding-left: 18px; margin: 6px 0 0;">
+        <li style="margin-bottom: 6px; font-size: 13px;"><strong>{{Angle}}:</strong> {{content}} <span style="color: #888;">(Source)</span></li>
+      </ul>
+    </li>
   </ul>
+  <!-- §1 sub-bullets: a takeaway's significant angles nest under it (Contrarian: lead for
+       against-consensus angles). Sub-bullets are §1-ONLY — sections 2-9 use flat bullets;
+       a takeaway with no distinct angles needs no nested list. -->
 
   <!-- Section 2: Market & Macro -->
   <!-- Section 3: Equity Ideas & Calls -->
@@ -953,13 +970,15 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "qualifying one), keep the full detail there, and in every other section either "
             "delete the mention or reduce it to a one-clause new angle with a <em>(→ §N)</em> "
             "pointer. Verify every (→ §N) points at a section that exists in the final "
-            "numbering. Then check story-level echo: no later section re-details a §1 story "
-            "(one-clause new angle + pointer only), and any bullet referencing another "
-            "section's story names it ONCE, briefly — delete second mentions of the same "
-            "story within a bullet (synonym re-tellings like naming an oil surge and then "
-            "'the crude spike' again). Also confirm there is NO TL;DR / summary box before "
-            "section 1 — if the draft opens with one, delete it so the digest starts at "
-            "section 1.\n"
+            "numbering. Then check §1 completeness and containment: every angle on a §1 "
+            "story (including contrarian takes) lives INSIDE its §1 entry as a sub-bullet; "
+            "later sections carry NO content about §1 stories — reduce any such mention to "
+            "a bare (→ §1) pointer, moving genuinely new detail up into the §1 entry. "
+            "Between later sections, any bullet referencing another section's story names "
+            "it ONCE, briefly — delete second mentions of the same story within a bullet "
+            "(synonym re-tellings like naming an oil surge and then 'the crude spike' "
+            "again). Also confirm there is NO TL;DR / summary box before section 1 — if "
+            "the draft opens with one, delete it so the digest starts at section 1.\n"
             "2. Identify any important items that were MISSED — specific data points, trade "
             "ideas, tickers, price targets, key arguments, or surprising findings that should "
             "have been included but weren't.\n"
@@ -972,7 +991,8 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "form (<strong>$COF (Capital One):</strong>, never a bare \"COF:\") while "
             "mid-bullet tickers stay unbolded; every cited "
             "ticker carries the issuer name in parentheses when the name is in the sources "
-            "(or immediately adjacent prose); Market & Macro contains no bullet that merely "
+            "(or immediately adjacent prose); nested sub-bullet lists appear ONLY inside "
+            "section 1 (flatten any elsewhere); Market & Macro contains no bullet that merely "
             "restates a snapshot-table level or move without added analysis (delete any such "
             "bullet).\n"
             "6. Produce a FINAL ENHANCED VERSION of the digest that incorporates anything missed "
