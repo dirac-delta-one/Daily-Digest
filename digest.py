@@ -758,6 +758,27 @@ def _strip_to_html(text):
     return html[:closings[-1].end()] if closings else html
 
 
+# Truncation guard (2026-07-23): stop_reason was never checked, so a pass that
+# hit its max_tokens cap silently shipped truncated HTML (found when the
+# Idea-15 test run capped BOTH passes and emailed a digest that cut off
+# mid-section with no warning). summarize_with_claude records capped passes
+# here; main() clears it per run and routes entries into the ⚙️ ops email.
+_TRUNCATIONS = []
+
+
+def _guard_truncation(pass_label, response):
+    """True if `response` stopped at its max_tokens cap; logs and queues an
+    ops-alert line. Never raises — the guard must not break a digest run."""
+    try:
+        if getattr(response, "stop_reason", None) != "max_tokens":
+            return False
+        print(f"  WARNING: {pass_label} hit its max_tokens cap — output truncated.")
+        _TRUNCATIONS.append(pass_label)
+        return True
+    except Exception:
+        return False
+
+
 def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
                           market_data=None, macro_data=None, earnings=None,
                           pacer_entries=None,
@@ -891,14 +912,23 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "following the template and rules in the system prompt exactly."
         ),
     }]
-    response = client.messages.create(
+    # max_tokens 20000 -> 32000 (2026-07-23): Fable's thinking bills as output
+    # and normal pass outputs run 14-20k incl. thinking — 20000 was a tripwire
+    # (hit three times on 2026-07-23), not a runaway guard. Only generated
+    # tokens are billed, so the raise costs nothing on normal days. Streaming
+    # is REQUIRED at this cap: the SDK raises ValueError on non-streaming
+    # requests that could exceed 10 minutes; get_final_message() returns the
+    # same Message object create() would.
+    with client.messages.stream(
         model=CLAUDE_MODEL,
-        max_tokens=20000,
+        max_tokens=32000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": pass1_content}],
-    )
+    ) as p1_stream:
+        response = p1_stream.get_final_message()
 
     draft = _response_text(response)
+    p1_truncated = _guard_truncation(f"digest pass 1{cost_label}", response)
 
     # Log token usage
     p1_input = response.usage.input_tokens
@@ -959,14 +989,25 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
             "═══════════════════════════════════════\n"
         ),
     }]
-    review_response = client.messages.create(
+    # Streaming for the same reason as pass 1 (SDK long-request requirement).
+    with client.messages.stream(
         model=CLAUDE_MODEL,
-        max_tokens=20000,
+        max_tokens=32000,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": pass2_content}],
-    )
+    ) as p2_stream:
+        review_response = p2_stream.get_final_message()
 
     final = _strip_to_html(_response_text(review_response))
+    if _guard_truncation(f"digest pass 2{cost_label}", review_response):
+        if not p1_truncated:
+            # The review truncated but the draft completed — ship the draft
+            # (yesterday's-behavior-quality) rather than a cut-off final.
+            print("    -> falling back to the completed pass-1 draft.")
+            final = _strip_to_html(draft)
+        else:
+            print("    -> pass 1 truncated too; shipping the (truncated) pass-2 "
+                  "output — raise max_tokens.")
 
     # Stage "$TICK (Name)" pairs this digest rendered for the learned name
     # cache — validated against the FULL prompt text (not the truncated alert
@@ -1350,6 +1391,10 @@ def generate_weekly_summary(digests, cost_label=""):
     )
 
     weekly = _strip_to_html(_response_text(response))
+    # Log-only here: the weekly runs after the ops email has already been sent,
+    # so the queued entry can't ride this run's ⚙️ email — the WARNING line is
+    # the observable signal.
+    _guard_truncation(f"weekly summary{cost_label}", response)
 
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens
@@ -1566,6 +1611,7 @@ def _fetch_all_sources(registry=None, max_workers=MAX_FETCH_WORKERS):
 
 def main():
     print(f"[{datetime.datetime.now()}] Starting daily digest...")
+    _TRUNCATIONS.clear()  # per-run; summarize_with_claude appends capped passes
 
     # --- Gmail ---
     service = get_gmail_service()
@@ -1731,6 +1777,19 @@ def main():
     # matching run_alert.py's failure alerts) instead of cluttering the digest.
     deterministic_alerts = []
     ops_alerts = []
+
+    # Truncation guard (2026-07-23): any generation pass that hit its
+    # max_tokens cap this run gets surfaced to the operator — a capped pass
+    # means the digest may be missing trailing sections.
+    for label in _TRUNCATIONS:
+        ops_alerts.append({
+            "name": "Output truncated",
+            "detail": (f"{label} stopped at its max_tokens cap — the digest may "
+                       "be missing trailing sections (check Rating Actions is "
+                       "present). If this recurs, raise max_tokens in "
+                       "digest.summarize_with_claude."),
+            "source": "truncation guard",
+        })
 
     # Team config guard (CLEANUP_SPEC 2.1): make the misconfiguration visible
     # in a sent email, not just the log nobody reads unattended.

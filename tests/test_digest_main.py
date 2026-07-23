@@ -276,6 +276,43 @@ def test_partial_send_failure_raises_after_all_attempts(harness, monkeypatch):
     assert not marker.exists()
 
 
+class _Resp:
+    def __init__(self, stop_reason):
+        self.stop_reason = stop_reason
+
+
+def test_guard_truncation_detects_cap(monkeypatch):
+    monkeypatch.setattr(digest, "_TRUNCATIONS", [])
+    assert digest._guard_truncation("digest pass 1", _Resp("max_tokens")) is True
+    assert digest._TRUNCATIONS == ["digest pass 1"]
+    assert digest._guard_truncation("digest pass 2", _Resp("end_turn")) is False
+    assert digest._guard_truncation("x", object()) is False  # missing attr
+    assert digest._TRUNCATIONS == ["digest pass 1"]
+
+
+def test_truncation_reaches_ops_email(harness, monkeypatch):
+    # A pass that hit its max_tokens cap must surface in the ⚙️ ops email —
+    # and stale entries from a prior run must be cleared at main() start.
+    calls, _marker = harness
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
+    monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
+    digest._TRUNCATIONS.append("stale pass from prior run")
+
+    stub = digest.summarize_with_claude  # the harness stub
+
+    def truncating(**kw):
+        digest._TRUNCATIONS.append("digest pass 2")
+        return stub(**kw)
+    monkeypatch.setattr(digest, "summarize_with_claude", truncating)
+
+    digest.main()
+    ops = [c for c in calls if c[0] == "send" and (c[4] or "").startswith("⚙️")]
+    assert len(ops) == 1
+    assert "Output truncated" in ops[0][3]
+    assert "digest pass 2" in ops[0][3]
+    assert "stale pass" not in ops[0][3]
+
+
 def test_orphan_notice_reaches_ops_email(harness, monkeypatch):
     calls, _marker = harness
     monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])

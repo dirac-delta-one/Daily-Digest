@@ -30,7 +30,7 @@
 | 12 | Standing repetition metric + log line | Code | $0 | S–M | **BUILT 2026-07-22** |
 | 13 | WSJ/FT appended-section dedupe | Code | $0 | M | **BUILT 2026-07-22** |
 | 14 | Memory storyline "only if changed" rule | Prompt | $0 | S | **BUILT 2026-07-23** |
-| 15 | Merge overlapping sections | Prompt/structural | $0 | M | |
+| 15 | Merge overlapping sections | Prompt/structural | $0 | M | **ATTEMPTED 2026-07-23 — REVERTED** (see section) |
 
 Effort: S = <1h, M = 1–3h (incl. tests). All items keep `ruff` + `pytest` green
 and respect HANDOFF §2/§6 constraints.
@@ -539,6 +539,20 @@ Idea-12 metric after 2+ weeks.
 **Risk.** Functionality change by design; contrarian items could lose
 prominence inside bigger sections (mitigate: bold "Contrarian:" lead word makes
 them scannable). **Rollback.** Revert prompt; next run restores 9 sections.
+
+**⚠ ATTEMPTED 2026-07-23 — test run FAILED, change REVERTED.** One ~$3.58
+validated test (9→7 sections, themes → §2/§3, "Contrarian:" lead markers):
+(a) BOTH passes hit the then-20,000 max_tokens cap — the merge drove Fable's
+thinking+output over it and the emailed digest truncated mid-§6 with no
+Rating Actions section at all; (b) §3 bloated to 13 bullets, ignoring its
+soft cap; (c) zero "Contrarian:" lead words appeared. The truncation exposed
+a latent silent-failure bug (stop_reason never checked) — fixed same day:
+caps raised to 32,000 + a truncation guard (loud WARNING, ops-alert entry,
+pass-2→pass-1 fallback; `digest._guard_truncation`). Preconditions for any
+retry: the guard/cap fix in place (done), a prompt fix for the §3
+bloat/marker non-compliance, jared's sign-off — and honestly, with
+story-level repetition already at zero on the 9-section stack, the marginal
+upside no longer justifies the product change.
 
 ---
 

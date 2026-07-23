@@ -488,11 +488,41 @@ What remains is only what a future session might still act on.)*
   ≤7/23 morning) read ~1–3 strong HIGH — not 1:1 comparable. **v2 decision rule:** observed noise
   floor on repetition-clean digests is 1–3 strong (incidental in-story ticker mentions + numeric
   coincidences the regex can't distinguish); escalate only on SUSTAINED ≥4 or continued reader
-  complaints → A/B the idea-8 de-prescribe (one week each arm), then Bundle 3 (idea 11 tripwire,
-  idea 10 dedup pass — needs spend sign-off). Weak (bare-%) collisions stay ignorable. NOTE:
+  complaints — per the escalation plan below. Weak (bare-%) collisions stay ignorable. NOTE:
   pytest used to append junk zero-score entries to the real `repetition_scores.json` (any test
   driving `digest.main()`); fixed 2026-07-23 in `tests/conftest.py` — if the server ever ran
   `check.bat` before pulling that fix, prune the zero entries before reading the series.
+
+  **Escalation plan if repetition complaints continue (ordered; detail in `REDUCE_REPEATS_SPEC.md`).**
+  Context first: the 2026-07-23 dissection showed the PROMPT lever is essentially exhausted — both
+  validated test runs had ZERO story-level repetition; the residual strong signals are incidental
+  in-story mentions and numeric coincidences that more prompt rules cannot remove (and per the
+  spec's G4, stacking more rules risks degrading Fable's output). So the next moves are code and
+  structure, in this order:
+  1. **Idea 11 — deterministic tripwire** ($0, code). After ~1 week of metric-v2 data, set
+     `REPEAT_TRIPWIRE` at the observed clean-day ceiling (likely 4–5 under v2; the spec's 6–8
+     guidance is stale v1 scale). Alone it turns a bad day into a logged/alerted event.
+  2. **Idea 10 — dedup pass 2.5, gated by the tripwire** (~$0–20/yr gated; ~$75–110/yr ungated —
+     **recurring spend, needs owner sign-off**). A single-objective Sonnet rewrite of the final
+     HTML with hard fall-back-to-input guards (spec has the implementation sketch + placement).
+     Highest-value remaining lever: it's the only one that mechanically catches paraphrase/
+     story-level echo, which prompts ask about but can't verify and the regex metric can't see.
+  3. **Structural (jared's sign-off, not an operator call): Idea 15** — merge §4 Themes + §5
+     Contrarian into §1–§3. Empirical support: the 7/23 residual collisions all sat on the
+     §3/§4/§5 boundaries. **⚠ Attempted 2026-07-23 and REVERTED after a failed test run**
+     (truncation at the token cap, §3 bloat, ignored Contrarian markers — full post-mortem in
+     the spec's Idea 15 section; retry preconditions listed there). The failure shipped one
+     durable fix: digest passes now run max_tokens=32,000 with a **truncation guard**
+     (`digest._guard_truncation` — WARNING log + "Output truncated" ⚙️ ops-alert + pass-2→pass-1
+     fallback; stop_reason was previously never checked and a capped pass silently sent
+     truncated HTML). Alternatively **Idea 3 variant (b)** (§1 → one-line pointer index; full
+     detail lives in body sections) — also jared's, §5/§1 are signature product features.
+  4. **Fallback, not next step: Idea 8 de-prescribe** — swap the whole rule stack for one
+     editorial principle. Run ONLY if the current stack visibly degrades format/quality or scores
+     don't improve; it's a 2-week A/B (one week each arm, metric as judge).
+  If tuning continues past that, the METRIC becomes the bottleneck (regex can't tell "mentioned
+  in passing" from "story retold") — the upgrade is an LLM-judged story-level score, but build it
+  only if Idea 10 ships and disputes persist, since 10 largely fixes what that would measure.
 - **Ticker-name learned cache (`ticker_names_cache.json`, 2026-07-22).** Self-seeds from each run
   ("Ticker-name cache: learned N" log line; 12 entries after day one). Watch: a wrong issuer name
   appearing in a digest → inspect/delete the bad cache entry (the proper-noun + source-text guards

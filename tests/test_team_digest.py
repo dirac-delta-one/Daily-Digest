@@ -74,9 +74,26 @@ def _fake_response():
 def _capture_calls(monkeypatch):
     calls = []
 
+    class _FakeStream:
+        # digest passes use client.messages.stream(...) since the 2026-07-23
+        # max_tokens raise (SDK long-request requirement); same kwargs shape.
+        def __init__(self, kwargs):
+            calls.append(kwargs)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get_final_message(self):
+            return _fake_response()
+
     class _FakeClient:
         def __init__(self):
-            self.messages = SimpleNamespace(create=self._create)
+            self.messages = SimpleNamespace(
+                create=self._create,
+                stream=lambda **kwargs: _FakeStream(kwargs))
 
         def _create(self, **kwargs):
             calls.append(kwargs)
