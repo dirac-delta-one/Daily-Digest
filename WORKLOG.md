@@ -52,6 +52,15 @@ close (the feared §2.7 quote-endpoint fix looks unnecessary), no truncation. Se
    ~trivial tokens). Per G1, first validation = the Mon 7/27 production run (operator's call —
    no paid test).
 
+**Weekly-wrap repetition observability (commit `e4ef194`; pytest 477).** The weekly wrap shares
+none of the anti-repetition machinery (its own 4-line system prompt, single-pass, unscored) —
+deliberate, but blind. Added `repetition.log_score()`: computes + prints
+`Repetition: ... (weekly[ (team)], log-only)` and **never writes `repetition_scores.json`** (that
+file is the daily v2 decision series — weekly entries would pollute the "sustained ≥4" rule).
+Called from `generate_weekly_summary` for both variants. Validated against today's REAL weeklies
+(pulled from sent mail, $0 regex): TEAM 0 strong + 3 weak, FULL 1 strong + 5 weak — the `<h2>`
+splitter handles weekly section titles fine. First live log line: Fri 2026-07-31.
+
 ---
 
 ## 2026-07-23 — Repetition war (3 prompt batches + §1 redesign), cross-day daily delta, snapshot T-1 upgrade, truncation guard
