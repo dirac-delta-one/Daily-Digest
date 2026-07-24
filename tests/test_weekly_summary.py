@@ -2,6 +2,7 @@
 preamble strip (shared with digest pass 2), and save-to-disk."""
 
 import datetime
+from types import SimpleNamespace
 
 import config
 import digest
@@ -68,6 +69,46 @@ def test_strip_to_html_keeps_non_div_closing_tag():
     # other than </div> (with trailing chatter) is still returned intact.
     html = "<div><table><tr><td>wrap</td></tr></table></div>"
     assert digest._strip_to_html(html + "\n\nDone — hope that helps!") == html
+
+
+# --- generate_weekly_summary call shape (fake client, no API) ---
+
+def test_weekly_summary_streams_with_headroom(monkeypatch):
+    # 2026-07-24 debut: BOTH weeklies hit the old 10k non-streaming cap at
+    # exactly 10,000 out (Fable thinking bills as output) and the TEAM wrap
+    # emailed truncated mid-bullet. Pin the streaming call + the raised cap.
+    calls = []
+
+    class _FakeStream:
+        def __init__(self, kwargs):
+            calls.append(kwargs)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get_final_message(self):
+            return SimpleNamespace(
+                content=[SimpleNamespace(type="text", text="<div>weekly</div>")],
+                stop_reason="end_turn",
+                usage=SimpleNamespace(input_tokens=10, output_tokens=5,
+                                      cache_read_input_tokens=0,
+                                      cache_creation_input_tokens=0),
+            )
+
+    class _FakeClient:
+        def __init__(self):
+            self.messages = SimpleNamespace(
+                stream=lambda **kwargs: _FakeStream(kwargs))
+
+    monkeypatch.setattr(digest.anthropic, "Anthropic", _FakeClient)
+    out = digest.generate_weekly_summary(
+        [{"day": "Monday", "date": "2026-07-20", "html": "<div>d</div>"}])
+    assert out == "<div>weekly</div>"
+    assert len(calls) == 1
+    assert calls[0]["max_tokens"] == 32000
 
 
 # --- save_weekly_digest ---

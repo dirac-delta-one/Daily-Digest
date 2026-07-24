@@ -120,10 +120,11 @@ def test_full_variant_substack_in_trailing_cached_block(monkeypatch):
     # [prompt(bp)][substack tail(bp)][pass-1 instruction]
     assert len(content) == 3
     assert "SUBSTACK ARTICLES:" not in content[0]["text"]  # shared prefix is team-safe
-    assert content[0]["cache_control"] == {"type": "ephemeral"}
+    # ttl 1h since 2026-07-24: the 5-min TTL expired during pass-1 generation
+    assert content[0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
     assert "SENTINEL_SUBSTACK" in content[1]["text"]
     assert "SENTINEL_SUBMEM" in content[1]["text"]
-    assert content[1]["cache_control"] == {"type": "ephemeral"}
+    assert content[1]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
     # alert-eval source includes the substack tail (full variant's view)
     assert "SENTINEL_SUBSTACK" in source
 
@@ -135,7 +136,7 @@ def test_team_variant_has_no_substack_anywhere(monkeypatch):
 
     content = calls[0]["messages"][0]["content"]
     assert len(content) == 2  # [prompt(bp)][instruction] — no tail block
-    assert content[0]["cache_control"] == {"type": "ephemeral"}
+    assert content[0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
     assert "SUBSTACK" not in source.upper()
 
 

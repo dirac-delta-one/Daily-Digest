@@ -999,11 +999,16 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
     # both passes, so mark the last shared block as a cache breakpoint. Both passes use
     # the SAME system prompt and put their per-pass instruction AFTER this cached prefix,
     # so pass 1 writes the cache and pass 2 reads it (~0.1x) instead of re-paying full
-    # price to re-send the sources+PDFs. The passes run seconds apart, well within the
-    # 5-minute cache TTL. Validated output-equivalent + cache-engaging 2026-07-01 (see
-    # WORKLOG) — caching is transparent to the model (identical tokens either way).
-    # TEAM_DIGEST_SPEC: this breakpoint also marks the team/full SHARED prefix.
-    content[-1] = {**content[-1], "cache_control": {"type": "ephemeral"}}
+    # price to re-send the sources+PDFs. Validated output-equivalent + cache-engaging
+    # 2026-07-01 (see WORKLOG) — caching is transparent to the model (identical tokens
+    # either way). TEAM_DIGEST_SPEC: this breakpoint also marks the team/full SHARED
+    # prefix. TTL "1h" (2026-07-24): the default 5-minute TTL EXPIRED between passes
+    # once Fable's streamed pass outputs grew past ~5 min of generation — the debut
+    # log showed both pass 2s at "read 0 tok from cache" silently RE-WRITING ~90-110k
+    # of prefix (~$1+/pass wasted). 1h writes cost 2x base input (vs 1.25x) but every
+    # downstream read (pass 2 x2, cross-variant FULL) then hits at 0.1x — net ~$1.5+
+    # cheaper per run than the expiry-rewrite cycle.
+    content[-1] = {**content[-1], "cache_control": {"type": "ephemeral", "ttl": "1h"}}
 
     # Substack tail (full variant only): articles + substack-memory context,
     # with its own breakpoint so the full run's two passes share it too.
@@ -1020,7 +1025,7 @@ def summarize_with_claude(*, emails, substack_articles=None, sec_filings=None,
         content.append({
             "type": "text",
             "text": "\n" + substack_block,
-            "cache_control": {"type": "ephemeral"},
+            "cache_control": {"type": "ephemeral", "ttl": "1h"},
         })
 
     # ---- PASS 1: Generate initial digest ----
@@ -1494,9 +1499,15 @@ def generate_weekly_summary(digests, cost_label=""):
     for d in digests:
         digest_text += f"\n{'='*60}\n{d['day']} ({d['date']})\n{'='*60}\n{d['html']}\n"
 
-    response = client.messages.create(
+    # max_tokens 10,000 -> 32,000 STREAMING (2026-07-24): BOTH debut weeklies
+    # hit the old cap at exactly 10,000 out — Fable's thinking bills as output,
+    # so the HTML budget was whatever thinking left over, and the TEAM wrap
+    # emailed truncated mid-bullet (FULL happened to cut at a bullet boundary).
+    # Same runaway-guard-not-budget rationale as the daily passes' 48k;
+    # streaming is the SDK's requirement for caps this size.
+    with client.messages.stream(
         model=CLAUDE_MODEL,
-        max_tokens=10000,
+        max_tokens=32000,
         system=(
             "You are a senior investment analyst reviewing a week of daily research digests. "
             "Synthesize the key themes, how narratives evolved over the week, what resolved "
@@ -1512,7 +1523,8 @@ def generate_weekly_summary(digests, cost_label=""):
             "Use the same HTML template styling (Georgia, inline styles, 680px).\n\n"
             f"{digest_text}"
         )}],
-    )
+    ) as w_stream:
+        response = w_stream.get_final_message()
 
     weekly = _strip_to_html(_response_text(response))
     # Log-only here: the weekly runs after the ops email has already been sent,
