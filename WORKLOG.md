@@ -52,6 +52,28 @@ close (the feared §2.7 quote-endpoint fix looks unnecessary), no truncation. Se
    ~trivial tokens). Per G1, first validation = the Mon 7/27 production run (operator's call —
    no paid test).
 
+**Debut server-log read + two fixes (commit `d2021bf`; pytest 478).** The operator pulled the
+08:00 log. GREEN: `Freshness:` settles SNAPSHOT_UPDATE §2.4 (same-day at 08:00 = VIX, WTI, DXY,
+BTC, SK Hynix; all US-listed = prior session — §2.7 quote fix unnecessary); PACER
+`Freshness filter: dropped 13 stale entries`; `Treasury.gov par curves: 7 series (T-1)`;
+`Previous-digest context: 13,160 chars`; Repetition v2 = 3 strong (full) / 2 strong (team), inside
+the noise floor; all sends 6/6 + 1/1 + 5/5. PROBLEMS → both fixed same day:
+1. **BOTH weeklies truncated at exactly 10,000 out** (`WARNING: weekly summary hit its max_tokens
+   cap` ×2 — Fable thinking bills as output; the TEAM wrap emailed mid-bullet at "Getty Images
+   LME:", FULL happened to cut at a bullet boundary). `generate_weekly_summary` → **streaming at
+   32k** (guard already wired; log-only by design — the ops email has gone out by then).
+2. **Cache TTL expiry between passes:** both pass 2s logged `read 0 tok from cache` and the cost
+   math showed each silently RE-WROTE ~90–110k of prefix (~$1+/pass wasted) — pass-1 streamed
+   generation (20–33k out w/ thinking) now exceeds the 5-min TTL. Cross-variant caching still
+   worked (FULL pass 1 read ~73k). Both breakpoints → **`ttl: "1h"`** (2x write vs 1.25x, reads
+   0.1x; net ~$1.5+/run cheaper than the expiry-rewrite cycle, ~$400/yr).
+Also: **memory update truncated** (`stop_reason=max_tokens`, existing memory kept — frozen at 7/23
+state) with the store at 106 active stories; WATCH Monday — if it truncates again it needs the
+same streaming/cap treatment and feeds the ~7/30 aging decision. **Friday all-in cost $15.01**
+(2-pass ×2 = $9.52 + weeklies $4.38 + small calls); weekday all-in ≈ $10 — re-baseline OPERATIONS
+after the cache fix lands (it should shave $1.5+/run). Validation: Mon 7/27 = cache-read lines
+nonzero on pass 2; Fri 7/31 = complete weeklies at <32k out.
+
 **Weekly-wrap repetition observability (commit `e4ef194`; pytest 477).** The weekly wrap shares
 none of the anti-repetition machinery (its own 4-line system prompt, single-pass, unscored) —
 deliberate, but blind. Added `repetition.log_score()`: computes + prints
