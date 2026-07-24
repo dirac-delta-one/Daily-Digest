@@ -28,6 +28,13 @@ RSS_FEEDS = [
 HOURS_LOOKBACK = 24
 
 
+def _canonical_url(link):
+    """Dedup key for an article URL: path only, query/fragment stripped.
+    WSJ syndicates the same article to multiple feeds differing only in a
+    ?mod= tracking param (two 'Oil Prices Roar Back' rows, 2026-07-24)."""
+    return link.split("#", 1)[0].split("?", 1)[0]
+
+
 def _clean_html(text):
     """Strip basic HTML tags from description text."""
     if not text:
@@ -87,10 +94,11 @@ def fetch_wsj_ft_articles(since_datetime=None):
             if not title or not link:
                 continue
 
-            # Deduplicate
-            if link in seen_urls:
+            # Deduplicate (tracking params ignored — see _canonical_url)
+            canonical = _canonical_url(link)
+            if canonical in seen_urls:
                 continue
-            seen_urls.add(link)
+            seen_urls.add(canonical)
 
             # Date filter
             if since_datetime:

@@ -335,11 +335,18 @@ def build_market_table_html(data, fred_data=None):
     rows actually landed (each mirror row carries its own `source` since the
     2026-07-23 Treasury.gov switch)."""
     extra_rows, footnote_suffix, note_suffix = "", "", ""
+    extra_pairs = []
     if fred_data:
         import macro_data
         extras = [r for r in fred_data if r.get("series_id") in MARKET_FRED_EXTRAS]
         if extras:
             extra_rows = macro_data.table_rows_html(extras)
+            # The mirror rows' dates must reach the as-of footnote too — on
+            # 2026-07-24 it enumerated only the S&P outlier while the 20Y
+            # UST/HYG rows were also prior-close (their * markers were honest
+            # but the date enumeration wasn't).
+            extra_pairs = [(r["label"], str(r.get("date", ""))[:10])
+                           for r in extras]
             mirror_sources = []
             for r in extras:
                 if str(r["series_id"]).startswith("ISHARES:"):
@@ -356,7 +363,8 @@ def build_market_table_html(data, fred_data=None):
     return _build_yahoo_table(data, "market", "Market Snapshot",
                               extra_rows_html=extra_rows,
                               footnote_suffix=footnote_suffix,
-                              note_suffix=note_suffix)
+                              note_suffix=note_suffix,
+                              extra_pairs=extra_pairs)
 
 
 def build_private_credit_html(data):
@@ -411,7 +419,7 @@ def table_rows_html(rows):
 
 
 def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix="",
-                       note_suffix=""):
+                       note_suffix="", extra_pairs=None):
     """Render one section's rows as an HTML table with 1D / 1W / 1M columns.
     Footnote shape matches macro_data's: sources (suffix) before the as-of
     date, definitions (note_suffix) trailing after it."""
@@ -425,9 +433,11 @@ def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix
     # freshness (2026-07-23: majority date + per-date outlier enumeration
     # replaced max(), which let one same-day row overstate the whole table).
     # The */** legend appears whenever any row carries a lag marker.
-    label_frag = as_of_label([(item["label"], item.get("as_of", "").split(" ")[0])
-                              for item in data])
-    if any(lag_marker(item.get("as_of", "")) for item in data):
+    pairs = [(item["label"], item.get("as_of", "").split(" ")[0])
+             for item in data]
+    pairs += list(extra_pairs or [])  # mirror rows (extra_rows_html) count too
+    label_frag = as_of_label(pairs)
+    if any(lag_marker(d) for _, d in pairs):
         note_suffix += LAG_LEGEND
     footnote = ("Source: Yahoo Finance" + footnote_suffix
                 + (f", {label_frag}" if label_frag else "") + note_suffix)
@@ -477,6 +487,11 @@ def format_market_data_for_prompt(data):
             parts.append(f"1W: {item['chg_1w']:+.2f} ({item['pct_1w']:+.1f}%)")
         if item["chg_1m"] is not None:
             parts.append(f"1M: {item['chg_1m']:+.2f} ({item['pct_1m']:+.1f}%)")
+        # Date the row so the model can frame moves to the right day — on
+        # 2026-07-24 §1 called SK Hynix's 7/24 Seoul close "Thursday" because
+        # the prompt carried no dates on market rows.
+        if item.get("as_of"):
+            parts.append(f"as of {str(item['as_of'])[:10]}")
         lines.append(f"  {' | '.join(parts)}")
 
     return "\n".join(lines)

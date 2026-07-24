@@ -138,6 +138,33 @@ def test_market_table_cites_ishares_mirror_rows():
     assert "FRED" not in ishares_only
 
 
+def test_market_table_footnote_enumerates_extras_dates():
+    # 2026-07-24: the as-of footnote only saw the section's Yahoo rows — the
+    # mirrored 20Y UST/HYG extras' older dates were never enumerated (their
+    # row-level * markers were honest, the date list wasn't).
+    yahoo = [_yahoo_row("S&P 500", "market", ticker="^GSPC"),
+             _yahoo_row("VIX", "market", unit="index", value=18.9,
+                        ticker="^VIX", metric="Index")]
+    fred = [_fred_row("20Y UST", "rates", value=5.09, series_id="DGS20")]
+    fred[0]["date"] = "2026-07-14"
+    out = market_data.build_market_table_html(yahoo, fred)
+    assert "as of 2026-07-15" in out          # Yahoo majority date leads
+    assert "20Y UST: 2026-07-14" in out       # mirror-row outlier enumerated
+
+
+def test_market_prompt_carries_row_dates():
+    # 2026-07-24: §1 called SK Hynix's 7/24 Seoul close "Thursday" — the
+    # prompt rows carried no dates for the model to frame moves against.
+    row = _yahoo_row("SK Hynix", "ai", unit="won", value=1759000.0,
+                     ticker="000660.KS", metric="Share price (KRW)")
+    out = market_data.format_market_data_for_prompt([row])
+    assert "as of 2026-07-15" in out
+    # rows without a date (e.g. the BKLN yield row) get no fragment
+    row_undated = dict(row, as_of="")
+    out2 = market_data.format_market_data_for_prompt([row_undated])
+    assert "as of" not in out2
+
+
 def test_yahoo_section_tables_filter_by_section():
     data = [_yahoo_row("S&P 500", "market", ticker="^GSPC"),
             _yahoo_row("ARCC (Ares Capital)", "private", ticker="ARCC",

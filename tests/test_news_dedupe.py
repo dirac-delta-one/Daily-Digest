@@ -1,8 +1,10 @@
 """WSJ/FT appended-section dedupe (REDUCE_REPEATS Idea 13): _title_covered
 heuristics and build_news_html's exclude_text filtering. build_news_html now
-expects PRE-RANKED articles (ranking hoisted to main — F10 superseded)."""
+expects PRE-RANKED articles (ranking hoisted to main — F10 superseded).
+Also the RSS-level URL dedup key (2026-07-24)."""
 
 import digest
+import news
 
 
 def _article(title, url="https://example.com/a", source="WSJ"):
@@ -62,6 +64,19 @@ def test_build_news_html_all_covered_returns_empty():
     out = digest.build_news_html(
         [_article("Gray Media Buys Back Debt")], exclude_text=DIGEST_TEXT)
     assert out == ""
+
+
+# --- RSS URL dedup key (2026-07-24: the same WSJ article arrived via two
+# feeds differing only in the ?mod= tracking param and rendered twice) ---
+
+def test_canonical_url_strips_query_and_fragment():
+    a = "https://www.wsj.com/business/energy-oil/oil-prices-73df238a?mod=rss_markets_main"
+    b = "https://www.wsj.com/business/energy-oil/oil-prices-73df238a?mod=pls_whats_news"
+    assert news._canonical_url(a) == news._canonical_url(b)
+    assert news._canonical_url("https://x.com/p#frag") == "https://x.com/p"
+    # different paths stay distinct
+    assert (news._canonical_url("https://x.com/p1?q=1")
+            != news._canonical_url("https://x.com/p2?q=1"))
 
 
 def test_build_news_html_without_exclude_renders_all():
