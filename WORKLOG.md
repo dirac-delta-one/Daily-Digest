@@ -5,26 +5,52 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-23 night — five workstreams shipped in one day; server pulled through `b023ba4`, env.bat updated, ReplyMonitor restarted)
+## Current state (2026-07-24 — DEBUT SUCCEEDED; three debut nits fixed through `5795a84`; Monday 7/27 = combined validation)
 
-The single biggest dev day of the project (the 2026-07-23 entry below): jared's three complaints
-each got a root-cause fix — **within-digest repetition** (Bundle 2 + second batch + the
-jared-approved self-contained §1), **cross-day repetition** ("not really a daily digest" → PACER
-freshness filter, weekend-aware lookback, PREVIOUS DIGEST prompt context + daily-delta rule), and
-**stale snapshot data** ("treasury yields are wrong" → T-2 root cause found, Treasury.gov T-1
-switch, NY Fed SOFR, lag markers `*`/`**`, Cliffwater BDC row). Plus a latent silent-truncation
-production bug found and fixed (stop_reason guard, 48k caps, streaming), the repetition metric
-recalibrated (v2), and a pytest state-pollution bug fixed. `pytest` **473**, ruff clean, commits
-through **`b023ba4`**; ~$19 Claude across 5 permissioned test runs, every prompt change validated
-to acohen before it could reach jared.
+**The Fri 7/24 08:00 debut run succeeded** (verified email-side by pulling the bot's sent mail —
+see the 2026-07-24 entry): 12 sends (FULL + 5 TEAM + 6 per-recipient weekly wraps), zero ⚙️
+ops-alerts, self-contained §1 intact, rates T-1 with lag markers, Cliffwater row, clean FULL/TEAM
+separation. The **server log remains unread** — `Freshness:` (settles SNAPSHOT_UPDATE §2.4),
+`Repetition:` v2 scores, `Previous-digest context:`, PACER `Freshness filter:`, and cost are
+still to be checked from the box. Three small flags found in the review were fixed same day
+(commit **`5795a84`**, pytest **476**): WSJ tracking-param dup, Market Snapshot mirror-row dates
+missing from the footnote, and undated market rows in the prompt (SK Hynix's 7/24 Seoul close
+narrated as "Thursday"). Server pulls the evening of 7/24 (no ReplyMonitor restart needed).
+**Mon 2026-07-27 validates everything at once:** `Lookback window: 72h` + weekend content,
+no dup WSJ headlines, mirror-row dates enumerated, and correct date-framing of market moves.
 
-**Server is fully staged (operator, 7/23 night):** pulled `b023ba4`, `env.bat` recipients updated,
-ReplyMonitor `/End`+`/Run` → Running. **Fri 2026-07-24 08:00 is the debut** — log:
-`Previous-digest context:` line, `Treasury.gov par curves: 7 series`, first production
-`Freshness:` line (settles SNAPSHOT_UPDATE §2.4), `Repetition:` ×2, ~$5 cost (new baseline),
-NO truncation WARNINGs, per-recipient weekly `(N/N)` lines; email: self-contained §1
-w/ sub-bullets, dated story framing, rates as of Thursday w/ `*` markers, Cliffwater row.
-**Mon 2026-07-27** completes validation: `Lookback window: 72h` + weekend content present.
+---
+
+## 2026-07-24 — Debut-day review (email side) + three nit fixes
+
+**Debut verification (read-only, $0).** Pulled the bot's sent mail via `digest.get_gmail_service()`
+from the dev box: 6 digests (1 [FULL] jared + 5 TEAM: acohen, apain, sarmstrong, azhou,
+voterobarba) at 08:23 ET + 6 per-recipient weekly wraps at 08:29–08:31 — the Friday weekly debut
+worked, no reply-all exposure. **Zero ⚙️ ops-alert emails** (no truncation, no config warning, no
+degradation). Checklist confirmed in the HTML: self-contained §1 (12 stories, nested sub-bullets,
+`Contrarian:` lead), bare `(→ §N)` pointers ×7, dated story framing throughout, Rates Snapshot
+as-of Thursday (Treasury.gov T-1 switch worked) with `*` markers + close-explicit legend, NY Fed
+SOFR row, Cliffwater BDC row, no stale bankruptcies (no PACER section at all), per-user alert box
+on acohen's copy only, Krugman/Substack content in FULL only, SK Hynix = same-day 7/24 Seoul
+close (the feared §2.7 quote-endpoint fix looks unnecessary), no truncation. Server log items
+(Freshness/Repetition/cost lines) deferred — operator to read from the box.
+
+**Three nits found and fixed (commit `5795a84`; pytest 473→476, ruff clean; no Claude spend):**
+1. **WSJ dup headline** — "Oil Prices Roar Back…" rendered twice: same article from two WSJ
+   feeds, URLs differing only in the `?mod=` tracking param. `news._canonical_url` now keys the
+   RSS dedup on the URL sans query/fragment.
+2. **Market Snapshot footnote blind to mirror rows** — `_build_yahoo_table` computed
+   `as_of_label` from the section's Yahoo rows only; the 20Y UST/HYG/LQD extras (rendered via
+   `extra_rows_html`) had honest `*` markers but their dates never reached the enumeration (the
+   7/24 footnote listed only the S&P outlier). `build_market_table_html` now passes the extras'
+   `(label, date)` pairs into both the enumeration and the legend check.
+3. **Undated market rows in the prompt** — §1 called SK Hynix's -8.3% "Thursday"; Yahoo history
+   shows 7/23 KST was **+4.9%** and -8.3% was the **7/24 Friday Seoul session** (table right,
+   narrative wrong). Root cause: `format_market_data_for_prompt` sent levels/changes with no
+   dates, so Fable borrowed the day from Greenmantle's US-evening framing. Each row now carries
+   `as of <date>` — a data-block prompt change (byte-identical across variants, cache-safe;
+   ~trivial tokens). Per G1, first validation = the Mon 7/27 production run (operator's call —
+   no paid test).
 
 ---
 
