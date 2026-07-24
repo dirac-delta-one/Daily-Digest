@@ -102,6 +102,22 @@ def repetition_score(digest_html):
     return n_strong, n_weak, details
 
 
+def log_score(variant, digest_html):
+    """Compute and LOG one score — no persistence (2026-07-24, weekly wrap
+    observability). Deliberately never writes repetition_scores.json: that
+    series is the DAILY digest's v2 decision yardstick (HANDOFF §11.B
+    "sustained ≥4" rule) and weekly entries would pollute it. Returns
+    n_strong, or None on failure — never raises."""
+    try:
+        n_strong, n_weak, _ = repetition_score(digest_html)
+        print(f"  Repetition: {n_strong} strong + {n_weak} weak signal(s) "
+              f"in 2+ sections ({variant}, log-only)")
+        return n_strong
+    except Exception as e:
+        print(f"  Repetition metric failed: {e} — continuing.")
+        return None
+
+
 def record_score(variant, digest_html, today=None):
     """Compute, log, and persist one variant's score. Returns n_duplicated,
     or None on failure — never raises (metric must not break a digest run)."""

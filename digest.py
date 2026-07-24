@@ -1519,6 +1519,9 @@ def generate_weekly_summary(digests, cost_label=""):
     # so the queued entry can't ride this run's ⚙️ email — the WARNING line is
     # the observable signal.
     _guard_truncation(f"weekly summary{cost_label}", response)
+    # Repetition observability (2026-07-24): log-only — weekly scores must NOT
+    # land in repetition_scores.json, the daily v2 decision series.
+    repetition.log_score(f"weekly{cost_label}", weekly)
 
     tokens_in = response.usage.input_tokens
     tokens_out = response.usage.output_tokens

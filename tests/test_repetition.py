@@ -99,6 +99,19 @@ def test_record_score_persists_and_never_raises(tmp_path, monkeypatch):
     assert len(saved) == 2
 
 
+def test_log_score_never_persists(tmp_path, monkeypatch, capsys):
+    # 2026-07-24: the weekly wrap is scored log-only — repetition_scores.json
+    # is the DAILY digest's decision series and must stay weekly-free.
+    monkeypatch.setattr(repetition, "SCORES_PATH", tmp_path / "scores.json")
+    n = repetition.log_score("weekly (team)", DIGEST)
+    assert n == 3
+    assert not (tmp_path / "scores.json").exists()
+    out = capsys.readouterr().out
+    assert "weekly (team), log-only" in out
+    # never-raise contract holds on garbage input
+    assert repetition.log_score("weekly", None) == 0
+
+
 @pytest.mark.parametrize("bad", [None, "", "<p>no h2 at all</p>"])
 def test_score_handles_empty_input(bad):
     n_strong, n_weak, details = repetition.repetition_score(bad)
