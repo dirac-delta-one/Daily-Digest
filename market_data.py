@@ -9,9 +9,17 @@ section renders its own snapshot table (Gold dropped, per the same request).
 """
 
 import datetime
+import json
 import time
 
-from config import change_cell_html
+from config import REPO_ROOT, change_cell_html
+
+# BKLN 12M distribution yield has no free time series (Yahoo .info gives only
+# the current scalar), so 1D/1W/1M come from a local accrual cache — one
+# observation per run date, same pattern as ishares_data's OAS cache. 1D
+# appears on the 2nd distinct day, 1W after a week, 1M after ~a month.
+BKLN_YIELD_CACHE = REPO_ROOT / "bkln_yield_cache.json"
+BKLN_YIELD_KEEP_DAYS = 60
 
 # Yahoo Finance tickers -> (label, unit_type, section, metric)
 # section: "market" / "private" / "ai" render their own tables;
@@ -184,23 +192,27 @@ def fetch_market_data():
         except Exception:
             continue
 
-    # BKLN trailing 12M distribution yield (Private Credit Snapshot) — a
-    # level-only row (no free daily history for the yield, so no 1D/1W/1M).
+    # BKLN trailing 12M distribution yield (Private Credit Snapshot). Yahoo's
+    # .info gives only the current scalar (no time series), so 1D/1W/1M come
+    # from a local accrual cache (_bkln_yield_changes) — comparisons populate
+    # over subsequent runs. Changes are percentage POINTS, rendered in bps.
     try:
         info = yf.Ticker("BKLN").info
         y = info.get("dividendYield")
         if y:
             if y < 1:  # Yahoo sometimes returns a fraction (0.0659) vs 6.59
                 y *= 100
+            y = float(y)
+            chg_1d, chg_1w, chg_1m = _bkln_yield_changes(y)
             results.append({
                 "label": "BKLN",
-                "value": float(y),
+                "value": y,
                 "unit": "pct",
                 "section": "private",
                 "metric": "12M dist. yield",
-                "chg_1d": None, "pct_1d": None,
-                "chg_1w": None, "pct_1w": None,
-                "chg_1m": None, "pct_1m": None,
+                "chg_1d": chg_1d, "pct_1d": None,
+                "chg_1w": chg_1w, "pct_1w": None,
+                "chg_1m": chg_1m, "pct_1m": None,
                 "source": "Yahoo Finance: BKLN",
                 "as_of": "",
             })
@@ -231,6 +243,41 @@ def _fmt_value(label, value, unit):
     return f"{value:.2f}"
 
 
+def _bkln_yield_changes(value, today=None):
+    """(chg_1d, chg_1w, chg_1m) in percentage POINTS for BKLN's 12M distribution
+    yield, from the local accrual cache (no free time series exists). Records
+    today's observation and prunes; None where history hasn't accrued yet.
+    Same shape as ishares_data._changes_from_history, keyed on run date."""
+    today = today or datetime.date.today()
+    today_iso = today.isoformat()
+    try:
+        hist = json.loads(BKLN_YIELD_CACHE.read_text(encoding="utf-8"))
+    except Exception:
+        hist = {}
+
+    dated = sorted((datetime.date.fromisoformat(d), v)
+                   for d, v in hist.items() if d < today_iso)
+
+    def _at_or_before(target):
+        prior = [v for d, v in dated if d <= target]
+        return round(value - prior[-1], 4) if prior else None
+
+    chg_1d = round(value - dated[-1][1], 4) if dated else None
+    chg_1w = _at_or_before(today - datetime.timedelta(days=7))
+    chg_1m = _at_or_before(today - datetime.timedelta(days=30))
+
+    # Record today's observation + prune beyond the keep window.
+    hist[today_iso] = value
+    floor = (today - datetime.timedelta(days=BKLN_YIELD_KEEP_DAYS)).isoformat()
+    hist = {d: v for d, v in hist.items() if d >= floor}
+    try:
+        BKLN_YIELD_CACHE.write_text(json.dumps(hist, indent=1), encoding="utf-8")
+    except Exception as e:
+        print(f"  BKLN yield cache write failed: {e}")
+
+    return chg_1d, chg_1w, chg_1m
+
+
 def _fmt_change_cell(chg, pct, unit, label):
     """Format a change as '$ / %' string with color."""
     if chg is None:
@@ -257,6 +304,10 @@ def _fmt_change_cell(chg, pct, unit, label):
         dollar_str = ""  # KRW levels too large for a change figure, just show %
     elif unit == "index":
         dollar_str = f"{chg:+,.2f}"
+    elif unit == "pct":
+        # percentage-POINT change (e.g. BKLN's distribution yield) shown in bps,
+        # like the rate/spread rows; pct is None for these so no "% of %" cell
+        dollar_str = f"{chg * 100:+.0f} bps"
     else:
         dollar_str = f"{chg:+.2f}"
 

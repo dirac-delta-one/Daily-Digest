@@ -167,6 +167,29 @@ def test_change_cell_rounds_to_zero_renders_unch():
     assert "—" in dash and "unch" not in dash
 
 
+def test_bkln_yield_accrual_cache(tmp_path, monkeypatch):
+    # 2026-07-27: BKLN's 12M dist. yield has no Yahoo time series, so 1D/1W/1M
+    # come from a local accrual cache keyed on run date (like ishares OAS).
+    import json
+    import datetime
+    monkeypatch.setattr(market_data, "BKLN_YIELD_CACHE", tmp_path / "bkln.json")
+
+    # First ever run: no history -> all None, but today's value is recorded.
+    d1 = datetime.date(2026, 7, 24)
+    assert market_data._bkln_yield_changes(6.56, today=d1) == (None, None, None)
+    assert json.loads((tmp_path / "bkln.json").read_text())["2026-07-24"] == 6.56
+
+    # Next run: 1D is now computable (pp difference); 1W/1M not yet accrued.
+    d2 = datetime.date(2026, 7, 25)
+    chg_1d, chg_1w, chg_1m = market_data._bkln_yield_changes(6.59, today=d2)
+    assert round(chg_1d, 2) == 0.03 and chg_1w is None and chg_1m is None
+
+    # The pp change renders in bps in the private-credit change cell.
+    assert "+3 bps" in market_data._fmt_change_cell(0.03, None, "pct", "BKLN")
+    # a sub-half-bp yield wobble still collapses to unch (shared rule)
+    assert "unch" in market_data._fmt_change_cell(0.002, None, "pct", "BKLN")
+
+
 def test_market_table_footnote_enumerates_extras_dates():
     # 2026-07-24: the as-of footnote only saw the section's Yahoo rows — the
     # mirrored 20Y UST/HYG extras' older dates were never enumerated (their
