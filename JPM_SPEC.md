@@ -47,13 +47,17 @@ walled to jared's FULL variant the way Substack is.
 
 ## MFA access code (reuse Substack's proven pattern)
 
-The forwarded code email is read from the bot inbox exactly like Substack's OTP:
-`substack._find_login_code_in_gmail` + `_extract_otp_code` (freshness-gated on `since_epoch`,
-sender-scoped Gmail query). **BLOCKER: we have no code-email sample yet** — the bot inbox has
-ZERO JPM code emails (searched exhaustively 2026-07-27; only Substack + Google auth codes exist).
-JPM only emails a code when a login is *attempted*, so the first login (Phase 1) generates the
-first sample; the exact sender address, subject, and code format (length/placement) get pinned
-from THAT email, not guessed.
+The forwarded code email is read from the bot inbox exactly like Substack's OTP (freshness-gated
+on `since_epoch`, sender-scoped Gmail query). **Sample captured 2026-07-27** (from the first login
+attempt):
+- **From:** `authe.noreply@jpmchase.com`
+- **Subject:** `Your Authentication Code from JPMorgan Chase`
+- **Body:** "Your Authentication Code is `NNNNNNNN` and is available…" — **8 digits, in the BODY**
+  (not the subject); expires in 10 minutes.
+
+`jpm_research.read_jpm_code()` implements the reader (`from:authe.noreply@jpmchase.com
+newer_than:1h`, regex `Authentication Code is (\d{6,8})`, since_epoch freshness gate). The Phase-3
+digest exclusion filter keys on the same sender/subject.
 
 ## Credential-handling boundary (why the first login is human-run)
 
