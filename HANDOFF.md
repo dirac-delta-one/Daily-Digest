@@ -121,8 +121,13 @@ two `Repetition:` lines (v2 scale; 1–3 = noise floor), cost ~$5.0–5.5, NO tr
 weekly-wrap `(N/N recipient(s))` lines (Friday = per-recipient weekly debut too); email —
 self-contained §1 with sub-bullets + `Contrarian:` leads, dated framing on continuing stories,
 rates as of THURSDAY with `*` markers + the close-explicit legend, Cliffwater BDC row in Private
-Credit, only fresh bankruptcies. **Mon 2026-07-27:** `Lookback window: 72h` line + weekend
-content actually present. **Ongoing week:** metric-v2 STRONG counts (escalate only on sustained
+Credit, only fresh bankruptcies. *(Debut EXECUTED 2026-07-24 — email side + log both read; result
++ the five same-day fixes in WORKLOG 2026-07-24. §2.4 settled: same-day rows = VIX/WTI/DXY/BTC/SK
+Hynix.)* **Mon 2026-07-27 (needs the server log):** `Lookback window: 72h` line + weekend
+content actually present; pass-2 `Cache: ... read N` lines NONZERO (the 1h-TTL fix landing);
+**`Memory update` line SUCCEEDS — it truncated 7/24 (see §11.B) and memory.json is frozen at
+7/23 state until a run gets a clean update through**; no dup WSJ headlines; mirror-row dates in
+the Market Snapshot footnote; market moves date-framed correctly. **Ongoing week:** metric-v2 STRONG counts (escalate only on sustained
 ≥4 — the §11.B escalation plan: Idea 11 tripwire → gated Idea 10 dedup pass → structural, jared)
 + observed costs → update OPERATIONS' monthly burn. Drop `acohen` from `DIGEST_TO_TEAM` at the
 **2026-07-31** departure — the orphan-notice mechanism will flag her paused alerts in the ops
@@ -592,11 +597,27 @@ What remains is only what a future session might still act on.)*
 - **`source_type` include-filter on `search()`.** Only the exclude side shipped
   (`exclude_source_types`). Watch: query understanding wanting "only filings / only ratings"
   retrieval. Fix: ~5 lines in `search._filter_ids` + a param.
+- **⚠ Memory update TRUNCATED on the 7/24 debut — CHECK MONDAY'S LOG (2026-07-27), fix on
+  recurrence.** The debut log showed `Memory update truncated (stop_reason=max_tokens). Keeping
+  existing memory.` — the run discarded the day's delta, so **`memory.json` is frozen at its
+  7/23 state** and stays frozen until a run gets a clean update through. One skipped day is
+  benign by design (the keep-existing fallback worked); a SECOND truncation means the update
+  output has outgrown its cap at the current store size (106 active stories on 7/24 — the prompt
+  context trims to 55, but the UPDATE call's output scales with the day's delta + index) and it
+  becomes a real bug: memory goes permanently stale, which degrades cross-digest continuity and
+  the reply bot's story router. **What to do once the log is accessible:** read the Monday run's
+  memory lines; if truncated again, give `memory.py`'s update calls the same treatment the digest
+  passes (7/23) and the weekly wrap (7/24, `d2021bf`) got — streaming + a raised max_tokens cap.
+  TWO call sites share the shape and the 8,000 cap: `update_memory` (~line 481) and the Substack
+  memory update (~line 571) — fix BOTH (they're Sonnet calls, so tokens are cheap; the cap is a
+  runaway guard, not a budget). This also feeds the ~7/30 memory-aging decision:
+  a store that keeps outgrowing its update cap is the concrete trigger for the archival batch.
 - **Memory-store growth** — contexts are budget-bounded in code (60 stories / 45k chars; byte-
   identical until the store outgrows it). Ride-along watch on the next natural runs: resolved-story
   re-creation (the Sonnet index lists resolved stories as bare id slugs) + the "Memory context: N
   chars / M of K active" log line. Revert lever named in `memory._story_index_for_prompt`. The
   ~90-day archive-to-side-file idea stays available if the *store* itself ever needs shrinking.
+  *(7/24: 106 active — growth is accelerating; see the truncation entry above.)*
 - **Parked retrieval mechanisms (rerank / hybrid)** — see §6. Re-test kit: `tools/eval_retrieval.py`
   + `tools/eval_golden.json` (29 questions; grow the golden set as archive days accrue —
   cadence in `MAINTENANCE.md §5`).
