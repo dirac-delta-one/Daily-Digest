@@ -631,21 +631,18 @@ What remains is only what a future session might still act on.)*
 - **`source_type` include-filter on `search()`.** Only the exclude side shipped
   (`exclude_source_types`). Watch: query understanding wanting "only filings / only ratings"
   retrieval. Fix: ~5 lines in `search._filter_ids` + a param.
-- **⚠ Memory update TRUNCATED on the 7/24 debut — CHECK MONDAY'S LOG (2026-07-27), fix on
-  recurrence.** The debut log showed `Memory update truncated (stop_reason=max_tokens). Keeping
-  existing memory.` — the run discarded the day's delta, so **`memory.json` is frozen at its
-  7/23 state** and stays frozen until a run gets a clean update through. One skipped day is
-  benign by design (the keep-existing fallback worked); a SECOND truncation means the update
-  output has outgrown its cap at the current store size (106 active stories on 7/24 — the prompt
-  context trims to 55, but the UPDATE call's output scales with the day's delta + index) and it
-  becomes a real bug: memory goes permanently stale, which degrades cross-digest continuity and
-  the reply bot's story router. **What to do once the log is accessible:** read the Monday run's
-  memory lines; if truncated again, give `memory.py`'s update calls the same treatment the digest
-  passes (7/23) and the weekly wrap (7/24, `d2021bf`) got — streaming + a raised max_tokens cap.
-  TWO call sites share the shape and the 8,000 cap: `update_memory` (~line 481) and the Substack
-  memory update (~line 571) — fix BOTH (they're Sonnet calls, so tokens are cheap; the cap is a
-  runaway guard, not a budget). This also feeds the ~7/30 memory-aging decision:
-  a store that keeps outgrowing its update cap is the concrete trigger for the archival batch.
+- **Memory update cap — FIXED 2026-07-27 (`38a2f69`), keep watching the token line.** The 7/24
+  debut truncated the memory-update delta at the 8,000 `max_tokens` cap (`Memory update truncated
+  (stop_reason=max_tokens). Keeping existing memory.`) → `memory.json` froze at 7/23. The 7/27
+  Monday run recovered (`Memory delta applied: 22 updated, 12 new -> 118 active`) but at
+  **7,822/8,000 out (98%)** — a near-miss, since the delta output scales with changed-story count
+  and the store keeps growing (106→118). Fix: **both** update calls in `memory.py` (`update_memory`
+  + the substack one) raised 8,000 → **16,000** (still within Sonnet's safe non-streaming range;
+  the `stop_reason` keep-existing guard remains the safety net). **Ongoing watch:** the
+  `Memory pass tokens: N in + M out` line — if `M` approaches 16,000, raise again or switch to
+  streaming. This also informs the **~7/30 memory-aging decision**: a store whose delta keeps
+  growing toward the cap is the concrete signal to start the ~90-day archive-to-side-file batch
+  (see the next bullet) rather than just lifting the ceiling forever.
 - **Memory-store growth** — contexts are budget-bounded in code (60 stories / 45k chars; byte-
   identical until the store outgrows it). Ride-along watch on the next natural runs: resolved-story
   re-creation (the Sonnet index lists resolved stories as bare id slugs) + the "Memory context: N

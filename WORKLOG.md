@@ -21,6 +21,21 @@ no dup WSJ headlines, mirror-row dates enumerated, and correct date-framing of m
 
 ---
 
+## 2026-07-27 — Monday log validated; memory-update cap raised
+
+Operator pulled the server to HEAD `6fa5ee2` (fully current) and shared the Monday 08:00 log —
+which had run on the OLD pre-7/24 code (explains the findings). **Green:** `Lookback window: 72h
+(previous digest 2026-07-24)` (weekend-aware fix's first real Monday — passed), `Previous-digest
+context: 18,818 chars`, PACER `Freshness filter: dropped 1`, Treasury T-1, Repetition 2/2 (in
+range), all 6 sends, and the **memory update RECOVERED** (`22 updated, 12 new -> 118 active` —
+Friday's freeze was not permanent). **Two issues:** (1) `pass 2 read 0 tok` on both variants —
+the 1h-TTL fix wasn't deployed yet (server was pre-`d2021bf`); now that it's pulled, Tuesday's run
+is the real test. (2) The memory update recovered but at **7,822/8,000 out (98%)** with the store
+at 118 and climbing — a near-miss that will truncate again on a busy day. **Fix (`38a2f69`):**
+raised both `memory.py` update calls' `max_tokens` 8,000 → 16,000 (Sonnet, safe non-streaming;
+keep-existing guard stays). Cost `$10.32` (no weekly on Monday). Server needs one more pull for
+the memory fix; ReplyMonitor restart on that pull (reply_monitor.py touched by REPO_ROOT).
+
 ## 2026-07-27 — Snapshot rendering: round-to-zero "unch" + BKLN yield accrual cache
 
 Two operator requests on the snapshots. (1) **Round-to-zero → grey "unch".** A change that
