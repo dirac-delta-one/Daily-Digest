@@ -21,6 +21,25 @@ no dup WSJ headlines, mirror-row dates enumerated, and correct date-framing of m
 
 ---
 
+## 2026-07-27 — REORG_CHECKLIST.md + Phase 0 (REPO_ROOT anchor)
+
+The user asked whether the messy flat repo could be reorganized (src/ folder) via push/pull
+without disturbing the server tasks. Assessment: the full reorg is a coordinated code+server op
+(flat imports, .bat/task wiring, and the killer — 26 modules located the server's untracked
+state/secrets/`archive/` index via module-relative `SCRIPT_DIR`), NOT a pull, and not to be done
+in the pre-7/31 window. Wrote **`REORG_CHECKLIST.md`** (two-phase plan; keep entry points at root
+so tasks need no re-registration; full dev+server procedure + rollback + gotchas).
+
+**Phase 0 executed (`21e595b`, behavior-neutral, pull-safe):** added `config.REPO_ROOT`
+(sentinel-walk: dir with requirements.txt + .gitignore) and migrated all 17 production modules
+off `Path(__file__).parent` onto it — the 13 `SCRIPT_DIR =` modules plus 4 inline anchors
+(`reply_monitor` ARCHIVE_DIR, `ishares_data`/`repetition`/`ticker_names` cache/score paths).
+Verified every anchor still == repo root and derived paths (`token.json`, `archive/index.faiss`,
+caches) unchanged; ruff clean; pytest 478. This removes the Phase-1 "killer" (a src/ move now
+won't relocate where code looks for the server's root-level untracked files). Ships as a normal
+pull — no task disturbance, no file migration. Phase 1 (the actual module move) remains
+deferred to a maintenance window.
+
 ## 2026-07-27 — SNAPSHOT_UPDATE.md retired
 
 Retired per the built-and-distilled convention (full text in git history). Every free §5 step
