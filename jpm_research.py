@@ -37,14 +37,29 @@ SCRIPT_DIR = Path(__file__).parent
 SESSION_FILE = SCRIPT_DIR / "jpm_session.json"  # gitignored, like thirteen_d_session.json
 RECON_DIR = SCRIPT_DIR / "jpm_recon"
 
-# Login start = JPM_LINK (jared's entitled share-login gateway). Learned
-# 2026-07-27: JPM_LINK is https://share-login.jpmorgan.com/sessionExpire — a
-# session-EXPIRED page with a button that re-initiates jared's SHARED-ACCESS
-# session, then a login form. This is the entitled path. Going around it via
-# markets.jpmorgan.com/login logs in but dead-ends at "You do not have
-# appropriate entitlement to access this resource" (jared isn't entitled to the
-# full markets platform, only the shared resource behind JPM_LINK).
-LOGIN_URL = os.environ.get("JPM_LINK") or "https://share-login.jpmorgan.com/sessionExpire"
+# Login start = jared's entitled share-login gateway. Two 2026-07-27 lessons:
+# (1) The durable entry is the ROOT https://share-login.jpmorgan.com/ — the
+#     /sessionExpire path once captured in JPM_LINK was a transient
+#     session-expired page and later 404'd, so any path on the link is
+#     stripped down to the host root here.
+# (2) Do NOT go around the gateway via markets.jpmorgan.com/login — it
+#     authenticates but dead-ends at "You do not have appropriate entitlement
+#     to access this resource" (jared is entitled to the shared resource
+#     only, not the full markets platform).
+# ⚠ JPM rate-limits/BLOCKS an IP after repeated auth attempts (operator hit
+# this 2026-07-27 after ~3 tries). Automation must stay SINGLE-ATTEMPT per
+# run — never loop or retry a failed login; on failure, stop and wait
+# (hours). The server has its own IP and budget.
+def _login_root(link):
+    link = (link or "").strip()
+    if not link:
+        return "https://share-login.jpmorgan.com/"
+    from urllib.parse import urlsplit
+    parts = urlsplit(link if "://" in link else "https://" + link)
+    return f"{parts.scheme}://{parts.netloc}/"
+
+
+LOGIN_URL = _login_root(os.environ.get("JPM_LINK"))
 
 # Hosts/paths that mean we are NOT past auth / not yet at content.
 _UNAUTH_MARKERS = ("nwas.jpmorgan.com", "sessionexpire", "logon", "/sso", "/login")

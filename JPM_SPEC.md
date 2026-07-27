@@ -29,12 +29,19 @@ walled to jared's FULL variant the way Substack is.
 
 ## Login flow (mapped 2026-07-27, read-only recon)
 
-- **Entry = `JPM_LINK` = `https://share-login.jpmorgan.com/sessionExpire`** — jared's entitled
-  SHARED-ACCESS gateway. Session-expired landing shows a **button** → click it → login form →
-  username + password → (MFA only sometimes — device may be remembered) → the entitled research.
+- **Entry = the ROOT `https://share-login.jpmorgan.com/`** (confirmed by operator 2026-07-27) —
+  jared's entitled SHARED-ACCESS gateway. The `/sessionExpire` path once stored in `JPM_LINK` was
+  a transient session-expired page (later 404'd); the module now strips any path off `JPM_LINK`
+  down to the host root. Flow: landing (button and/or T&C acceptance) → login form → username +
+  password → (MFA access code only sometimes — the device may be remembered) → entitled research.
 - ⚠️ **Do NOT log in via `markets.jpmorgan.com/login`** — it authenticates but dead-ends at "You
   do not have appropriate entitlement to access this resource" (learned 2026-07-27: jared is
-  entitled to the shared resource behind JPM_LINK, not the full markets platform).
+  entitled to the shared resource behind the gateway, not the full markets platform).
+- ⚠️ **JPM blocks an IP after repeated auth attempts** (operator's IP blocked 2026-07-27 after
+  ~3 tries in quick succession). Discipline for all future work: **one attempt per run, never
+  retry a failed login, wait hours between attempts**; the unattended module must fail-soft and
+  skip (13D-style), never loop. The server's IP is separate from the dev machine's, so a dev-side
+  block doesn't poison production — but the same one-attempt rule applies there.
 - Selectors are defensive (13D-style) + a landing-button click; the authenticated/entitled-page
   DOM is captured by `jpm_recon/` on the next successful run.
 - This is a **browser SSO flow, not a JSON API** → Playwright module modeled on `thirteen_d.py`
