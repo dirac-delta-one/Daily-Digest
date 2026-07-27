@@ -7,6 +7,8 @@ credentials_*.json
 env.bat
 substack_cookie.txt
 thirteen_d_session.json
+jpm_session.json
+jpm_recon/
 
 # Cache / state
 # (alerts_config.json + watchlist.json are email-managed runtime state since
