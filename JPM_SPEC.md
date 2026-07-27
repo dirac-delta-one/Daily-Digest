@@ -29,10 +29,14 @@ walled to jared's FULL variant the way Substack is.
 
 ## Login flow (mapped 2026-07-27, read-only recon)
 
-- `markets.jpmorgan.com/login` → redirects to JPM SSO at `nwas.jpmorgan.com`.
-- **Username-first**: one field ("Email or Username") + CONTINUE, THEN a password page, THEN an
-  MFA access-code page. (Recon only reached the username page — the password/MFA page DOM is
-  unknown until we authenticate; selectors must be written defensively, 13D-style.)
+- **Entry = `JPM_LINK` = `https://share-login.jpmorgan.com/sessionExpire`** — jared's entitled
+  SHARED-ACCESS gateway. Session-expired landing shows a **button** → click it → login form →
+  username + password → (MFA only sometimes — device may be remembered) → the entitled research.
+- ⚠️ **Do NOT log in via `markets.jpmorgan.com/login`** — it authenticates but dead-ends at "You
+  do not have appropriate entitlement to access this resource" (learned 2026-07-27: jared is
+  entitled to the shared resource behind JPM_LINK, not the full markets platform).
+- Selectors are defensive (13D-style) + a landing-button click; the authenticated/entitled-page
+  DOM is captured by `jpm_recon/` on the next successful run.
 - This is a **browser SSO flow, not a JSON API** → Playwright module modeled on `thirteen_d.py`
   (drive a real browser, persist `storage_state`), NOT the clean-API `substack.py` client.
 - Playwright 1.60.0 is already installed in the venv (13D uses it).

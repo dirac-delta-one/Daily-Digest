@@ -37,17 +37,26 @@ SCRIPT_DIR = Path(__file__).parent
 SESSION_FILE = SCRIPT_DIR / "jpm_session.json"  # gitignored, like thirteen_d_session.json
 RECON_DIR = SCRIPT_DIR / "jpm_recon"
 
-# Canonical login start. NOT JPM_LINK — the operator's JPM_LINK on 2026-07-27
-# was https://share-login.jpmorgan.com/sessionExpire, a session-EXPIRED shim
-# page (a button-to-continue, no username field) that broke auto-fill. The real
-# login form lives at nwas.jpmorgan.com, reached via markets.jpmorgan.com/login.
-# JPM_LINK's real purpose (research deep-link?) is TBD — see RESEARCH_URL.
-LOGIN_URL = "https://markets.jpmorgan.com/login"
-RESEARCH_URL = os.environ.get("JPM_LINK", "")  # post-login destination (Phase 2); confirm intent
+# Login start = JPM_LINK (jared's entitled share-login gateway). Learned
+# 2026-07-27: JPM_LINK is https://share-login.jpmorgan.com/sessionExpire — a
+# session-EXPIRED page with a button that re-initiates jared's SHARED-ACCESS
+# session, then a login form. This is the entitled path. Going around it via
+# markets.jpmorgan.com/login logs in but dead-ends at "You do not have
+# appropriate entitlement to access this resource" (jared isn't entitled to the
+# full markets platform, only the shared resource behind JPM_LINK).
+LOGIN_URL = os.environ.get("JPM_LINK") or "https://share-login.jpmorgan.com/sessionExpire"
 
-# Hosts/paths that mean we are NOT past auth yet.
-_UNAUTH_MARKERS = ("nwas.jpmorgan.com", "share-login.jpmorgan.com",
-                   "sessionexpire", "/login", "logon", "/sso")
+# Hosts/paths that mean we are NOT past auth / not yet at content.
+_UNAUTH_MARKERS = ("nwas.jpmorgan.com", "sessionexpire", "logon", "/sso", "/login")
+
+# The share-login landing shows a button BEFORE the username form — click it
+# first if no username field is present yet.
+_LANDING_BUTTON_SELECTORS = (
+    "button:has-text('Log in')", "button:has-text('Login')",
+    "button:has-text('Sign in')", "button:has-text('Continue')",
+    "button:has-text('Proceed')", "a:has-text('Log in')",
+    "a:has-text('Login')", "a:has-text('Sign in')", "a[href*='login' i]",
+)
 
 # --- MFA access code email (confirmed sample 2026-07-27) ---
 # From: authe.noreply@jpmchase.com
@@ -137,6 +146,17 @@ def _fill_first(page, selectors, value, what):
     return False
 
 
+def _has_field(page, selectors):
+    for sel in selectors:
+        try:
+            el = page.query_selector(sel)
+            if el and el.is_visible():
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def _click_first(page, selectors, what):
     for sel in selectors:
         try:
@@ -192,6 +212,13 @@ def do_login():
         page = context.new_page()
         page.goto(LOGIN_URL, wait_until="domcontentloaded")
         page.wait_for_timeout(2500)
+
+        # share-login landing: a button precedes the username form. If no
+        # username field is visible yet, click the landing button first.
+        if not _has_field(page, _USERNAME_SELECTORS):
+            print("  No username field yet — clicking the landing button...")
+            if _click_first(page, _LANDING_BUTTON_SELECTORS, "landing/continue"):
+                page.wait_for_timeout(3500)
 
         # Username → continue
         if _fill_first(page, _USERNAME_SELECTORS, username, "username"):
