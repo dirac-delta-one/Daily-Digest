@@ -79,13 +79,17 @@ the reversal).** Reader confusion: the Corporate Credit table carried both **HY 
 OAS, FRED, T-2)** and **HYG (iBoxx fund-reported Portfolio OAS, ishares.com, T-1)** — different
 index families and measures, but they read as the same thing reporting two different spreads at
 different lags (7/24: 268 vs 272, with HYG's +31bps Friday move showing while ICE still printed
-Wednesday). First cut (`9357b0b`) dropped HYG; the operator then chose the OTHER direction for
-freshness-consistency: **restore HYG (T-1), drop the ICE HY broad row** — `BAMLH0A0HYM2` removed
-from `macro_data.FRED_SERIES` (revert note in place). The ICE **BB/B/CCC quality buckets and IG
-stay** (no T-1 substitute exists; the CCC-decompression storyline needs them; IG-next-to-LQD is
-the same visual pattern if it ever bothers readers). Both directions touched a jared-requested
-row set (2026-07-16) — worth a heads-up to him. Live-validated: `macro_data.py` fetches 23
-series with no HY line; `ishares_data.py` returns 4 readings incl. HYG. pytest 478.
+Wednesday). First cut (`9357b0b`) dropped HYG; the operator then chose the OTHER direction and generalized it
+into a rule — **"where the same asset appears at two lags, keep only the freshest"**: HYG
+restored, and BOTH ICE broad rows dropped (`503decd` = HY/`BAMLH0A0HYM2`; follow-up commit =
+IG/`BAMLC0A0CM`, its T-1 twin being LQD). **HYG and LQD (T-1, fund-reported) are now the
+digest's headline HY/IG spreads.** A full sweep of all five snapshot tables found no other
+same-asset-two-lags pairs: the ICE **quality buckets (AAA/A/BBB/BB/B/CCC) stay** (T-2, no T-1
+substitute at that granularity; the CCC-decompression storyline needs them), IGLB/IGIB are
+duration slices not duplicates, and the Market-table 20Y/HYG/LQD mirrors are same-value mirrors,
+not stale twins. Touches a jared-requested row set (2026-07-16) — worth a heads-up. Live-
+validated: `macro_data.py` credit block now runs AAA→CCC with no broad HY/IG lines;
+`ishares_data.py` returns 4 readings incl. HYG. pytest 478.
 
 **Weekly-wrap repetition observability (commit `e4ef194`; pytest 477).** The weekly wrap shares
 none of the anti-repetition machinery (its own 4-line system prompt, single-pass, unscored) —

@@ -476,11 +476,13 @@ What remains is only what a future session might still act on.)*
     the precise metric jared asked for — and (b) replace the ishares.com **web scrape**, which can
     silently break if the page layout changes, with a licensed feed. So this row is both
     *approximate* and *fragile* today; BBG fixes both. This is the ONLY currently-shipping item here.
-    *(2026-07-24, operator: the ICE **HY broad index OAS row was dropped** instead —
-    `BAMLH0A0HYM2` removed from `macro_data.FRED_SERIES` — because HY-next-to-HYG read as the same
-    measure reporting two spreads at different lags; **HYG (T-1) is now the digest's HY spread**.
-    The ICE BB/B/CCC quality buckets + IG stay (T-2, honestly `**`-marked). Revert note in the
-    `FRED_SERIES` comment.)*
+    *(2026-07-24, operator rule — "where the same asset appears at two lags, keep only the
+    freshest": the ICE **broad HY and IG index OAS rows were both dropped** — `BAMLH0A0HYM2` +
+    `BAMLC0A0CM` removed from `macro_data.FRED_SERIES` — because each sat next to its T-1
+    fund-reported iShares twin (HY↔HYG, IG↔LQD) reporting a different spread a day later.
+    **HYG and LQD (T-1) are now the digest's headline HY/IG spreads.** The ICE quality buckets
+    (AAA/A/BBB/BB/B/CCC) stay T-2 with `**` markers — no T-1 substitute exists at that
+    granularity. Revert note in the `FRED_SERIES` comment.)*
   - **(ii) Completely missing — no free source at all (BBG is the only way to get them):**
     - ~~**S&P BDC index (SPBDCUP)**~~ — *SUBSTITUTED 2026-07-23, jared-approved: the free daily
       **Cliffwater BDC Index** ships via `cliffwater_data.py` (labeled Cliffwater, never S&P).
