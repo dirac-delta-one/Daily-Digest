@@ -139,6 +139,34 @@ def test_market_table_cites_ishares_mirror_rows():
     assert "FRED" not in ishares_only
 
 
+def test_change_cell_rounds_to_zero_renders_unch():
+    # 2026-07-27: a change that rounds to zero at display precision must show a
+    # grey "unch", not "+0"/"-0.0%" with an up/down color.
+    import config
+
+    # shared helper: no nonzero digit -> unch (grey), regardless of the color arg
+    for zero_text in ("+0 bps", "-0 bps", "+0.0%", "-0.0%", "+$0.00 / -0.0%", "+0.00 / +0.0%"):
+        out = config.change_cell_html(zero_text, "#27ae60")
+        assert "unch" in out and "#999" in out
+        assert "#27ae60" not in out and zero_text not in out
+    # a real magnitude renders normally, signed + colored
+    out = config.change_cell_html("+31 bps", "#c0392b")
+    assert "+31 bps" in out and "#c0392b" in out and "unch" not in out
+
+    # macro bps formatter: a sub-half-bp positive move rounds to "+0 bps" -> unch
+    # (previously showed "+0 bps" in green because the raw sign was positive)
+    assert "unch" in macro_data._fmt_change_cell(0.002, "rate", "10Y")   # 0.2 bps
+    assert "unch" in macro_data._fmt_change_cell(0.0, "spread", "HY")     # exactly 0
+    assert "+10 bps" in macro_data._fmt_change_cell(0.10, "rate", "10Y")  # real move stays
+
+    # market formatter: tiny $/% that both round to zero -> unch; a real move stays
+    assert "unch" in market_data._fmt_change_cell(0.003, 0.002, "index", "DXY")
+    assert "unch" not in market_data._fmt_change_cell(-0.60, -3.1, "dollar", "ARCC")
+    # missing data stays an em-dash, NOT "unch" (no-data vs ~zero)
+    dash = market_data._fmt_change_cell(None, None, "dollar", "ARCC")
+    assert "—" in dash and "unch" not in dash
+
+
 def test_market_table_footnote_enumerates_extras_dates():
     # 2026-07-24: the as-of footnote only saw the section's Yahoo rows — the
     # mirrored 20Y UST/HYG extras' older dates were never enumerated (their

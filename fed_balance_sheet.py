@@ -8,6 +8,8 @@ Flags discount window usage and emergency lending as stress signals.
 import os
 import datetime
 
+from config import change_cell_html
+
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
 # series_id -> (label, scale_to_millions). Most H.4.1 series are in millions of $;
@@ -160,7 +162,7 @@ def build_fed_bs_table_html(results):
             color = "#c0392b" if wow > 0 and "Discount" in r["label"] else "#666"
             if "Total" in r["label"] or "Treasury" in r["label"] or "MBS" in r["label"]:
                 color = "#27ae60" if wow < 0 else "#666"  # QT = assets declining = green
-            wow_cell = f'<span style="color: {color}; font-weight: 600;">{wow_str}</span>'
+            wow_cell = change_cell_html(wow_str, color)
         else:
             wow_cell = '<span style="color: #999;">\u2014</span>'
 

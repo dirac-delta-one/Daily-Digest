@@ -14,6 +14,8 @@ them (operator decision 2026-07-15).
 import os
 import datetime
 
+from config import change_cell_html
+
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
 # FRED series -> (label, unit_type, section, metric)
@@ -290,7 +292,7 @@ def _fmt_change_cell(chg, unit, label):
     else:
         text = f"{chg:+.2f}"
 
-    return f'<span style="color: {color}; font-weight: 600;">{text}</span>'
+    return change_cell_html(text, color)
 
 
 def format_macro_for_prompt(data):

@@ -11,6 +11,8 @@ section renders its own snapshot table (Gold dropped, per the same request).
 import datetime
 import time
 
+from config import change_cell_html
+
 # Yahoo Finance tickers -> (label, unit_type, section, metric)
 # section: "market" / "private" / "ai" render their own tables;
 #          "credit" rows are embedded in macro_data's Corporate Credit table.
@@ -269,7 +271,7 @@ def _fmt_change_cell(chg, pct, unit, label):
     else:
         text = dollar_str
 
-    return f'<span style="color: {color}; font-weight: 600;">{text}</span>'
+    return change_cell_html(text, color)
 
 
 def lag_marker(as_of_date, today=None):

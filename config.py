@@ -6,6 +6,7 @@ helpers. Centralizes values that were previously hardcoded across modules.
 
 import html
 import os
+import re
 from pathlib import Path
 
 # --- Repo root anchor (REORG_CHECKLIST Phase 0, 2026-07-27) ---
@@ -178,3 +179,19 @@ def safe_href(u):
     """Only http(s) URLs pass through (escaped); anything else becomes '#'."""
     u = u or ""
     return esc(u) if u.startswith(("http://", "https://")) else "#"
+
+
+_CHANGE_HAS_MAGNITUDE = re.compile(r"[1-9]")
+
+
+def change_cell_html(text, color, muted="#999"):
+    """Wrap a formatted snapshot change (`text`) in its up/down-colored span —
+    UNLESS the value rounds to zero at its display precision, i.e. no nonzero
+    digit is shown ("+0 bps", "-0.0%", "+$0.00 / -0.0%"). Those render as a
+    grey "unch" instead: a negligible move shouldn't carry a sign or a
+    green/red color that implies a real up/down. Shared by every snapshot
+    table's change formatter (market_data, macro_data, fed_balance_sheet).
+    Distinct from the "—" shown for a MISSING change (no data vs ~zero)."""
+    if not _CHANGE_HAS_MAGNITUDE.search(text):
+        return f'<span style="color: {muted};">unch</span>'
+    return f'<span style="color: {color}; font-weight: 600;">{text}</span>'
