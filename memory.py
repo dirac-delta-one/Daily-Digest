@@ -477,9 +477,14 @@ def update_memory(digest_html):
     )
 
     try:
+        # max_tokens 8000 -> 16000 (2026-07-27): the delta output scales with the
+        # number of changed stories, and the store keeps growing (106->118). On
+        # 7/24 it hit the 8k cap and truncated (memory froze); 7/27 squeaked under
+        # at 7,822/8,000 (98%). 16k gives headroom for busy days; Sonnet, so cheap.
+        # The stop_reason guard below stays as the keep-existing safety net.
         response = client.messages.create(
             model=CLAUDE_MODEL,
-            max_tokens=8000,
+            max_tokens=16000,
             system=(
                 "You are a research memory manager maintaining evolving investment "
                 "storylines. Output only valid JSON matching the requested delta shape. "
@@ -567,9 +572,11 @@ def update_substack_memory(articles):
     )
 
     try:
+        # 8000 -> 16000 (2026-07-27): same headroom fix as the main memory
+        # update above (see that comment) — the substack store grows too.
         response = client.messages.create(
             model=CLAUDE_MODEL,
-            max_tokens=8000,
+            max_tokens=16000,
             system=(
                 "You are a research memory manager maintaining evolving investment "
                 "storylines from paid Substack newsletters. Output only valid JSON "
