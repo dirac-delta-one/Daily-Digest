@@ -21,6 +21,18 @@ no dup WSJ headlines, mirror-row dates enumerated, and correct date-framing of m
 
 ---
 
+## 2026-07-27 — SNAPSHOT_UPDATE.md retired
+
+Retired per the built-and-distilled convention (full text in git history). Every free §5 step
+was DONE 2026-07-23 and live-validated by the 7/24 debut log, which settled the last
+investigation question (§2.4: same-day rows at 08:00 = VIX/WTI/DXY/BTC/SK Hynix; §2.7
+unnecessary). The 7/24 freshest-only rule superseded §2.5's honest-labeling for the broad ICE
+rows (dropped instead). Distillation: paid-data lanes (§3.1's TRACE-$6k / cheap-stack-$8k /
+BBG-DL-$20k comparison + the TRACE re-pricing note vs the 2026-07-13 $9k rejection) → HANDOFF
+§11.A; the closed watch entry → HANDOFF §11.B. Still-active specs: REDUCE_REPEATS_SPEC (retire
+at the ~7/31 tripwire decision — its Idea 10 sketch + Idea 15 post-mortem are load-bearing until
+then) and JPM_SPEC (in-flight).
+
 ## 2026-07-24 — Debut-day review (email side) + three nit fixes
 
 **Debut verification (read-only, $0).** Pulled the bot's sent mail via `digest.get_gmail_service()`

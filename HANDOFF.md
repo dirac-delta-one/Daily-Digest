@@ -6,12 +6,17 @@
 >
 > **Companion docs:** `WORKLOG.md` = the full dated narrative of every change ever made and why
 > (the archive — start here for the *why* behind anything below). `OPERATIONS.md` = the jared-facing
-> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active spec:**
+> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active specs:**
 > `REDUCE_REPEATS_SPEC.md` (anti-repetition, 15 ideas; Bundle 1 BUILT 2026-07-22, Bundle 2+ pending
-> a week of live `repetition_scores.json` data — see its decision checklist; retire it after that
-> decision).
+> a week of live `repetition_scores.json` data — metric-v2 series started 2026-07-24, decision
+> ~7/31; see its decision checklist; retire it after that decision) and `JPM_SPEC.md` (JPM Markets
+> dealer research, started 2026-07-27 — in-flight, blocked on a working entitled link).
 > *(Retired/deleted, once built and distilled, to keep the doc set lean — all preserved in
-> git history: `ALERT_COMMANDS_SPEC.md` (retired 2026-07-22 same-day-as-built: email-managed
+> git history: `SNAPSHOT_UPDATE.md` (retired 2026-07-27: the snapshot-freshness investigation —
+> every free §5 step DONE 2026-07-23 and live-validated by the 7/24 debut log, which settled its
+> §2.4 same-day-rows question; §2.5's honest-labeling was then superseded by the 7/24 freshest-only
+> rule dropping the broad ICE rows; the one open item, the paid-data lane decision, is distilled
+> into §11.A below); `ALERT_COMMANDS_SPEC.md` (retired 2026-07-22 same-day-as-built: email-managed
 > alerts/watchlist Parts I+II incl. per-user alerts — everything shipped + live-spot-checked;
 > how-it-works → §4 rows + OPERATIONS + MAINTENANCE §1, build narrative + design decisions →
 > WORKLOG 2026-07-22 entries; remaining live validation = first real command reply on the server,
@@ -494,6 +499,27 @@ What remains is only what a future session might still act on.)*
 
   *(SpaceX **equity** came off the list 2026-07-16 — it IPO'd June 12, 2026 (Nasdaq: SPCX) and is
   now a normal Yahoo row in the AI Snapshot.)*
+
+  **Paid-data lane options (distilled from the retired `SNAPSHOT_UPDATE.md` §3.1, researched
+  2026-07-23 — full comparison tables in git history):** three ways to buy the wishlist, none
+  urgent, all jared's call:
+  - **Lane A alone — FINRA TRACE Snapshot feed, ~$6k/yr** (BTDS + 144A sets, $250/mo each,
+    once-daily file = exactly a morning digest's shape). T-1 *trade-print* prices for the wishlist
+    bonds + computable G-spreads vs the Treasury.gov curve. Caveat: prints gap on illiquid names
+    (no evaluated marks). NOTE: this re-prices HANDOFF's earlier "TRACE $9k/yr, rejected
+    2026-07-13" — that sizing predates the fee-schedule read, and the rejection was against a
+    2-issuer watchlist, not the full 7-bond wishlist; re-decide if wishlist visibility is wanted.
+    **The recommended starting lane if anything is bought.**
+  - **Cheap stack, ~$8k/yr** = Lane A + Databento CME Standard (~$2.1k/yr: live 8AM Treasury
+    quotes via BrokerTec + index/WTI/SOFR futures; needs bond math in code). ~80% of the
+    reader-visible value at ~40% of BBG's cost. Credit index OAS stays FRED T-2 (no cheap vendor
+    exists for ICE/BBG index OAS — enterprise-only).
+  - **BBG Data License, ~$20k/yr** = one vendor, turnkey: evaluated BVAL marks daily on every
+    wishlist bond, true G-spreads for the ETF rows (replacing the ishares scrape), T-1 index OAS,
+    live 8AM Treasuries. What the extra ~$12k buys over the cheap stack: evaluated-vs-print
+    quality, index-OAS parity with terminals, one onboarding.
+  Structural fact underneath all lanes: nothing makes the snapshots "live at 08:00" — most rows
+  are T-1-or-worse at any vendor; DL's unique value is the wishlist + credit-index T-1.
 - **`_assemble_digest_html` string-match insertion** — revisit only **if** archived digests show
   real section misplacement; the fix risks the tuned `SYSTEM_PROMPT` (§6). *(The numbering-collision
   member of this family was already fixed 2026-07-14 — appended sections are unnumbered.)*
@@ -521,22 +547,19 @@ What remains is only what a future session might still act on.)*
   **Watch:** the first Monday run (2026-07-27) logs the 72h line + weekend content appears; PACER
   section shows only fresh filings; cross-day repeats in jared's read; prompt cost +~5-6k input
   tokens/run (cached) from the context block.
-- **Snapshot-table data lag — see `SNAPSHOT_UPDATE.md` (the authoritative spec; this entry's
-  earlier T-1 claim was WRONG).** The 2026-07-23 investigation established the Rates + Corporate
-  Credit OAS rows were **T-2** at the 08:00 run (FRED republishes H.15, which posts ~4:15 PM for
-  the PRIOR day; this entry's original "verified T-1" was checked against an evening dev run, not
-  a production 08:00 email). SHIPPED same day: **Treasury.gov source switch** (`treasury_yields.py`
-  — same par curves, published same-day → Rates rows now T-1; per-series FRED fallback) and
-  **lag-honest footnotes on all five snapshot tables** (`market_data.as_of_label`: majority date +
-  per-date outlier enumeration, replacing the freshness-overstating `max(dates)`; each table now
-  states its lag class — prior close / same-day 24h rows / OAS "published the morning after each
-  close"). Also shipped 2026-07-23: **NY Fed SOFR direct** (`treasury_yields.fetch_sofr_series`,
-  wins the 8 AM publish race most days, FRED fallback) and the **freshness log line**
-  (`market_data._freshness_summary` — "Freshness: same-day bars: … | prior-session: …").
-  STILL OPEN from the spec's §5 sequence: **read the Freshness line from the first real 08:00
-  server log** to settle the same-day rows (§2.4), the Cliffwater-BDC-index question for jared
-  (§4 row 3), and the paid-data lanes (§3.1). ICE OAS rows stay T-2 — no free source is fresher;
-  now honestly labeled.
+- **Snapshot-table data lag — CLOSED (spec `SNAPSHOT_UPDATE.md` retired 2026-07-27; full
+  investigation in git history).** The 2026-07-23 investigation established the Rates + Corporate
+  Credit OAS rows were **T-2** at the 08:00 run; every free fix SHIPPED 2026-07-23
+  (**Treasury.gov par curves → Rates T-1** with per-series FRED fallback; **NY Fed SOFR direct**;
+  **lag-honest footnotes** via `market_data.as_of_label` majority-date + outlier enumeration;
+  the `Freshness:` log line) and was **live-validated by the 7/24 debut log**, which settled the
+  spec's §2.4 question: same-day rows at 08:00 = VIX, WTI, DXY, BTC, SK Hynix; all US-listed
+  equities = prior session (the §2.7 quote-endpoint idea = unnecessary). The 2026-07-24
+  **freshest-only rule** then superseded honest-labeling for the broad ICE rows: where the same
+  asset appeared at two lags, only the freshest stays (HY/IG ICE rows dropped; HYG/LQD T-1 are
+  the headline spreads; AAA–CCC buckets stay T-2 — no fresher source exists at that granularity,
+  and that residual lag is structural, not fixable free). The spec's one open thread — paid-data
+  lanes — is distilled into §11.A above (TRACE $6k / cheap stack $8k / BBG DL $20k).
 - **Repetition score (REDUCE_REPEATS Bundles 1+2 + second batch, shipped 2026-07-22/23).** Every
   run logs `Repetition: N strong + M weak signal(s)` and appends to `repetition_scores.json`
   (server-side). Shipped 2026-07-23 after readers noticed repetition in the first Fable production
