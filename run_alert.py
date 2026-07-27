@@ -27,7 +27,9 @@ import sys
 from email.mime.text import MIMEText
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).parent
+from config import REPO_ROOT
+
+SCRIPT_DIR = REPO_ROOT
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 TAIL_LINES = 40
 

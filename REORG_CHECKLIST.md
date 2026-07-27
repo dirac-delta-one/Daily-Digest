@@ -43,7 +43,22 @@ Three things assume every module lives at the repo root:
 Do the reorg in **two phases**. Phase 0 is behavior-neutral and pull-safe on its own; it removes
 the killer so Phase 1 becomes a normal change.
 
-### Phase 0 — decouple data location from code location (ship anytime, safe)
+### Phase 0 — decouple data location from code location — ✅ DONE 2026-07-27 (`config.REPO_ROOT`)
+
+**Shipped.** `config.REPO_ROOT` (sentinel-walk anchor: walks up to the dir holding both
+`requirements.txt` and `.gitignore`) is now the single source of truth. All 17 production modules
+that located root state/secret/data files by module-relative path (`SCRIPT_DIR =
+Path(__file__).parent`, plus the four inline `Path(__file__).parent / "…"` anchors in
+`reply_monitor`, `ishares_data`, `repetition`, `ticker_names`) now derive from `REPO_ROOT`.
+Behavior-neutral (verified: every `SCRIPT_DIR`/anchor == repo root today; `token.json`,
+`archive/index.faiss`, all caches resolve unchanged), ruff clean, pytest 478. Deployed as a
+normal pull — no task disturbance, no server file migration. **The Phase-1 killer is now
+removed**: moving code into `src/` will not move where the code looks for the server's untracked
+root files, because they're addressed via `REPO_ROOT`, not the module's folder. (`config.py`
+stays at root in the Phase-1 layout, so the anchor stays correct.) Design notes below kept for
+reference.
+
+*Original plan (for reference):*
 
 Introduce a single source of truth for the repo root that does NOT change when code moves:
 

@@ -22,9 +22,9 @@ the source recovers (deliberate: an unresolved outage should keep nagging).
 
 import datetime
 import json
-from pathlib import Path
+from config import REPO_ROOT
 
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 COUNTS_FILE = SCRIPT_DIR / "source_counts.json"
 
 KEEP_RUNS = 30       # rolling history length

@@ -22,11 +22,10 @@ import html
 import json
 import re
 import urllib.request
-from pathlib import Path
 
-from config import FEED_USER_AGENT
+from config import FEED_USER_AGENT, REPO_ROOT
 
-CACHE_PATH = Path(__file__).parent / "ishares_oas_cache.json"
+CACHE_PATH = REPO_ROOT / "ishares_oas_cache.json"
 CACHE_KEEP_DAYS = 60
 
 # ticker -> (product page URL, row label)

@@ -32,9 +32,9 @@ not seen (PDFs ride as document blocks, not prompt text) — accepted.
 
 import json
 import re
-from pathlib import Path
+from config import REPO_ROOT
 
-CACHE_PATH = Path(__file__).parent / "ticker_names_cache.json"  # gitignored (*_cache.json)
+CACHE_PATH = REPO_ROOT / "ticker_names_cache.json"  # gitignored (*_cache.json)
 
 MAX_GLOSSARY_LINES = 80
 

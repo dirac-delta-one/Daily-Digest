@@ -26,9 +26,9 @@ don't compare them 1:1 against post-recalibration numbers.
 import datetime
 import json
 import re
-from pathlib import Path
+from config import REPO_ROOT
 
-SCORES_PATH = Path(__file__).parent / "repetition_scores.json"
+SCORES_PATH = REPO_ROOT / "repetition_scores.json"
 KEEP_DAYS = 180
 
 # <h2> titles excluded from scoring (substring match).

@@ -9,12 +9,11 @@ Best shown on Mondays in the digest.
 import json
 import datetime
 import urllib.request
-from pathlib import Path
 
 from net_utils import unverified_ssl_context
-from config import FEED_USER_AGENT
+from config import FEED_USER_AGENT, REPO_ROOT
 
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 CACHE_DIR = SCRIPT_DIR / "archive" / "cot_cache"
 
 # CFTC data URLs

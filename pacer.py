@@ -17,16 +17,15 @@ import time
 import xml.etree.ElementTree as ET
 import urllib.request
 import urllib.error
-from pathlib import Path
 
 import anthropic
 
-from config import esc, safe_href, SONNET_MODEL, USER_AGENT
+from config import esc, safe_href, REPO_ROOT, SONNET_MODEL, USER_AGENT
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 from html_utils import strip_html
 import cost
 
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 SEEN_FILE = SCRIPT_DIR / "pacer_seen.json"
 
 # ======================================================================

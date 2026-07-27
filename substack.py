@@ -15,7 +15,7 @@ import time
 import datetime
 import html
 from html.parser import HTMLParser
-from pathlib import Path
+from config import REPO_ROOT
 from urllib.parse import urlparse
 
 import requests as req
@@ -53,7 +53,7 @@ SUBSCRIPTIONS = [
 ]
 
 # Persistence
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 COOKIE_FILE = SCRIPT_DIR / "substack_cookie.txt"
 
 

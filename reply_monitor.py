@@ -17,7 +17,6 @@ import sys
 import time
 import datetime
 from email.mime.text import MIMEText
-from pathlib import Path
 
 import anthropic
 
@@ -29,13 +28,13 @@ from search import search, extract_entities, dedupe_near_duplicates
 from memory import match_stories, SUBSTACK_MEMORY_FILE
 from config import (
     OPUS_MODEL, SONNET_MODEL, DIGEST_SUBJECT_PREFIX,
-    FULL_ACCESS_SENDERS, TEAM_ACTIVATION_DATE,
+    FULL_ACCESS_SENDERS, REPO_ROOT, TEAM_ACTIVATION_DATE,
 )
 from claude_utils import parse_json_response, json_schema_output, wrapped_array_schema
 import cost
 from html_utils import extract_gmail_body, strip_html
 
-ARCHIVE_DIR = Path(__file__).parent / "archive"
+ARCHIVE_DIR = REPO_ROOT / "archive"
 
 # --- Configuration ---
 POLL_INTERVAL_SECONDS = 300    # check every 5 minutes

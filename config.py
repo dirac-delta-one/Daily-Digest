@@ -6,6 +6,28 @@ helpers. Centralizes values that were previously hardcoded across modules.
 
 import html
 import os
+from pathlib import Path
+
+# --- Repo root anchor (REORG_CHECKLIST Phase 0, 2026-07-27) ---
+# Single source of truth for the repo root, used by every module to locate the
+# server's state/secret/data files (token.json, memory.json, archive/, …) and
+# data dirs. Modules set `SCRIPT_DIR = REPO_ROOT` instead of the old
+# `Path(__file__).parent`, so those paths stay anchored to the repo root even
+# if a module later moves into a src/ package (Phase 1) — the server's untracked
+# files live at the root and a pull never moves them. Anchors by walking up to
+# the dir carrying both sentinels rather than a fixed parent count, so it stays
+# correct wherever config.py sits (it stays at root in the Phase-1 layout).
+# Behavior-neutral today: every module is at the root, so REPO_ROOT already
+# equals each module's Path(__file__).parent.
+def _repo_root():
+    here = Path(__file__).resolve()
+    for cand in (here.parent, *here.parents):
+        if (cand / "requirements.txt").exists() and (cand / ".gitignore").exists():
+            return cand
+    return here.parent  # fallback: config.py's own dir
+
+
+REPO_ROOT = _repo_root()
 
 # --- Claude models ---
 # Opus upgraded 4.6 -> 4.8 (same API surface, same $5/$25 pricing).

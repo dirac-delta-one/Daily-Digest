@@ -9,12 +9,11 @@ import json
 import time
 import datetime
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
-from config import esc, safe_href
+from config import REPO_ROOT, esc, safe_href
 from net_utils import edgar_get
 
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 CACHE_DIR = SCRIPT_DIR / "archive" / "13f_cache"
 
 # Days to look back for new filings (check weekly for quarterly filings)

@@ -15,14 +15,13 @@ Usage:
 import json
 import re
 import sys
-from pathlib import Path
 
 import numpy as np
 
-from config import TEAM_ACTIVATION_DATE, is_self_artifact, is_substack_email
+from config import REPO_ROOT, TEAM_ACTIVATION_DATE, is_self_artifact, is_substack_email
 from html_utils import strip_html, parse_forwarded_from
 
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 ARCHIVE_DIR = SCRIPT_DIR / "archive"
 INDEX_FILE = ARCHIVE_DIR / "index.faiss"
 METADATA_FILE = ARCHIVE_DIR / "chunk_metadata.json"

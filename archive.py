@@ -21,9 +21,9 @@ Directory structure:
 import base64
 import json
 import datetime
-from pathlib import Path
+from config import REPO_ROOT
 
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 ARCHIVE_DIR = SCRIPT_DIR / "archive"
 
 

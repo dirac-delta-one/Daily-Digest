@@ -25,15 +25,14 @@ import copy
 import datetime
 import json
 import os
-from pathlib import Path
 
 import anthropic
 
-from config import SONNET_MODEL, esc
+from config import REPO_ROOT, SONNET_MODEL, esc
 from claude_utils import parse_json_response, json_schema_output
 import cost
 
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 ALERTS_FILE = SCRIPT_DIR / "alerts_config.json"
 WATCHLIST_FILE = SCRIPT_DIR / "watchlist.json"
 

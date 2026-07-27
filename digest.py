@@ -17,7 +17,6 @@ import time
 import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.mime.text import MIMEText
-from pathlib import Path
 
 import anthropic
 from google.auth.transport.requests import Request
@@ -28,7 +27,7 @@ from googleapiclient.discovery import build
 
 from config import (
     FABLE_MODEL, HAIKU_MODEL, DIGEST_SUBJECT_PREFIX, TEAM_ACTIVATION_DATE,
-    FORWARDER_ADDRESSES, esc, safe_href, unattended, is_self_artifact,
+    FORWARDER_ADDRESSES, REPO_ROOT, esc, safe_href, unattended, is_self_artifact,
     is_substack_email,
 )
 from config import BOT_ADDRESS  # noqa: F401  (re-exported for tests/callers)
@@ -143,7 +142,7 @@ CLAUDE_MODEL = FABLE_MODEL
 _is_self_artifact = is_self_artifact
 
 # Paths (relative to this script)
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 CREDENTIALS_FILE = SCRIPT_DIR / "credentials.json"  # from Google Cloud Console
 TOKEN_FILE = SCRIPT_DIR / "token.json"  # auto-generated after first login
 DIGESTS_DIR = SCRIPT_DIR / "digests"  # saved daily digests for weekly summary

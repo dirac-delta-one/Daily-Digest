@@ -31,9 +31,9 @@ import os
 import re
 import sys
 import time
-from pathlib import Path
+from config import REPO_ROOT
 
-SCRIPT_DIR = Path(__file__).parent
+SCRIPT_DIR = REPO_ROOT
 SESSION_FILE = SCRIPT_DIR / "jpm_session.json"  # gitignored, like thirteen_d_session.json
 RECON_DIR = SCRIPT_DIR / "jpm_recon"
 
