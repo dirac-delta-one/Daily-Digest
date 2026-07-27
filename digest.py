@@ -2064,7 +2064,7 @@ def main():
 
     neutral_alerts_html = build_alerts_html(list(deterministic_alerts),
                                             list(shared_expiry))
-    # mirror rows: 20Y UST (FRED) + HYG/LQD OAS (iShares) into Market Snapshot
+    # mirror rows: 20Y UST (FRED) + LQD OAS (iShares) into Market Snapshot
     market_html = build_market_table_html(market_data, macro_data + ishares_oas)
     rates_html = build_rates_table_html(macro_data)
     # iShares fund-reported OAS rows render after the FRED index OAS rows

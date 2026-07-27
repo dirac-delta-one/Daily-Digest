@@ -471,11 +471,14 @@ What remains is only what a future session might still act on.)*
   free source; add if a Bloomberg Data License ever lands. In-code comment blocks mark the slots
   (`market_data.YAHOO_TICKERS`, `macro_data.FRED_SERIES` credit section). Grouped by what BBG buys:
   - **(i) Substituted — shipping today via a fragile free stand-in (BBG = a quality *and* robustness
-    upgrade):** **HYG / LQD / IGLB / IGIB** ship as fund-reported **portfolio OAS** scraped from
+    upgrade):** **LQD / IGLB / IGIB** ship as fund-reported **portfolio OAS** scraped from
     ishares.com (`ishares_data.py`, 2026-07-16). BBG would (a) swap **OAS → the wanted G-spread** —
     the precise metric jared asked for — and (b) replace the ishares.com **web scrape**, which can
     silently break if the page layout changes, with a licensed feed. So this row is both
     *approximate* and *fragile* today; BBG fixes both. This is the ONLY currently-shipping item here.
+    *(HYG was in this set until **2026-07-24** — dropped (operator): its T-1 Portfolio OAS next to
+    the ICE HY Index OAS row read as the same measure reporting two different spreads. Revert
+    instructions live in the `ishares_data.FUNDS` comment.)*
   - **(ii) Completely missing — no free source at all (BBG is the only way to get them):**
     - ~~**S&P BDC index (SPBDCUP)**~~ — *SUBSTITUTED 2026-07-23, jared-approved: the free daily
       **Cliffwater BDC Index** ships via `cliffwater_data.py` (labeled Cliffwater, never S&P).

@@ -325,7 +325,9 @@ def as_of_label(pairs):
 # to their own snapshot section (jared 2026-07-16: 20Y UST in Market AND
 # Rates; HYG/LQD OAS in Market AND Corporate Credit). The rows come from the
 # combined macro_data + ishares_data fetch lists digest passes in.
-MARKET_FRED_EXTRAS = ("DGS20", "ISHARES:HYG", "ISHARES:LQD")
+# ISHARES:HYG dropped 2026-07-24 with the HYG row itself — see
+# ishares_data.FUNDS for the rationale + revert instructions.
+MARKET_FRED_EXTRAS = ("DGS20", "ISHARES:LQD")
 
 
 def build_market_table_html(data, fred_data=None):
