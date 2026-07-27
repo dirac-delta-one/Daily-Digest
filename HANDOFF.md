@@ -290,11 +290,15 @@ alert email to the operator channel + digest chunks un-indexed + memory frozen; 
 
 **Gitignored, account-bound secrets** (must exist on the machine; copy or regenerate):
 `credentials.json`, `token.json` (Gmail — the durable *production* token minted 2026-07-10),
-`substack_cookie.txt`, `thirteen_d_session.json`, `env.bat`, plus caches/state (`*_cache.json`
-incl. `ticker_names_cache.json`, `pacer_seen.json`, `memory.json`, `substack_memory.json`,
-`source_counts.json`, `repetition_scores.json`, and — email-managed, self-seeding from
+`substack_cookie.txt`, `thirteen_d_session.json`, `jpm_session.json` (JPM Playwright session,
+2026-07-27 — see JPM_SPEC), `env.bat`, plus caches/state (`ishares_oas_cache.json`,
+`ticker_names_cache.json`, `bkln_yield_cache.json` (BKLN 12M-yield accrual, self-seeds),
+`pacer_seen.json`, `memory.json`, `substack_memory.json`, `source_counts.json`,
+`repetition_scores.json`, `wiltw_cache.json`, and — email-managed, self-seeding from
 `alert_commands.py` defaults if absent — `alerts_config.json` + `watchlist.json`).
-*(`credentials_JARED.json` is a dev-machine backup only — do NOT copy it to the server.)*
+All caches/state self-seed if absent (no manual copy needed); the *secrets* above must be
+installed. *(`credentials_JARED.json`, a pre-2026-06-30-flip OAuth-client dev backup, was deleted
+2026-07-27 — obsolete since the bot-identity flip; the live client is `credentials.json`.)*
 
 **Env vars:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),
 `SUBSTACK_EMAIL` (Substack OTP-code renewal), `DIGEST_TO` (full-digest recipient override — leave

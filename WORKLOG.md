@@ -21,6 +21,25 @@ no dup WSJ headlines, mirror-row dates enumerated, and correct date-framing of m
 
 ---
 
+## 2026-07-27 — Snapshot rendering: round-to-zero "unch" + BKLN yield accrual cache
+
+Two operator requests on the snapshots. (1) **Round-to-zero → grey "unch".** A change that
+rounds to zero at display precision was shown with a sign + up/down color (e.g. a sub-half-bp
+move → "+0 bps" in green, because color was picked from the raw sign). New shared
+`config.change_cell_html(text, color)` renders a grey "unch" when the formatted cell shows no
+nonzero digit, else the colored span; wired into all three snapshot change formatters
+(`market_data`/`macro_data`/`fed_balance_sheet._fmt_change_cell` + the Fed WoW cell). Whole-cell
+aware (a real magnitude anywhere, e.g. "-$0.60 / -3.1%", still renders) and distinct from the "—"
+for missing data. (2) **BKLN 12M dist. yield 1D/1W/1M.** Was "—" for all changes — not a broken
+cache, but *no* cache: Yahoo `.info["dividendYield"]` is a current-only scalar with no time
+series. Added `bkln_yield_cache.json` (REPO_ROOT, gitignored, self-seeding) recording one
+observation per run date — mirrors `ishares_data`'s OAS cache; 1D from the 2nd distinct day, 1W
+after a week, 1M after ~a month. Changes are percentage POINTS rendered in bps via a new "pct"
+branch in `market_data._fmt_change_cell` (and collapse to "unch" when sub-half-bp). Populates
+going forward (still "—" until history accrues — confirmed in the 7/27 sample's first run).
+ruff clean, pytest **480** (+2). Sample emailed to acohen. HANDOFF §4 state inventory refreshed
+(added jpm_session.json + bkln_yield_cache.json; noted credentials_JARED.json deleted).
+
 ## 2026-07-27 — REORG_CHECKLIST.md + Phase 0 (REPO_ROOT anchor)
 
 The user asked whether the messy flat repo could be reorganized (src/ folder) via push/pull
