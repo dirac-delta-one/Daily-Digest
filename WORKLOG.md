@@ -74,17 +74,18 @@ same streaming/cap treatment and feeds the ~7/30 aging decision. **Friday all-in
 after the cache fix lands (it should shave $1.5+/run). Validation: Mon 7/27 = cache-read lines
 nonzero on pass 2; Fri 7/31 = complete weeklies at <32k out.
 
-**HYG row dropped from the snapshots (operator).** Reader confusion: the Corporate Credit table
-carried both **HY (ICE BofA Index OAS, FRED, T-2)** and **HYG (iBoxx fund-reported Portfolio OAS,
-ishares.com, T-1)** — different index families and measures, but they read as the same thing
-reporting two different spreads with different lags (7/24: 268 vs 272, and HYG's +31bps Friday
-move showing while ICE still printed Wednesday). Removed the `FUNDS["HYG"]` entry
-(`ishares_data.py`) + `"ISHARES:HYG"` from `market_data.MARKET_FRED_EXTRAS` — HYG disappears from
-the Corporate Credit table, the Market Snapshot mirror, and the prompt block in one change;
-LQD/IGLB/IGIB unchanged. Revert instructions in the `FUNDS` comment (this was a jared-requested
-row, 2026-07-16 — flag it to him if HY-market freshness is missed; the ICE row is now the only HY
-spread and it stays T-2 at 08:00). Live-validated with the free fetcher (3 readings, no HYG);
-mirror-row test retargeted to LQD; pytest 478.
+**ICE HY index row dropped; HYG kept as the HY spread (operator; two commits — `9357b0b` then
+the reversal).** Reader confusion: the Corporate Credit table carried both **HY (ICE BofA Index
+OAS, FRED, T-2)** and **HYG (iBoxx fund-reported Portfolio OAS, ishares.com, T-1)** — different
+index families and measures, but they read as the same thing reporting two different spreads at
+different lags (7/24: 268 vs 272, with HYG's +31bps Friday move showing while ICE still printed
+Wednesday). First cut (`9357b0b`) dropped HYG; the operator then chose the OTHER direction for
+freshness-consistency: **restore HYG (T-1), drop the ICE HY broad row** — `BAMLH0A0HYM2` removed
+from `macro_data.FRED_SERIES` (revert note in place). The ICE **BB/B/CCC quality buckets and IG
+stay** (no T-1 substitute exists; the CCC-decompression storyline needs them; IG-next-to-LQD is
+the same visual pattern if it ever bothers readers). Both directions touched a jared-requested
+row set (2026-07-16) — worth a heads-up to him. Live-validated: `macro_data.py` fetches 23
+series with no HY line; `ishares_data.py` returns 4 readings incl. HYG. pytest 478.
 
 **Weekly-wrap repetition observability (commit `e4ef194`; pytest 477).** The weekly wrap shares
 none of the anti-repetition machinery (its own 4-line system prompt, single-pass, unscored) —

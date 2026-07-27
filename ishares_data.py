@@ -32,14 +32,14 @@ CACHE_KEEP_DAYS = 60
 # ticker -> (product page URL, row label)
 # HYG/LQD added 2026-07-16 (operator: both the credit table AND a Market
 # Snapshot mirror — see digest.py / market_data.MARKET_FRED_EXTRAS).
-# HYG DROPPED 2026-07-24 (operator): its T-1 Portfolio OAS sat next to the
-# ICE HY Index OAS row (a different index family, T-2) and read as the same
-# thing reporting two different spreads. Revert = restore the entry below +
-# "ISHARES:HYG" in market_data.MARKET_FRED_EXTRAS:
-#   "HYG":  ("https://www.ishares.com/us/products/239565/"
-#            "ishares-iboxx-high-yield-corporate-bond-etf",
-#            "HYG (iBoxx HY)"),
+# 2026-07-24 (operator): HYG next to the ICE HY Index OAS row read as the
+# same measure reporting two different spreads at different lags — resolved
+# by dropping the ICE HY row (T-2; macro_data.FRED_SERIES) and KEEPING this
+# T-1 fund-reported row as the digest's HY spread.
 FUNDS = {
+    "HYG":  ("https://www.ishares.com/us/products/239565/"
+             "ishares-iboxx-high-yield-corporate-bond-etf",
+             "HYG (iBoxx HY)"),
     "LQD":  ("https://www.ishares.com/us/products/239566/"
              "ishares-iboxx-investment-grade-corporate-bond-etf",
              "LQD (iBoxx IG)"),

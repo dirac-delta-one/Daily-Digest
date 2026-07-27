@@ -40,7 +40,13 @@ FRED_SERIES = {
     #  = DGS30 - DFII30 after DFII10; 2s10s stays prompt-only)
     # --- Corporate Credit Snapshot (ICE BofA index OAS — the free analogs of
     #     the Bloomberg LF98/LUAC/LU3A/LU1A/LUBA/BCBA/BCBH/BCAU OAS tickers) ---
-    "BAMLH0A0HYM2":  ("HY",   "spread", "credit", "Index OAS"),
+    # ICE HY broad index OAS (BAMLH0A0HYM2) DROPPED 2026-07-24 (operator):
+    # next to HYG's T-1 fund-reported Portfolio OAS it read as the same
+    # measure reporting a different spread a day later (ICE publishes the
+    # morning after each close -> T-2 at an 08:00 send). HYG (ishares_data)
+    # is now the digest's HY spread; the BB/B/CCC quality buckets below stay
+    # (no T-1 substitute exists, and the CCC decompression story needs them).
+    # Revert = restore: "BAMLH0A0HYM2": ("HY", "spread", "credit", "Index OAS"),
     "BAMLC0A0CM":    ("IG",   "spread", "credit", "Index OAS"),
     "BAMLC0A1CAAA":  ("AAA",  "spread", "credit", "Index OAS"),
     "BAMLC0A3CA":    ("A",    "spread", "credit", "Index OAS"),

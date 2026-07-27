@@ -71,7 +71,7 @@ def test_fetch_builds_credit_rows(monkeypatch, tmp_path):
     monkeypatch.setattr(ishares_data.urllib.request, "urlopen",
                         lambda req, timeout=0: _Resp())
     rows = ishares_data.fetch_ishares_oas()
-    assert len(rows) == len(ishares_data.FUNDS)  # LQD + IGLB + IGIB (HYG dropped 2026-07-24)
+    assert len(rows) == len(ishares_data.FUNDS)  # HYG + LQD + IGLB + IGIB
     for row in rows:
         assert row["section"] == "credit"
         assert row["unit"] == "spread"

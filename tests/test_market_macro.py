@@ -119,8 +119,8 @@ def test_market_table_embeds_fred_extras():
 def test_market_table_cites_ishares_mirror_rows():
     # 2026-07-22: the iShares Portfolio OAS mirror rows are ishares.com data,
     # not FRED — the footnote must carry the fund-reported note, and "FRED"
-    # only when a real FRED extra (DGS20) is present. (Was HYG until
-    # 2026-07-24 — HYG dropped; LQD is the remaining iShares mirror row.)
+    # only when a real FRED extra (DGS20) is present. (Exercised with LQD;
+    # HYG shares the identical mirror path.)
     yahoo = [_yahoo_row("S&P 500", "market", ticker="^GSPC")]
     ishares = [_fred_row("LQD (iBoxx IG)", "credit", unit="spread", value=83.0,
                          series_id="ISHARES:LQD", metric="Portfolio OAS")]
