@@ -31,15 +31,22 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
   (your configured alert triggers, Fed stress signals, and "Watch item
   expiring"/"expired" notices for timed alerts/watchlist tickers — reply to
   renew those). Nothing in the red box is a system problem.
-- **"⚙️ Digest operational alerts — …"** (separate email, arrives just after
-  the digest) — system-health notices. The two to know:
+- **Grey "⚙️ System notices" footer at the BOTTOM of your [FULL] digest**
+  (since 2026-07-28; replaces the old separate "⚙️ Digest operational alerts"
+  email — you asked for one email, not two) — system-health notices, visible
+  only on the FULL digest, never the team's. The ones to know:
   - **"Source degradation: <source>: 0 items for 3 straight runs…"** — a data
     source silently died. `substack` → do the Substack cookie fix below.
-    `wiltw` → do the 13D re-login below. Anything else → developer.
+    `wiltw` → do the 13D re-login below. `pacer_rss_<court>` → that court's
+    RSS feed died (court-side; nothing to fix locally — a developer can
+    check for a replacement). Anything else → developer.
+  - **"Output truncated"** — a generation pass hit its token cap; the digest
+    may be missing trailing sections. One-off is fine; recurring → developer.
   - **"Team config missing"** — the server lost the `DIGEST_TO_TEAM` setting in
     `env.bat`; the team digest isn't going out and memory/search updates are
     paused as a privacy guard. Restore the line in `env.bat` (see the sample in
     README) or get a developer.
+  No footer = nothing to report (the normal state).
 - **"(TEST drill)" anywhere in a subject** — it's a drill, not a real failure.
 
 ## The three manual fixes

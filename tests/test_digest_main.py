@@ -167,8 +167,8 @@ def test_team_active_wiring(harness, monkeypatch):
 def test_post_activation_misconfig_guard(harness, monkeypatch):
     # CLEANUP_SPEC 2.1: activation recorded in config but DIGEST_TO_TEAM empty
     # -> the run completes and sends, but memory is NOT fed the full digest.
-    # Since the ops-alert split (2026-07-22) the config alert arrives as its
-    # own ⚙️ operational email, NOT inside the digest's alert box.
+    # Since the footer reroute (2026-07-28) the config alert rides the FULL
+    # send's grey ops footer — no separate ⚙️ email, no red-box clutter.
     calls, marker = harness
     monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
     monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", "2026-07-13")
@@ -181,22 +181,18 @@ def test_post_activation_misconfig_guard(harness, monkeypatch):
     assert marker.exists()                       # and still completes (O2)
 
     sends = [c for c in calls if c[0] == "send"]
-    digest_sends = [c for c in sends if not (c[4] or "").startswith("⚙️")]
-    ops_sends = [c for c in sends if (c[4] or "").startswith("⚙️")]
-    assert len(digest_sends) == 1                # the run still delivers
-    assert len(ops_sends) == 1                   # plus ONE operational email
-    assert "Team config missing" not in digest_sends[0][3]   # out of the digest…
-    assert "Team config missing" in ops_sends[0][3]          # …into the ops email
-    assert ops_sends[0][1] == tuple(digest.DIGEST_RECIPIENTS)  # operator channel
+    assert len(sends) == 1                       # ONE email — no separate ⚙️
+    assert "Team config missing" in sends[0][3]  # …because it rides the footer
+    assert "System notices" in sends[0][3]
 
 
-def test_ops_alerts_split_routing(harness, monkeypatch):
-    # 2026-07-22 split: operational signals (source degradation) leave the
-    # digest for the separate ⚙️ email; content signals (watch-item expiry)
-    # stay in both the digest's red box.
+def test_ops_alerts_ride_full_footer_only(harness, monkeypatch):
+    # 2026-07-28 reroute (new-operator request; supersedes the 2026-07-22
+    # separate-⚙️-email split): operational signals render as a grey footer
+    # on the FULL sends only; content signals (watch-item expiry) stay in the
+    # red box; TEAM sends and the durable artifacts never carry the footer.
     calls, _marker = harness
-    monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
-    monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS", ["team@acorninv.com"])
     monkeypatch.setattr(
         digest, "record_and_check",
         lambda counts: ["news: 0 items for 3 straight runs"])
@@ -207,14 +203,20 @@ def test_ops_alerts_split_routing(harness, monkeypatch):
 
     digest.main()
     sends = [c for c in calls if c[0] == "send"]
-    digest_html = [c for c in sends if not (c[4] or "").startswith("⚙️")][0][3]
-    ops_sends = [c for c in sends if (c[4] or "").startswith("⚙️")]
+    assert len(sends) == 2                       # FULL + TEAM, nothing else
+    full_html, team_html = sends[0][3], sends[1][3]
 
-    assert len(ops_sends) == 1
-    assert "Source degradation" in ops_sends[0][3]
-    assert "Source degradation" not in digest_html
-    assert "Watch item expired" in digest_html
-    assert "Watch item expired" not in ops_sends[0][3]
+    assert "Source degradation" in full_html     # ops -> FULL footer
+    assert "System notices" in full_html
+    assert "Source degradation" not in team_html  # never to the team
+    assert "System notices" not in team_html
+    assert "Watch item expired" in full_html     # content stays in the red box
+    assert "Watch item expired" in team_html
+
+    # the durable artifacts (memory here; same html feeds save/archive/index)
+    # stay footer-free — the footer is a send-time append only
+    mem_html = next(c[1] for c in calls if c[0] == "update_memory")
+    assert "System notices" not in mem_html
 
 
 def test_per_recipient_alert_boxes(harness, monkeypatch):
@@ -291,9 +293,9 @@ def test_guard_truncation_detects_cap(monkeypatch):
     assert digest._TRUNCATIONS == ["digest pass 1"]
 
 
-def test_truncation_reaches_ops_email(harness, monkeypatch):
-    # A pass that hit its max_tokens cap must surface in the ⚙️ ops email —
-    # and stale entries from a prior run must be cleared at main() start.
+def test_truncation_reaches_ops_footer(harness, monkeypatch):
+    # A pass that hit its max_tokens cap must surface in the FULL send's ops
+    # footer — and stale entries from a prior run are cleared at main() start.
     calls, _marker = harness
     monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
     monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
@@ -307,28 +309,31 @@ def test_truncation_reaches_ops_email(harness, monkeypatch):
     monkeypatch.setattr(digest, "summarize_with_claude", truncating)
 
     digest.main()
-    ops = [c for c in calls if c[0] == "send" and (c[4] or "").startswith("⚙️")]
-    assert len(ops) == 1
-    assert "Output truncated" in ops[0][3]
-    assert "digest pass 2" in ops[0][3]
-    assert "stale pass" not in ops[0][3]
+    sends = [c for c in calls if c[0] == "send"]
+    assert len(sends) == 1                       # no separate ⚙️ email
+    assert "Output truncated" in sends[0][3]
+    assert "digest pass 2" in sends[0][3]
+    assert "stale pass" not in sends[0][3]
 
 
-def test_orphan_notice_reaches_ops_email(harness, monkeypatch):
+def test_orphan_notices_no_longer_surfaced(harness, monkeypatch):
+    # 2026-07-28 (new-operator call): departures are handled in person — the
+    # orphan mechanism still pauses the alerts by construction, but digest.main
+    # neither calls orphan_notices nor emails about it.
     calls, _marker = harness
     monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
     monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
+    called = []
     monkeypatch.setattr(
         digest.alert_commands, "orphan_notices",
-        lambda recipients, today=None:
-        ["7 alert(s) owned by ghost@acorninv.com are paused — ghost@acorninv.com "
-         "no longer receives the digest."])
+        lambda recipients, today=None: called.append(recipients) or
+        ["7 alert(s) owned by ghost@acorninv.com are paused."])
 
     digest.main()
-    ops_sends = [c for c in calls if c[0] == "send" and (c[4] or "").startswith("⚙️")]
-    assert len(ops_sends) == 1
-    assert "Paused alerts" in ops_sends[0][3]
-    assert "ghost@acorninv.com" in ops_sends[0][3]
+    assert called == []                          # never invoked
+    sends = [c for c in calls if c[0] == "send"]
+    assert len(sends) == 1
+    assert "Paused alerts" not in sends[0][3]
 
 
 # --- Receiving-side policy + self-ingestion guard (CLEANUP_SPEC 2.5) ---

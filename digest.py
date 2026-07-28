@@ -796,7 +796,8 @@ def _strip_to_html(text):
 # hit its max_tokens cap silently shipped truncated HTML (found when the
 # Idea-15 test run capped BOTH passes and emailed a digest that cut off
 # mid-section with no warning). summarize_with_claude records capped passes
-# here; main() clears it per run and routes entries into the ⚙️ ops email.
+# here; main() clears it per run and routes entries into the FULL sends' grey
+# ops footer (was a separate ⚙️ email until 2026-07-28).
 _TRUNCATIONS = []
 
 
@@ -1526,9 +1527,9 @@ def generate_weekly_summary(digests, cost_label=""):
         response = w_stream.get_final_message()
 
     weekly = _strip_to_html(_response_text(response))
-    # Log-only here: the weekly runs after the ops email has already been sent,
-    # so the queued entry can't ride this run's ⚙️ email — the WARNING line is
-    # the observable signal.
+    # Log-only here: the weekly runs after the daily sends, so the queued
+    # entry can't ride this run's ops footer (and main() clears the queue at
+    # the next run's start) — the WARNING line is the observable signal.
     _guard_truncation(f"weekly summary{cost_label}", response)
     # Repetition observability (2026-07-24): log-only — weekly scores must NOT
     # land in repetition_scores.json, the daily v2 decision series.
@@ -1557,39 +1558,31 @@ def _digest_subject(full=False):
     return f"{FULL_SUBJECT_MARKER}{subject}" if full else subject
 
 
-def _ops_alert_subject():
-    """Subject for the operational-alerts email. Deliberately does NOT carry
-    DIGEST_SUBJECT_PREFIX — the reply bot's Gmail query anchors on the prefix,
-    and replies to an ops email aren't digest questions."""
-    day = datetime.date.today().day
-    return f"⚙️ Digest operational alerts — {datetime.date.today().strftime(f'%A, %B {day}')}"
-
-
-def _build_ops_email_html(ops_alerts):
-    """Body of the operator-facing operational-alerts email (config guards,
-    source degradation — the signals that used to sit in the digest's red
-    alert box but are actionable only by whoever runs the system)."""
+def _build_ops_footer_html(ops_alerts):
+    """Grey system-notices footer appended to the FULL digest at send time
+    (new-operator preference 2026-07-28, superseding the 2026-07-22 separate
+    ⚙️ ops-alert email — one email, not two). Send-time only: the neutral
+    artifacts (saved/archived/indexed/memory-fed/repetition-scored) and the
+    TEAM sends never carry it, the same contamination rule as the personal
+    alert boxes. Rendered as its own 680px wrapper so it composes by plain
+    concatenation — no string-matching into the assembled digest HTML (§6)."""
     items = ""
     for alert in ops_alerts:
         source = alert.get("source", "")
-        source_tag = f' <span style="color: #888;">({esc(source)})</span>' if source else ""
+        source_tag = f' ({esc(source)})' if source else ""
         items += (
-            f'<li style="margin-bottom: 10px; font-size: 14px;">'
-            f'<strong>{esc(alert.get("name", "Alert"))}:</strong> '
+            f'<li style="margin-bottom: 6px;">'
+            f'<strong>{esc(alert.get("name", "Notice"))}:</strong> '
             f'{esc(alert.get("detail", ""))}{source_tag}</li>\n'
         )
     return (
-        '<div style="font-family: Georgia, serif; max-width: 680px; margin: 0 auto; '
-        'color: #1a1a1a; line-height: 1.6;">\n'
-        '<div style="background: #fff8ec; border: 2px solid #b9770e; border-radius: 6px; '
-        'padding: 16px 20px;">\n'
-        '<h2 style="font-size: 18px; color: #b9770e; margin: 0 0 10px;">'
-        '⚙️ Operational alerts</h2>\n'
-        '<p style="font-size: 13px; color: #555; margin: 0 0 10px;">System-health notices '
-        'from today\'s digest run — nothing here affects the digest content itself. '
-        'Fix guidance is in OPERATIONS.md on the server.</p>\n'
-        f'<ul style="padding-left: 20px; margin: 0;">\n{items}</ul>\n'
-        '</div>\n</div>\n'
+        '<div style="font-family: Georgia, serif; max-width: 680px; '
+        'margin: 24px auto 0; color: #888; font-size: 12px; line-height: 1.5; '
+        'border-top: 1px solid #ddd; padding-top: 10px;">\n'
+        '<p style="margin: 0 0 6px;">⚙️ System notices — fix guidance in '
+        'OPERATIONS.md</p>\n'
+        f'<ul style="padding-left: 18px; margin: 0;">\n{items}</ul>\n'
+        '</div>\n'
     )
 
 
@@ -1933,13 +1926,15 @@ def main():
             print(f"Team alert evaluation failed: {e} — continuing without.")
 
     # --- Deterministic signals ---
-    # Two routes (operator request 2026-07-22): CONTENT signals (market/credit
-    # facts the whole audience should see — Fed stress, watch-item expiry) join
-    # both variants' red alert boxes via deterministic_alerts; OPERATIONAL
-    # signals (config guards, source degradation — actionable only by whoever
-    # runs the system) go to ops_alerts and are sent post-send as ONE separate
-    # ⚙️ email to the operator channel (the DIGEST_TO-driven recipients,
-    # matching run_alert.py's failure alerts) instead of cluttering the digest.
+    # Two routes (2026-07-22 split, rerouted 2026-07-28 on the new operator's
+    # request): CONTENT signals (market/credit facts the whole audience should
+    # see — Fed stress, watch-item expiry) join both variants' red alert boxes
+    # via deterministic_alerts; OPERATIONAL signals (config guards, source
+    # degradation, truncation — actionable only by whoever runs the system)
+    # go to ops_alerts and render as a grey FOOTER on the FULL sends only
+    # (was a separate ⚙️ email; jared wanted one email, not two). The 🚨
+    # run-FAILED/MISSING emails (run_alert.py) stay separate — when the run
+    # fails there is no digest to carry a footer.
     deterministic_alerts = []
     ops_alerts = []
 
@@ -2051,16 +2046,11 @@ def main():
     except Exception as e:
         print(f"Watch-item expiry check failed: {e} — continuing.")
 
-    # Orphaned alerts (Part II): owners who no longer receive any digest have
-    # their alerts skipped by construction (only recipients' alerts evaluate);
-    # surface each NEW orphaning once in the ops email.
-    try:
-        for notice in alert_commands.orphan_notices([*DIGEST_RECIPIENTS,
-                                                     *TEAM_RECIPIENTS]):
-            ops_alerts.append({"name": "Paused alerts", "detail": notice,
-                               "source": "alert commands"})
-    except Exception as e:
-        print(f"Orphan-alert check failed: {e} — continuing.")
+    # Orphaned-alert notices (Part II) are deliberately NOT surfaced here since
+    # 2026-07-28 (new-operator call: on a team this small, a departure is
+    # discussed in person, not emailed). Orphaned owners' alerts still pause by
+    # construction — only recipients' alerts evaluate; alert_commands.
+    # orphan_notices remains available if a notification channel is ever wanted.
 
     # --- Build pre-formatted HTML sections (shared by both variants) ---
     # Alert boxes are per-RECIPIENT (Part II): own triggered alerts + the
@@ -2142,12 +2132,18 @@ def main():
     # PACER entries re-surface tomorrow rather than being lost).
     send_failures = []
     print("Sending digest email...")
+    # Ops notices ride the FULL sends as a grey footer (2026-07-28 — see
+    # _build_ops_footer_html): appended AFTER assembly, so the neutral base
+    # artifacts above and the TEAM sends below never carry them.
+    ops_footer_html = _build_ops_footer_html(ops_alerts) if ops_alerts else ""
+    if ops_alerts:
+        print(f"Ops notices -> FULL footer ({len(ops_alerts)} item(s)).")
     for recipient in DIGEST_RECIPIENTS:
         personalized = _assemble_digest_html(
             digest_html, _recipient_alerts_html(recipient, full_alert_results),
             market_html, rates_html, credit_html, private_html, ai_html,
             earnings_html, news_html, pacer_html, funds_html, fed_bs_html,
-        )
+        ) + ops_footer_html
         try:
             send_digest_email(service, personalized, recipients=[recipient],
                               subject=_digest_subject(full=True))
@@ -2178,18 +2174,6 @@ def main():
         commit_seen()
     except Exception as e:
         print(f"PACER seen-state commit failed: {e} — continuing.")
-
-    # --- Operational alerts (config guards, source degradation): one separate
-    # ⚙️ email to the operator channel, not the digest's alert box. Post-send
-    # and non-fatal — a failure here must never take down a delivered run.
-    if ops_alerts:
-        try:
-            print(f"Sending operational alert email ({len(ops_alerts)} item(s))...")
-            send_digest_email(service, _build_ops_email_html(ops_alerts),
-                              recipients=DIGEST_RECIPIENTS,
-                              subject=_ops_alert_subject())
-        except Exception as e:
-            print(f"Operational alert email failed: {e} — continuing.")
 
     # --- Completion marker: the O2 watchdog (run_alert --check-completed) reads
     # archive/<today>/digest_sent_at.txt to tell a hung/missing run from a done one ---

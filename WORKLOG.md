@@ -17,11 +17,13 @@ cap, debut nits (WSJ dedup / mirror-row dates / date-framing), the **freshest-on
 the **memory update 8k→16k** cap raise. `pytest` **483**, ruff clean.
 
 **Open / to-verify (pick up in a new session):**
-- **PACER O3 false-positive fix (raw-count re-point) + per-court feed-health keys — BUILT
-  2026-07-28, need a server pull.** O3 now watches `pacer_raw_ch11` (pre-filter Ch.11 feed hits)
-  instead of the filtered `pacer_entries` — the false alert stops on the first post-pull run —
-  plus `pacer_rss_<court>` per-court keys (the txsb lesson: the aggregate can't see one court
-  die). Detail in HANDOFF §11.B + today's two build entries. Residual: **txsb RSS = a FRESH
+- **PACER O3 false-positive fix (raw-count re-point) + per-court feed-health keys + the
+  ops-footer reroute — BUILT 2026-07-28, all riding ONE pending server pull.** O3 now watches
+  `pacer_raw_ch11` (pre-filter Ch.11 feed hits) instead of the filtered `pacer_entries` — the
+  false alert stops on the first post-pull run — plus `pacer_rss_<court>` per-court keys (the
+  txsb lesson: the aggregate can't see one court die). Ops signals now render as a grey footer
+  on the FULL sends (jared's request — no separate ⚙️ email; orphan notices dropped entirely).
+  Detail in HANDOFF §11.B + today's three build entries. Residual: **txsb RSS = a FRESH
   7/23→7/28 removal by the court** (not longstanding); helpdesk email (human) is the next step,
   PCL API the replacement lane if permanent. (The 24h-vs-72h lookback "gap" turned out stale —
   already handled by `_set_lookback_hours`.)
@@ -33,6 +35,33 @@ the **memory update 8k→16k** cap raise. `pytest` **483**, ruff clean.
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-28 — ops signals rerouted: separate ⚙️ email → grey FULL-footer (jared's request)
+
+Jared (incoming operator) didn't want the separate ⚙️ ops-alert email (today's PACER
+false-positive nag was the trigger). New routing, his sign-off: **operational signals (source
+degradation, output truncated, team-config-missing) render as a small grey "⚙️ System notices"
+footer at the BOTTOM of the FULL sends** — one email, not two, and the notice about a possibly-
+truncated digest now sits in the very email it describes. Implementation:
+`digest._build_ops_footer_html` (replaces `_build_ops_email_html` + `_ops_alert_subject`, both
+deleted); the footer is its own 680px wrapper appended by plain concatenation AFTER
+`_assemble_digest_html` (no string-matching into the assembled HTML — §6), **send-time only on
+the FULL loop**, so the TEAM sends and every durable artifact (saves/archive/index/memory/
+repetition scoring) stay footer-free — the same contamination rule as the personal alert boxes.
+**"Paused alerts" (orphan notices) dropped entirely** (jared: small team, departures are handled
+in person) — digest.main no longer calls `alert_commands.orphan_notices`; the function + its
+known_orphans state machinery + unit tests stay (docstring notes it's uncalled) in case a
+notification channel is ever wanted; orphaned owners' alerts still pause by construction. So the
+7/31 acohen drop now pauses her alerts silently — no email. The 🚨 run-FAILED/MISSING emails
+(`run_alert.py`) are unchanged — a failed run has no digest to carry a footer. This partially
+reverts the 2026-07-22 ops-split (that operator's request); new-operator preference supersedes.
+Tests rewritten to pin the new routing (misconfig-guard → footer; split test → footer-only test
+incl. TEAM-send + memory-html exclusion; truncation → footer; orphan → never-invoked): still
+**484**, ruff clean. Docs: OPERATIONS "emails you might get" rewritten (footer section incl. the
+new `pacer_rss_<court>` line), HANDOFF §1/§1a/§5/§7.2/§8/§11.B mentions updated. **Server: rides
+the same pending pull** (digest.py, alert_commands.py docstring; no ReplyMonitor restart).
 
 ---
 

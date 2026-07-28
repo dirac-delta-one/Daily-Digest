@@ -198,9 +198,12 @@ def owners_with_alerts(today=None):
 
 
 def orphan_notices(current_recipients, today=None):
-    """One-time ops-email lines for owners whose alerts are paused because
+    """One-time notice lines for owners whose alerts are paused because
     they no longer receive the digest (Part II: evaluation covers current
     recipients only, so a departed owner's alerts silently stop running).
+    NOT called by digest.main since 2026-07-28 (new-operator call: small team,
+    departures are discussed in person) — kept, with its known_orphans state
+    machinery, in case a notification channel is ever wanted again.
     Known orphans are tracked in the payload's `_meta` so each orphaning is
     noticed exactly once; an owner who becomes a recipient again is dropped
     from the list (a later re-orphaning notices again)."""

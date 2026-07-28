@@ -55,7 +55,14 @@ instance is decommissioned.** **Digest generation runs on Claude Fable 5 since 2
 **~$5.0–5.5 per FULL 2-pass run since 2026-07-23** (the cross-day PREVIOUS-DIGEST context +
 self-contained-§1 output added ~$1.7/run to the earlier ~$3.5; observed $5.26 validated;
 re-baseline OPERATIONS' monthly estimate after a week). Digest passes STREAM at max_tokens
-48,000 with a truncation guard (stop_reason → WARNING + ⚙️ ops-alert + pass-2→pass-1 fallback).
+48,000 with a truncation guard (stop_reason → WARNING + ops-footer notice + pass-2→pass-1
+fallback). **Ops-signal routing since 2026-07-28 (jared's request — one email, not two):
+operational signals (source degradation, truncation, config guards) render as a grey "⚙️ System
+notices" FOOTER on the FULL sends** instead of the 2026-07-22 separate ⚙️ email; the footer is a
+send-time append, so the TEAM sends and the durable artifacts (saved/archived/indexed/memory-fed)
+never carry it. Orphaned-owner "Paused alerts" notices were dropped entirely (small team —
+handled in person; `alert_commands.orphan_notices` kept but uncalled). The 🚨 run-FAILED/MISSING
+emails (`run_alert.py`) remain separate emails — a failed run has no digest to carry a footer.
 
 **Branch: work on `main`.** `ava-updates` existed only to keep refactor work off `main` while Jared
 ran production from `main`; that's retired, the server tracks `main`, so **`main` is now the
@@ -97,11 +104,12 @@ confirmation replies; `alert_commands.py` owns `alerts_config.json` — now untr
 new `watchlist.json`, both seed-on-missing); **expiry lifecycle** ("expiring" advance warning on
 the last active day + "expired" notice next day, below an `<hr>` in the alert box, no source tag);
 **ops-alert split** (config guard + source degradation → a separate ⚙️ operator email; red box =
-content only); **per-user thematic alerts** (every alert has ONE owner, owner-only
+content only; *rerouted 2026-07-28: the separate email became the FULL-send footer — see §1*);
+**per-user thematic alerts** (every alert has ONE owner, owner-only
 visibility/editing; the old 7 migrated to jared+acohen copies — the server file self-migrates on
 first post-pull run; per-recipient sends with personalized alert boxes; neutral base is what's
 saved/archived/indexed/memory-fed; batched eval keeps ≤2 Claude calls/run; orphaned owners →
-one-time ops note); **(WSJ) tag red**; **reply-channel teaching footer** (in the alert box, or
+one-time ops note, *dropped 2026-07-28 — handled in person*); **(WSJ) tag red**; **reply-channel teaching footer** (in the alert box, or
 standalone when no box). Live-validated cheaply: parse seam 5+3 calls ($0.05 total), real
 fan-out eval, 4 formatting sample emails to acohen.
 
@@ -135,8 +143,8 @@ content actually present; pass-2 `Cache: ... read N` lines NONZERO (the 1h-TTL f
 the Market Snapshot footnote; market moves date-framed correctly. **Ongoing week:** metric-v2 STRONG counts (escalate only on sustained
 ≥4 — the §11.B escalation plan: Idea 11 tripwire → gated Idea 10 dedup pass → structural, jared)
 + observed costs → update OPERATIONS' monthly burn. Drop `acohen` from `DIGEST_TO_TEAM` at the
-**2026-07-31** departure — the orphan-notice mechanism will flag her paused alerts in the ops
-email once. Finish the soak while a fixer still exists.
+**2026-07-31** departure — her alerts pause silently by construction (the orphan NOTICE was
+dropped 2026-07-28: small team, handled in person). Finish the soak while a fixer still exists.
 
 **Key operational facts a fresh session needs (all detailed in WORKLOG 2026-07-20):**
 - **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box
@@ -207,8 +215,8 @@ the cache). **The TEAM digest is the indexed one** and the one that feeds the sh
 (so team askers' reply-bot retrieval never sees Substack). The reply bot answers each asker at
 their tier: `FULL_ACCESS_SENDERS` (jtramontano only) get Substack; everyone else gets the team
 view. **Deploy-critical:** the server's `env.bat` **must** carry `DIGEST_TO_TEAM` — a
-post-activation run without it is code-treated as misconfigured (warn + a separate ⚙️ operational
-alert email to the operator channel + digest chunks un-indexed + memory frozen; escape hatch = set
+post-activation run without it is code-treated as misconfigured (warn + a "Team config missing"
+notice in the FULL send's ops footer + digest chunks un-indexed + memory frozen; escape hatch = set
 `config.TEAM_ACTIVATION_DATE` back to `None` if the team variant is ever deliberately retired).
 
 ---
@@ -278,7 +286,7 @@ alert email to the operator channel + digest chunks un-indexed + memory frozen; 
 | `memory.py` | v2 story-timeline cross-digest memory + substack memory + reply-bot story router. |
 | `reply_monitor.py` | Email-reply RAG bot; asker-tiered (config-driven allow-list); `--once` mode + `while True` daemon. Since 2026-07-22 also the alert-command channel: `_handle_command` routes command replies to `alert_commands` before Q&A (parse failure falls through to Q&A). |
 | `alerts.py`, `archive.py`, `cost.py`, `claude_utils.py`, `content_monitor.py`, `run_alert.py` | Plain-English alerts; raw-content archiver; per-run cost accounting; JSON/structured-output helpers; O3 source-count degradation monitor; failure-alert + O2 completion watchdog. *(PACER discovery gained a since-last-run freshness filter 2026-07-23 — see §11.B cross-day entry.)* |
-| `alert_commands.py` | Email-managed alerts + SEC watchlist (ALERT_COMMANDS_SPEC, 2026-07-22; Part II same day): owns `alerts_config.json`/`watchlist.json` (seed-on-missing, atomic writes, expiry, the Part-II owner migration), the Sonnet command classify/parse (owner-grounded), deterministic apply + confirmation HTML, expiry lifecycle (`consume_expired`/`expiring_today`, owner-attributed), and `orphan_notices`. **Thematic alerts are per-user** (owner-only visibility/editing; jared + acohen own the migrated originals; new users start empty); the watchlist is shared. Reply-channel = contamination-safe (`is_self_artifact()` exclusion). |
+| `alert_commands.py` | Email-managed alerts + SEC watchlist (ALERT_COMMANDS_SPEC, 2026-07-22; Part II same day): owns `alerts_config.json`/`watchlist.json` (seed-on-missing, atomic writes, expiry, the Part-II owner migration), the Sonnet command classify/parse (owner-grounded), deterministic apply + confirmation HTML, expiry lifecycle (`consume_expired`/`expiring_today`, owner-attributed), and `orphan_notices` (uncalled since 2026-07-28 — kept for a future notification channel). **Thematic alerts are per-user** (owner-only visibility/editing; jared + acohen own the migrated originals; new users start empty); the watchlist is shared. Reply-channel = contamination-safe (`is_self_artifact()` exclusion). |
 | `ticker_names.py` | Ticker→issuer-name glossary for the prompt (2026-07-22): SEC registry titles + a learned cache of digest-rendered "$TICK (Name)" pairs validated against that day's sources. Staged collect() / single post-variants commit() so the TEAM/FULL cache prefix can't fork mid-run. |
 | `repetition.py` | Cross-section repetition metric (REDUCE_REPEATS Idea 12, 2026-07-22): deterministic scorer over assembled digest HTML, logged per run + persisted to `repetition_scores.json`. The yardstick for all anti-repetition prompt work. |
 | Source fetchers (free APIs) | `news.py`, `ratings.py`, `market_data.py`, `macro_data.py`, `sec_filings.py`, `treasury_auctions.py`, `treasury_yields.py` (2026-07-23: Treasury.gov daily par curves — the Rates Snapshot's T-1 source + NY Fed SOFR; FRED = fallback), `cliffwater_data.py` (2026-07-23: Cliffwater BDC index, jared-approved SPBDCUP substitute), `cftc_cot.py`, `fed_balance_sheet.py`, `fdic_monitor.py`, `earnings.py`, `fund_tracking.py`, `thirteen_d.py`, `fed_research.py`, `pacer.py`. |
@@ -310,9 +318,9 @@ TEAM digest's recipients — **must be set on the server**; empty = team generat
 ## 5. Risks
 
 - **Silent degradation:** the `try/except`-everywhere design means a broken source yields an empty
-  section, not a crash. Mitigated by the O3 content monitor (per-source zero-streak → the separate
-  ⚙️ operational-alerts email since 2026-07-22; the digest's red box carries content alerts only)
-  but still: read logs.
+  section, not a crash. Mitigated by the O3 content monitor (per-source zero-streak → the "System
+  notices" ops footer on the FULL sends since 2026-07-28, previously a separate ⚙️ email; the
+  digest's red box carries content alerts only) but still: read logs.
 - **LLM-output coupling:** `_assemble_digest_html` finds insertion points by string-matching the
   Opus-generated HTML. Stable in practice (heavily-pinned prompt) but brittle if the template drifts.
 - **HTML correctness:** scraped text/URLs are interpolated into emailed HTML; `esc()`/`safe_href()`
@@ -391,7 +399,7 @@ OPERATIONS "Backups & restore" are the path. Requirements the deploy implemented
    `substack_cookie.txt` + `substack_memory.json`.
 4. **Reliability & observability — all code halves DONE:** dated log rotation + 30-day prune (O1);
    failure alerting (`run_alert.py`, nonzero exit → red alert email with log tail); source-empty
-   content monitor (O3 → the separate ⚙️ ops-alert email, arms after ~6 runs); hung-run watchdog
+   content monitor (O3 → the FULL send's ops footer since 2026-07-28, arms after ~6 runs); hung-run watchdog
    (`run_alert.py digest --check-completed`, its 09:00 task registered by `setup_tasks.ps1`).
    Sessions still need occasional human care: Substack auto-renews (OTP-code via Gmail); **13D will
    eventually need a manual re-login** — documented in OPERATIONS.md.
@@ -436,8 +444,9 @@ race on the shared bot inbox; two digests double-send).
   override," but its VALUES are the production recipients (jtramontano + apain + acohen). Any manual
   dev run MUST explicitly override: `DIGEST_TO=acohen@acorninv.com` and `DIGEST_TO_TEAM=` (empty —
   which also triggers the §1a misconfig guard: FULL-only, memory frozen, digest chunks un-indexed —
-  the correct state for a dev test run; a separate ⚙️ ops-alert email carrying "Team config
-  missing" is expected — since 2026-07-22 it no longer appears in the digest itself). Loading `env.bat` from PowerShell: parse the `set` lines (see WORKLOG 2026-07-22) —
+  the correct state for a dev test run; a "Team config missing" line in the FULL email's grey
+  "System notices" footer is expected — since 2026-07-28 it rides the digest footer, not a
+  separate ⚙️ email, and never the red box). Loading `env.bat` from PowerShell: parse the `set` lines (see WORKLOG 2026-07-22) —
   bare `call env.bat` fails under `NoDefaultCurrentDirectoryInExePath`.
 
 ---
@@ -648,7 +657,7 @@ What remains is only what a future session might still act on.)*
      (truncation at the token cap, §3 bloat, ignored Contrarian markers — full post-mortem in
      the spec's Idea 15 section; retry preconditions listed there). The failure shipped one
      durable fix: digest passes now run max_tokens=32,000 with a **truncation guard**
-     (`digest._guard_truncation` — WARNING log + "Output truncated" ⚙️ ops-alert + pass-2→pass-1
+     (`digest._guard_truncation` — WARNING log + "Output truncated" ops-footer notice + pass-2→pass-1
      fallback; stop_reason was previously never checked and a capped pass silently sent
      truncated HTML). Alternatively **Idea 3 variant (b)** (§1 → one-line pointer index; full
      detail lives in body sections) — also jared's, §5/§1 are signature product features.
