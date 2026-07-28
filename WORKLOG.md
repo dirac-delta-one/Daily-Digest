@@ -5,7 +5,7 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-28 — server current; debut + Monday validated; PACER O3 fix built, needs a pull)
+## Current state (2026-07-28 — server current; debut + Mon + Tue logs all validated; 7/28 trio built, needs a pull)
 
 **LIVE and healthy.** The Fri 7/24 debut succeeded (12 sends, zero content ops-alerts, §1/rates/
 Cliffwater/FULL-TEAM all correct — 2026-07-24 entry) and the Mon 7/27 log validated the cross-day
@@ -14,7 +14,9 @@ work (`Lookback window: 72h`, weekend content, PACER fresh-only). The server was
 Tuesday 7/28's run**, so all of the 7/24→7/28 backlog is now deployed: 1h cache TTL, weekly 32k
 cap, debut nits (WSJ dedup / mirror-row dates / date-framing), the **freshest-only HY/IG rows**,
 **round-to-zero "unch" rendering**, the **BKLN yield accrual cache**, **REPO_ROOT Phase 0**, and
-the **memory update 8k→16k** cap raise. `pytest` **483**, ruff clean.
+the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log-read entry): the
+1h-TTL fix VALIDATED (both pass 2s read from cache; run cost $6.64 vs Monday's $10.32) and the
+16k memory cap has real headroom (6,534 out).** `pytest` **484**, ruff clean.
 
 **Open / to-verify (pick up in a new session):**
 - **PACER O3 false-positive fix (raw-count re-point) + per-court feed-health keys + the
@@ -27,14 +29,49 @@ the **memory update 8k→16k** cap raise. `pytest` **483**, ruff clean.
   7/23→7/28 removal by the court** (not longstanding); helpdesk email (human) is the next step,
   PCL API the replacement lane if permanent. (The 24h-vs-72h lookback "gap" turned out stale —
   already handled by `_set_lookback_hours`.)
-- **Tuesday 7/28's full LOG still unread** — only the PACER ops-alert email was seen. Confirm from
-  the box: `Cache: pass 2 read N` NONZERO (the 1h-TTL fix's real test — was 0 on 7/24 & the 7/27
-  old-code run), `Memory pass tokens … out` under the new 16k cap, unch rendering / freshest-only
-  rows visible in the email, BKLN yield still "—" (cache seeds 7/28, 1D from 7/29), cost.
+- **BKLN yield-cache seeding unconfirmed** (seeding is silent — no log line): verify via the
+  7/29+ digest showing a real 1D value in the BKLN 12M-yield row, or `type bkln_yield_cache.json`
+  on the server (expect one 2026-07-28 entry).
+- **OPERATIONS monthly-burn re-baseline** once 2–3 TTL-era cost points exist: 7/28 = $6.64;
+  if Wed/Thu match, ≈ $6.5–7/weekday + ~$4.40 Friday weeklies ≈ **~$155–165/mo** (above the
+  pre-updated ~$90–140 guess).
+- **TEAM repetition hit 4 strong on 7/28** (FULL 0) — first v2 reading at the escalate-if-
+  SUSTAINED-≥4 boundary; one day = watch, feeds the ~7/31 tripwire decision.
+- **Index growth faster than the §5 F13 estimate**: 17,944 vectors, ~960/day → the 30–50k
+  tripwire lands ~mid-Aug→mid-Sep, not "3–8 months" (measured 7/15). No action now; flag for the
+  post-handoff owner.
 - **JPM login** — blocked on the IP-block cooldown + a working `share-login.jpmorgan.com/` link
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-28 — Tue log read: 1h cache TTL VALIDATED ($6.64 run), memory cap headroom, PACER 0 anatomy
+
+Operator pulled the Tuesday 08:00 log (first run on fully-current server code). **Verdicts:**
+- **1h cache TTL — VALIDATED, the big one.** `Cache: pass 1 wrote 76,996; pass 2 read 76,996`
+  (TEAM) and `wrote 26,295; pass 2 read 103,291` (FULL — team prefix + own). First nonzero pass-2
+  reads since the Fable switch (7/24 + 7/27 both read 0, silently re-billing a ~100k prefix per
+  pass). **Run cost $6.64 vs Monday's $10.32** — the ~$3.7 delta is the fix landing. Cost mix now
+  output-dominated (pass-1 out 30,176 team / 25,713 full — Fable thinking bills as output; well
+  under the 48k caps, no truncation). Re-baseline OPERATIONS after 2–3 TTL-era days:
+  ≈ $6.5–7/weekday + Friday weeklies ≈ ~$155–165/mo if Wed/Thu confirm.
+- **Memory 16k cap — real headroom:** `20,760 in + 6,534 out` (vs Monday's 7,822/8,000 near-miss).
+  The delta shrank once the weekend backlog cleared; informs the ~7/30 aging call.
+- **PACER — a live specimen of the diagnosed false positive:** six feeds healthy (DEB 504 / ILNB
+  2,217 / VAEB 1,391 entries; NYSB/NJB/FLSB produced filings), txsb 404 confirmed at 08:00, 8
+  fresh Ch.11s (all small-local), size filter correctly kept 0 → `pacer_entries: 0` → the
+  third-streak ops email jared complained about. Under the (pending-pull) raw-count code this run
+  records a healthy nonzero `pacer_raw_ch11` and stays silent.
+- **Repetition: FULL 0 strong / TEAM 4 strong** — first v2 reading at the sustained-≥4 escalation
+  boundary; one day = watch (feeds the ~7/31 tripwire decision).
+- **Freshness** line correct (same-day: VIX/WTI/DXY/BTC/SK Hynix). **BKLN** seeding has no log
+  line (silent) — verify via tomorrow's 1D value or the cache file. **Index 17,944 vectors,
+  +961 today** → F13's 30–50k tripwire lands ~mid-Aug→mid-Sep, sooner than §5's "3–8 months".
+- **Benign:** a HuggingFace "unauthenticated requests / set HF_TOKEN" hub warning interleaved in
+  the log (model is locally cached; if it ever rate-limits, a free HF token in env.bat fixes it).
+  Log's `â€”` mojibake = PowerShell display artifact only.
 
 ---
 
