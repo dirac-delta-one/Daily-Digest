@@ -5,19 +5,47 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-24 — DEBUT SUCCEEDED; three debut nits fixed through `5795a84`; Monday 7/27 = combined validation)
+## Current state (2026-07-28 — server current; debut + Monday validated; PACER O3 alert diagnosed benign)
 
-**The Fri 7/24 08:00 debut run succeeded** (verified email-side by pulling the bot's sent mail —
-see the 2026-07-24 entry): 12 sends (FULL + 5 TEAM + 6 per-recipient weekly wraps), zero ⚙️
-ops-alerts, self-contained §1 intact, rates T-1 with lag markers, Cliffwater row, clean FULL/TEAM
-separation. The **server log remains unread** — `Freshness:` (settles SNAPSHOT_UPDATE §2.4),
-`Repetition:` v2 scores, `Previous-digest context:`, PACER `Freshness filter:`, and cost are
-still to be checked from the box. Three small flags found in the review were fixed same day
-(commit **`5795a84`**, pytest **476**): WSJ tracking-param dup, Market Snapshot mirror-row dates
-missing from the footnote, and undated market rows in the prompt (SK Hynix's 7/24 Seoul close
-narrated as "Thursday"). Server pulls the evening of 7/24 (no ReplyMonitor restart needed).
-**Mon 2026-07-27 validates everything at once:** `Lookback window: 72h` + weekend content,
-no dup WSJ headlines, mirror-row dates enumerated, and correct date-framing of market moves.
+**LIVE and healthy.** The Fri 7/24 debut succeeded (12 sends, zero content ops-alerts, §1/rates/
+Cliffwater/FULL-TEAM all correct — 2026-07-24 entry) and the Mon 7/27 log validated the cross-day
+work (`Lookback window: 72h`, weekend content, PACER fresh-only). The server was pulled to current
+(through the memory-cap fix `38a2f69` + today's snapshot work) and ReplyMonitor restarted **before
+Tuesday 7/28's run**, so all of the 7/24→7/28 backlog is now deployed: 1h cache TTL, weekly 32k
+cap, debut nits (WSJ dedup / mirror-row dates / date-framing), the **freshest-only HY/IG rows**,
+**round-to-zero "unch" rendering**, the **BKLN yield accrual cache**, **REPO_ROOT Phase 0**, and
+the **memory update 8k→16k** cap raise. `pytest` **480**, ruff clean, HEAD past `e3f4760`.
+
+**Open / to-verify (pick up in a new session):**
+- **PACER O3 ops-alert (7/28) — DIAGNOSED FALSE POSITIVE, fix not yet built.** See HANDOFF §11.B
+  "PACER O3 zero-streak" — the freshness filter works; the alert is a stale-baseline artifact.
+  Recommended fix = monitor PACER RAW discovery hits (not the filtered count); plus the txsb-404
+  coverage gap and the PACER 24h-vs-72h Monday lookback mismatch.
+- **Tuesday 7/28's full LOG still unread** — only the PACER ops-alert email was seen. Confirm from
+  the box: `Cache: pass 2 read N` NONZERO (the 1h-TTL fix's real test — was 0 on 7/24 & the 7/27
+  old-code run), `Memory pass tokens … out` under the new 16k cap, unch rendering / freshest-only
+  rows visible in the email, BKLN yield still "—" (cache seeds 7/28, 1D from 7/29), cost.
+- **JPM login** — blocked on the IP-block cooldown + a working `share-login.jpmorgan.com/` link
+  (JPM_SPEC).
+- **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
+  tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-28 — PACER O3 zero-streak alert diagnosed (false positive) + two real gaps
+
+Tuesday's run emailed jared an ⚙️ ops-alert: `pacer_entries: 0 items for 3 straight runs (was
+nonzero in 83% of the prior 12 runs)`. Investigated read-only (free — RSS fetch + `_fresh_filing`,
+no Sonnet, no state mutation). **False positive:** the 7/23 freshness filter is working — it
+correctly drops old-case docket noise (Terraform `24-`, Purdue `19-`, MF Global `11-`) and passes
+fresh 2026 filings; the final 0 is the corporate/size filter correctly dropping the day's only-new
+fresh filings (small local businesses — tavern, roofing, local LLCs). Large corporate Ch.11s don't
+file daily. The monitor's 83%-nonzero baseline is pre-filter (old-case noise inflated it), so it's
+comparing the new sparser regime against the old. Self-clears on the next real filing or as
+pre-filter runs age out of `source_counts.json`. Full diagnosis + the recommended fix (monitor RAW
+discovery hits) + two real gaps (txsb Houston RSS 404; PACER `LOOKBACK_HOURS` hardcoded 24 vs the
+digest's weekend-aware 72h) are in **HANDOFF §11.B**. No code changed — documented for a fresh
+session to implement.
 
 ---
 
