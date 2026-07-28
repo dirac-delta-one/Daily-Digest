@@ -570,14 +570,32 @@ What remains is only what a future session might still act on.)*
   streak. Tests: `test_pacer.py` raw-count pair + `test_digest_main.test_o3_counts_use_raw_pacer_signal`.
   **Server: needs a pull** (digest.py + pacer.py — digest-run path only, no ReplyMonitor restart
   needed); until then the false alert nags daily.
-  **Residual gaps from the diagnostic:** (1) **txsb (Houston) RSS 404s — still OPEN:**
-  `https://ecf.txsb.uscourts.gov/cgi-bin/rss_outside.pl` returns Not Found, so one of the biggest
-  Ch.11 courts is uncovered; likely longstanding (the other six courts kept PACER nonzero
-  pre-filter); find the court's current public-RSS URL or confirm it's been removed. (2) The
-  diagnostic's second gap — "`pacer.LOOKBACK_HOURS` hardcoded 24 vs the digest's 72h Mondays" —
-  was **STALE/WRONG, no action:** `digest._set_lookback_hours` (2026-07-23) already retunes
-  `pacer.LOOKBACK_HOURS` per run before the fetch phase (pinned by `test_cross_day`); only
-  standalone `python pacer.py` uses the 24h default, which is fine.
+  **Residual gaps from the diagnostic:** (1) **txsb (Houston) RSS 404 — investigated 2026-07-28;
+  a FRESH break, not longstanding:** the feed worked through **7/23** (a txsb filing is in that
+  day's archive; txsb has a full 1,000-entry seen-history like every other court) and 404s since
+  — the court removed its public RSS report sometime 7/23→7/28. The ECF host itself is up (200 on
+  root/login; only `cgi-bin/rss_outside.pl` is gone), there is **no alternate public endpoint**
+  (juriscraper — the library behind CourtListener's RSS ingestion — builds the exact same URL),
+  the other six courts were healthy at probe time (554–2,287 items each), and the court posted no
+  announcement (txsb is on NextGen 1.8.3 vs deb's 1.9 — a mid-upgrade removal is plausible, so it
+  may return). **Mitigation SHIPPED same day: per-court O3 feed-health keys** —
+  `pacer.court_item_counts()` records each court's raw RSS item count as `pacer_rss_<court>`
+  (healthy feeds carry hundreds of docket entries daily, so 0 = that court's feed is dead; a
+  failed fetch reads 0, a court not reached in a mid-scan crash is absent). A future single-court
+  death now gets its own zero-streak alert — the aggregate `pacer_raw_ch11` can't see one court
+  die, which is exactly how txsb went unnoticed. Self-calibration handles the awkward start:
+  txsb begins dead, so its key never qualifies as "normally nonzero" and does NOT nag; it arms
+  only after the feed recovers. **Remaining actions:** (a) email the court's ECF helpdesk
+  (`bankruptcy_ecf_helpdesk@txs.uscourts.gov` / 713-250-5507) asking whether the public RSS feed
+  is permanently gone — human/jared action, ideally before the 7/31 departure; (b) if confirmed
+  permanent, the replacement lane is the **PACER Case Locator API** (once-daily "new Ch.11 in
+  txsb" query ≈ pennies/day but needs a PACER account + a small new module — CourtListener's free
+  API won't help, its txsb data came from the same dead feed); watch `pacer_rss_txsb` in
+  `source_counts.json` for recovery meanwhile. (2) The diagnostic's second gap —
+  "`pacer.LOOKBACK_HOURS` hardcoded 24 vs the digest's 72h Mondays" — was **STALE/WRONG, no
+  action:** `digest._set_lookback_hours` (2026-07-23) already retunes `pacer.LOOKBACK_HOURS` per
+  run before the fetch phase (pinned by `test_cross_day`); only standalone `python pacer.py` uses
+  the 24h default, which is fine.
 - **Snapshot-table data lag — CLOSED (spec `SNAPSHOT_UPDATE.md` retired 2026-07-27; full
   investigation in git history).** The 2026-07-23 investigation established the Rates + Corporate
   Credit OAS rows were **T-2** at the 08:00 run; every free fix SHIPPED 2026-07-23

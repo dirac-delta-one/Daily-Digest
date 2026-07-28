@@ -179,6 +179,27 @@ def test_raw_ch11_count_resets_each_scan(mock_discovery):
     assert pacer.raw_ch11_count() == 0  # stale value from the prior scan cleared
 
 
+def test_court_item_counts_track_feed_health(mock_discovery, monkeypatch):
+    # txsb lesson (2026-07-28): each court's raw item count is its own O3
+    # key — a failed fetch reads 0 (dead feed), and a prior scan's counts
+    # don't leak into the next.
+    monkeypatch.setattr(pacer, "MONITORED_COURTS", ["deb", "txsb"])
+    monkeypatch.setattr(
+        pacer, "_fetch_court_rss",
+        lambda court: "TREE" if court == "deb" else None)  # txsb 404s -> None
+    items = [{"title": f"t{i}", "link": f"l{i}",
+              "description": "routine motion", "pub_date": ""} for i in range(3)]
+    monkeypatch.setattr(pacer, "_parse_items",
+                        lambda tree: items if tree == "TREE" else [])
+
+    pacer.discover_new_filings()
+    assert pacer.court_item_counts() == {"deb": 3, "txsb": 0}
+
+    monkeypatch.setattr(pacer, "MONITORED_COURTS", ["deb"])
+    pacer.discover_new_filings()
+    assert pacer.court_item_counts() == {"deb": 3}  # stale txsb key cleared
+
+
 def test_discovery_eviction_drops_oldest_first(mock_discovery):
     # Pre-seed 990 ordered ids; 30 new feed entries push the court over the
     # 1000 cap -> exactly the 20 OLDEST pre-seeded ids must be evicted.

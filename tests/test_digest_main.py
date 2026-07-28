@@ -372,11 +372,16 @@ def test_o3_counts_use_raw_pacer_signal(harness, monkeypatch):
     monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
     monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
     monkeypatch.setattr(digest._pacer_mod, "_raw_ch11_count", 17)
+    monkeypatch.setattr(digest._pacer_mod, "_court_item_counts",
+                        {"deb": 554, "txsb": 0})
 
     digest.main()
     counts = next(c[1] for c in calls if c[0] == "o3")
     assert "pacer_entries" not in counts
     assert counts["pacer_raw_ch11"] == 17
+    # per-court feed-health keys (the txsb lesson) ride along
+    assert counts["pacer_rss_deb"] == 554
+    assert counts["pacer_rss_txsb"] == 0
 
 
 def test_is_self_artifact():

@@ -17,11 +17,14 @@ cap, debut nits (WSJ dedup / mirror-row dates / date-framing), the **freshest-on
 the **memory update 8k→16k** cap raise. `pytest` **483**, ruff clean.
 
 **Open / to-verify (pick up in a new session):**
-- **PACER O3 false-positive fix (raw-count re-point) — BUILT 2026-07-28, needs a server pull.**
-  O3 now watches `pacer_raw_ch11` (pre-filter Ch.11 feed hits) instead of the filtered
-  `pacer_entries`; the false alert stops on the first post-pull run. Detail in HANDOFF §11.B +
-  today's second entry. Residual: the txsb-404 coverage gap (the 24h-vs-72h lookback "gap" turned
-  out stale — already handled by `_set_lookback_hours`).
+- **PACER O3 false-positive fix (raw-count re-point) + per-court feed-health keys — BUILT
+  2026-07-28, need a server pull.** O3 now watches `pacer_raw_ch11` (pre-filter Ch.11 feed hits)
+  instead of the filtered `pacer_entries` — the false alert stops on the first post-pull run —
+  plus `pacer_rss_<court>` per-court keys (the txsb lesson: the aggregate can't see one court
+  die). Detail in HANDOFF §11.B + today's two build entries. Residual: **txsb RSS = a FRESH
+  7/23→7/28 removal by the court** (not longstanding); helpdesk email (human) is the next step,
+  PCL API the replacement lane if permanent. (The 24h-vs-72h lookback "gap" turned out stale —
+  already handled by `_set_lookback_hours`.)
 - **Tuesday 7/28's full LOG still unread** — only the PACER ops-alert email was seen. Confirm from
   the box: `Cache: pass 2 read N` NONZERO (the 1h-TTL fix's real test — was 0 on 7/24 & the 7/27
   old-code run), `Memory pass tokens … out` under the new 16k cap, unch rendering / freshest-only
@@ -30,6 +33,36 @@ the **memory update 8k→16k** cap raise. `pytest` **483**, ruff clean.
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-28 — txsb RSS 404 investigated (fresh break) + per-court O3 feed-health keys
+
+Investigated the txsb (Houston) RSS 404 flagged by the morning diagnosis — all read-only/free
+(HTTP probes + web research, no Claude). **Finding: a FRESH break, not longstanding.** The feed
+worked through 7/23 (a txsb filing sits in `archive/2026-07-23/pacer_entries.json`; txsb's
+seen-history is a full 1,000 entries like every other court) and 404s since — the court removed
+its public RSS report sometime 7/23→7/28. The ECF host is up (200 on root + login.pl; only
+`cgi-bin/rss_outside.pl` is gone); no alternate public endpoint exists (juriscraper, the library
+behind CourtListener's PACER RSS ingestion, constructs the identical URL — probed variants all
+404); the other six courts were healthy at probe time (deb 554 / nysb 566 / njb 975 / ilnb 2,287
+/ vaeb 1,410 / flsb 2,191 items — which also empirically validates the raw-count O3 signal); no
+court announcement (notices page ends Feb 2024; txsb on NextGen 1.8.3 vs deb 1.9, so a
+mid-upgrade removal is plausible and it may return).
+
+**Shipped: per-court O3 feed-health keys.** The lesson is that the aggregate `pacer_raw_ch11`
+can't see ONE court's feed die — exactly how txsb went unnoticed behind a log-only fetch-failure
+line. `pacer.discover_new_filings` now records each court's raw RSS item count
+(`pacer.court_item_counts()`, reset per scan; failed fetch = 0, court not reached = absent) and
+`digest.main`'s O3 block records them as `pacer_rss_<court>`. A future single-court death gets
+its own zero-streak ops-alert; txsb starts dead so its key never qualifies as "normally nonzero"
+(no nagging about the known outage) and arms only after recovery — the monitor's self-calibration
+handles this with no `content_monitor.py` change. Tests 483→**484** (per-court counting/reset in
+`test_pacer.py`; `pacer_rss_*` wiring asserts added to the digest O3 test); ruff clean. **Server:
+rides the same pending pull as the raw-count fix** (digest.py + pacer.py only). **Remaining
+follow-ups (HANDOFF §11.B):** helpdesk email to the court (human action, before 7/31 ideally);
+if permanent, the PACER Case Locator API is the replacement lane (~pennies/day, needs a PACER
+account); watch `pacer_rss_txsb` for recovery.
 
 ---
 

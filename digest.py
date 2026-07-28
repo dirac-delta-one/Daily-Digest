@@ -2012,6 +2012,11 @@ def main():
         # are dead or empty, the outage this monitor exists to catch.
         del counts["pacer_entries"]
         counts["pacer_raw_ch11"] = _pacer_mod.raw_ch11_count()
+        # Per-court feed health (the txsb lesson — see pacer.court_item_counts):
+        # the raw total can't see ONE court's feed dying; each court's RSS item
+        # count gets its own zero-streak key.
+        counts.update({f"pacer_rss_{court}": n
+                       for court, n in _pacer_mod.court_item_counts().items()})
         for signal in record_and_check(counts):
             ops_alerts.append({
                 "name": "Source degradation",

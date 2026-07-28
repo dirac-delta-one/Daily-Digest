@@ -87,6 +87,23 @@ def raw_ch11_count():
     return _raw_ch11_count
 
 
+# Per-court feed health (2026-07-28, the txsb lesson): the raw total above is
+# summed across courts, so ONE court's feed dying can't zero it — txsb removed
+# its public RSS sometime 7/23→7/28 and only a log line noticed. Each court's
+# raw RSS item count (healthy feeds carry hundreds of docket entries daily)
+# is recorded as its own O3 key, so a single-court death gets its own
+# zero-streak alert. A court that is ALREADY dead when its key first appears
+# never qualifies as "normally nonzero" (the monitor self-calibrates), so a
+# known outage doesn't nag — the key arms only after the feed recovers.
+_court_item_counts = {}
+
+
+def court_item_counts():
+    """{court: raw RSS item count} from the last discovery scan. Courts whose
+    fetch failed count 0; courts not reached (mid-scan crash) are absent."""
+    return dict(_court_item_counts)
+
+
 # Major bankruptcy courts to watch (handle ~80% of large Ch.11 filings)
 MONITORED_COURTS = [
     "deb",    # Delaware Bankruptcy
@@ -443,10 +460,12 @@ def discover_new_filings():
     stale_dropped = 0
     global _raw_ch11_count
     _raw_ch11_count = 0
+    _court_item_counts.clear()
 
     for court in MONITORED_COURTS:
         tree = _fetch_court_rss(court)
         items = _parse_items(tree)
+        _court_item_counts[court] = len(items)
 
         court_seen = _ordered_seen(disc_seen.get(court, []))
         court_seen_set = set(court_seen)
