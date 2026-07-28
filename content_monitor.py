@@ -14,10 +14,11 @@ streak. That self-calibrates the noisy cases — 13F fund filings (quarterly,
 share too low), CFTC COT (zero on its Thu/Fri skip days, but a 3-zero streak
 can't happen on a Mon-Thu schedule unless it is genuinely broken).
 
-digest.main calls record_and_check() after the fetch phase and merges any
-signals into the same red ALERT box as the Fed-stress check — no second
-email, and the warning arrives in context. The signal repeats each run until
-the source recovers (deliberate: an unresolved outage should keep nagging).
+digest.main calls record_and_check() after the fetch phase; any signals
+render in the grey "System notices" footer at the bottom of the FULL sends
+(2026-07-28 routing — before that a separate ⚙️ email, before 2026-07-22 the
+digest's red box). The signal repeats each run until the source recovers
+(deliberate: an unresolved outage should keep nagging).
 """
 
 import datetime

@@ -803,7 +803,7 @@ _TRUNCATIONS = []
 
 def _guard_truncation(pass_label, response):
     """True if `response` stopped at its max_tokens cap; logs and queues an
-    ops-alert line. Never raises — the guard must not break a digest run."""
+    ops-footer line. Never raises — the guard must not break a digest run."""
     try:
         if getattr(response, "stop_reason", None) != "max_tokens":
             return False

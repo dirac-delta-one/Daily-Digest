@@ -440,7 +440,8 @@ add to `DIGEST_TO_TEAM`, self-serve by reply). The SEC watchlist stays fully sha
   (failure alert fires), `commit_seen` skipped.
 - **Orphans:** owners who stop being recipients have alerts skipped by construction;
   `orphan_notices` reports each NEW orphaning once (tracked in `_meta.known_orphans`) via the ⚙️
-  ops email — relevant at the 7/31 acohen departure.
+  ops email — relevant at the 7/31 acohen departure. *(SUPERSEDED 2026-07-28: the notice was
+  dropped — orphaning is now silent, handled in person; see that day's ops-footer entry.)*
 - **Limitations recorded (operator):** no forwarding/attachments in the command channel — commands
   are typed reply text only; per-user watchlists and cross-user visibility explicitly rejected.
 - reply_monitor grounds the command parse on the asker's own alerts (`owner=asker`).

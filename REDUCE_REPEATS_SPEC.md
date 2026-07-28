@@ -562,7 +562,8 @@ thinking+output over it and the emailed digest truncated mid-§6 with no
 Rating Actions section at all; (b) §3 bloated to 13 bullets, ignoring its
 soft cap; (c) zero "Contrarian:" lead words appeared. The truncation exposed
 a latent silent-failure bug (stop_reason never checked) — fixed same day:
-caps raised to 32,000 + a truncation guard (loud WARNING, ops-alert entry,
+caps raised to 32,000 + a truncation guard (loud WARNING, ops-notice entry —
+a footer on the FULL send since 2026-07-28 —
 pass-2→pass-1 fallback; `digest._guard_truncation`). Preconditions for any
 retry: the guard/cap fix in place (done), a prompt fix for the §3
 bloat/marker non-compliance, jared's sign-off — and honestly, with
