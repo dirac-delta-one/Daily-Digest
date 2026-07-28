@@ -147,6 +147,38 @@ def test_discovery_seen_ids_suppress(mock_discovery):
     assert [f["link"] for f in found] == ["link-new"]  # seen id suppressed
 
 
+def test_raw_ch11_count_includes_seen_and_stale(mock_discovery):
+    # O3 re-point (2026-07-28): the feeds-alive signal counts EVERY Ch.11
+    # keyword hit — already-seen and stale entries included — so it stays
+    # nonzero on days when the filters correctly empty the final list.
+    seen_item = {"title": "26-10001 Old Seen LLC", "link": "link-seen",
+                 "description": "Chapter: 11 voluntary petition", "pub_date": ""}
+    stale = {"title": "19-10234 Ancient Corp LLC", "link": "link-stale",
+             "description": "Chapter: 11 voluntary petition", "pub_date": ""}
+    fresh = {"title": "26-10710 Acme Corp LLC", "link": "link-fresh",
+             "description": "Chapter: 11 voluntary petition", "pub_date": ""}
+    non_ch11 = {"title": "26-10999 Someone", "link": "link-noise",
+                "description": "Chapter: 7 petition", "pub_date": ""}
+    pacer._stash_seen({"discovery": {"deb": ["link-seen"]}, "tracking": {}})
+    mock_discovery([seen_item, stale, fresh, non_ch11])
+
+    found = pacer.discover_new_filings()
+    assert [f["link"] for f in found] == ["link-fresh"]  # filters still apply
+    assert pacer.raw_ch11_count() == 3                   # seen + stale + fresh
+
+
+def test_raw_ch11_count_resets_each_scan(mock_discovery):
+    mock_discovery([{"title": "26-10710 Acme Corp LLC", "link": "l1",
+                     "description": "Chapter: 11 voluntary petition", "pub_date": ""}])
+    pacer.discover_new_filings()
+    assert pacer.raw_ch11_count() == 1
+
+    mock_discovery([{"title": "26-10711 Widget Co", "link": "l2",
+                     "description": "routine motion", "pub_date": ""}])
+    pacer.discover_new_filings()
+    assert pacer.raw_ch11_count() == 0  # stale value from the prior scan cleared
+
+
 def test_discovery_eviction_drops_oldest_first(mock_discovery):
     # Pre-seed 990 ordered ids; 30 new feed entries push the court over the
     # 1000 cap -> exactly the 20 OLDEST pre-seeded ids must be evicted.

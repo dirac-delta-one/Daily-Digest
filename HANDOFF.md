@@ -551,37 +551,33 @@ What remains is only what a future session might still act on.)*
   **Watch — VALIDATED 2026-07-27 (Monday log):** `Lookback window: 72h (previous digest
   2026-07-24)` logged, weekend content present, PACER showed only fresh filings. Cross-day
   behavior working.
-- **⚠ PACER O3 zero-streak ops-alert — DIAGNOSED FALSE POSITIVE 2026-07-28; fix NOT yet done (pick
-  up in a fresh session).** After the freshness filter went live (7/24), `pacer_entries` hit 0 for
-  3 straight runs (7/24, 27, 28) and the O3 content monitor emailed jared an ops-alert
-  ("pacer_entries: 0 items for 3 straight runs, was nonzero in 83% of the prior 12"). **It is a
-  FALSE POSITIVE — PACER is working correctly.** Proof (reproduce with a $0 read-only script that
-  fetches each `MONITORED_COURTS` RSS via `pacer._fetch_court_rss`/`_parse_items` and applies
-  `pacer._fresh_filing` — no Sonnet, no state mutation): today the filter correctly DROPPED
-  old-case docket noise (Terraform Labs `24-`, Purdue Pharma `19-`, MF Global `11-`, Imerys `19-`)
-  and correctly PASSED fresh 2026 filings — so `_fresh_filing` is NOT over-filtering. The final 0
-  is because the day's only genuinely-NEW fresh filings were small local businesses (a tavern, a
-  roofing co, local LLCs) that the corporate/size filter correctly drops as not digest-worthy;
-  large corporate Ch.11s simply don't file every day. The monitor's "83% nonzero" baseline is from
-  the PRE-filter era (old-case resurfacing inflated the count), so it's comparing the new (correct,
-  sparser) regime against the old (noisy) one. Self-clears on the next real large filing or as the
-  pre-filter runs age out of `source_counts.json`'s rolling `KEEP_RUNS` window — but nags jared
-  daily until then.
-  **Recommended fix (my pick):** point the O3 monitor at PACER's RAW discovery hits (Ch.11
-  petitions found across courts, BEFORE the corporate/size filter) instead of the final
-  `pacer_entries` count — distinguishes "feeds working, nothing big today" (raw>0 → no alert) from
-  "feeds actually dead" (raw=0 → real alert), the signal you actually want. Needs `pacer.fetch_*`
-  to expose the raw Ch.11 count + `digest.main` to pass it into `content_monitor.record_and_check`.
-  **Quick alternative** (no code): one-time prune of the pre-2026-07-24 rows from
-  `source_counts.json` (gitignored server state) so the monitor's self-calibration recomputes on
-  the post-filter regime and stops qualifying PACER as "normally nonzero."
-  **Two real gaps the diagnostic surfaced (neither caused the 0):** (1) **txsb (Houston) RSS 404s**
-  — `https://ecf.txsb.uscourts.gov/cgi-bin/rss_outside.pl` returns Not Found, so one of the biggest
+- **PACER O3 zero-streak ops-alert — FALSE POSITIVE (diagnosed 2026-07-28), FIXED same day via the
+  raw-count re-point; awaiting a server pull.** After the freshness filter went live (7/24),
+  `pacer_entries` hit 0 for 3 straight runs and O3 emailed jared a "source dead" ops-alert — but
+  PACER was working correctly: the filter properly dropped old-case docket noise (Terraform `24-`,
+  Purdue `19-`, MF Global `11-`) and the day's only fresh filings were small local businesses the
+  corporate/size filter correctly rejects; large corporate Ch.11s don't file daily, and the
+  monitor's "83% nonzero" baseline came from the noisier pre-filter era (full diagnosis in WORKLOG
+  2026-07-28). **The fix:** O3 now watches PACER's RAW Ch.11 feed-hit count — every Ch.11 keyword
+  match across the court feeds BEFORE the seen/freshness/corporate/size filters
+  (`pacer.raw_ch11_count()`, seen-state-independent so rerun-safe), recorded as `pacer_raw_ch11`;
+  the filtered `pacer_entries` count is no longer recorded. raw>0 = feeds alive, nothing
+  digest-worthy today (no alert); raw=0 = feeds actually dead (a real alert — existing mega-cases
+  alone generate matching docket entries daily). New log line: `Ch.11 discovery hits: N
+  pre-filter`. Mechanics of the switchover: the old false alert stops on the FIRST post-pull run
+  (a key absent from the latest run's counts is never streak-checked), and the new key
+  self-calibrates — it cannot signal until it has `MIN_HISTORY` (3) prior runs plus a 3-run zero
+  streak. Tests: `test_pacer.py` raw-count pair + `test_digest_main.test_o3_counts_use_raw_pacer_signal`.
+  **Server: needs a pull** (digest.py + pacer.py — digest-run path only, no ReplyMonitor restart
+  needed); until then the false alert nags daily.
+  **Residual gaps from the diagnostic:** (1) **txsb (Houston) RSS 404s — still OPEN:**
+  `https://ecf.txsb.uscourts.gov/cgi-bin/rss_outside.pl` returns Not Found, so one of the biggest
   Ch.11 courts is uncovered; likely longstanding (the other six courts kept PACER nonzero
-  pre-filter); find the court's current public-RSS URL or confirm it's been removed. (2)
-  **`pacer.LOOKBACK_HOURS` is hardcoded 24** while the digest uses weekend-aware 72h on Mondays
-  (`digest._set_lookback_hours`) — so Monday's PACER drops Fri/weekend filings the digest window
-  should include; align PACER's window with the digest's dynamic lookback.
+  pre-filter); find the court's current public-RSS URL or confirm it's been removed. (2) The
+  diagnostic's second gap — "`pacer.LOOKBACK_HOURS` hardcoded 24 vs the digest's 72h Mondays" —
+  was **STALE/WRONG, no action:** `digest._set_lookback_hours` (2026-07-23) already retunes
+  `pacer.LOOKBACK_HOURS` per run before the fetch phase (pinned by `test_cross_day`); only
+  standalone `python pacer.py` uses the 24h default, which is fine.
 - **Snapshot-table data lag — CLOSED (spec `SNAPSHOT_UPDATE.md` retired 2026-07-27; full
   investigation in git history).** The 2026-07-23 investigation established the Rates + Corporate
   Credit OAS rows were **T-2** at the 08:00 run; every free fix SHIPPED 2026-07-23

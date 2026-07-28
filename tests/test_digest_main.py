@@ -364,6 +364,21 @@ def test_o3_counts_track_substack_fulltext(harness, monkeypatch):
     assert counts["substack_fulltext"] == 1
 
 
+def test_o3_counts_use_raw_pacer_signal(harness, monkeypatch):
+    # O3 re-point (2026-07-28): the monitor watches the pre-filter Ch.11
+    # feed-hit count — the filtered pacer_entries is legitimately 0 most days
+    # since the freshness filter and false-alarmed the zero-streak rule.
+    calls, _marker = harness
+    monkeypatch.setattr(digest, "TEAM_RECIPIENTS", [])
+    monkeypatch.setattr(digest, "TEAM_ACTIVATION_DATE", None)
+    monkeypatch.setattr(digest._pacer_mod, "_raw_ch11_count", 17)
+
+    digest.main()
+    counts = next(c[1] for c in calls if c[0] == "o3")
+    assert "pacer_entries" not in counts
+    assert counts["pacer_raw_ch11"] == 17
+
+
 def test_is_self_artifact():
     f = digest._is_self_artifact
     # the system's own output (any subject) — sender rule

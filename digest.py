@@ -2004,6 +2004,14 @@ def main():
             "wiltw": 1 if wiltw else 0,
             **{key: len(fetched[key]) for key in fetched},
         }
+        # O3 PACER re-point (2026-07-28): the filtered pacer_entries count is
+        # legitimately 0 most days since the 7/23 freshness filter (large
+        # corporate Ch.11s don't file daily), which false-positived the
+        # zero-streak rule against its pre-filter baseline. Watch the RAW
+        # Ch.11 feed hits instead — 0 there means the court feeds themselves
+        # are dead or empty, the outage this monitor exists to catch.
+        del counts["pacer_entries"]
+        counts["pacer_raw_ch11"] = _pacer_mod.raw_ch11_count()
         for signal in record_and_check(counts):
             ops_alerts.append({
                 "name": "Source degradation",

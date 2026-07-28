@@ -68,6 +68,25 @@ def _fresh_filing(pub_date_str, case_number, now=None):
     return True
 
 
+# O3-monitor plumbing (2026-07-28): the content monitor used to watch the
+# FINAL filtered entry count, which is legitimately 0 most days since the
+# freshness filter landed (large corporate Ch.11s don't file daily) — a 3-run
+# zero streak false-positived the "source dead" alert against a pre-filter
+# baseline. The healthy signal is the RAW Ch.11 hit count across the court
+# feeds, BEFORE the seen/freshness/corporate/size filters: existing mega-cases
+# alone generate matching docket entries daily, so 0 here means the feeds
+# themselves are dead or empty — the outage O3 exists to catch.
+_raw_ch11_count = 0
+
+
+def raw_ch11_count():
+    """Ch.11 keyword hits across all court feeds in the last discovery scan,
+    before any filtering (already-seen and stale entries included, so the
+    value is independent of seen-state and rerun-safe). digest.main feeds
+    this to the O3 content monitor instead of the filtered entry count."""
+    return _raw_ch11_count
+
+
 # Major bankruptcy courts to watch (handle ~80% of large Ch.11 filings)
 MONITORED_COURTS = [
     "deb",    # Delaware Bankruptcy
@@ -422,6 +441,8 @@ def discover_new_filings():
     disc_seen = seen.get("discovery", {})
     new_filings = []
     stale_dropped = 0
+    global _raw_ch11_count
+    _raw_ch11_count = 0
 
     for court in MONITORED_COURTS:
         tree = _fetch_court_rss(court)
@@ -432,11 +453,16 @@ def discover_new_filings():
         court_new = 0
 
         for item in items:
+            # Checked BEFORE the seen-skip so raw_ch11_count sees every hit.
+            is_ch11 = _is_chapter_11_filing(item["title"], item["description"])
+            if is_ch11:
+                _raw_ch11_count += 1
+
             entry_id = item["link"] or item["title"]
             if entry_id in court_seen_set:
                 continue
 
-            if _is_chapter_11_filing(item["title"], item["description"]):
+            if is_ch11:
                 case_number, debtor = _extract_case_info(
                     item["title"], item["description"], item["link"]
                 )
@@ -481,6 +507,8 @@ def discover_new_filings():
         print(f"  Freshness filter: dropped {stale_dropped} stale entr"
               f"{'y' if stale_dropped == 1 else 'ies'} (old case year or "
               f"pre-window pub date).")
+    print(f"  Ch.11 discovery hits: {_raw_ch11_count} pre-filter "
+          f"(incl. seen/stale — the O3 feeds-alive signal).")
     print(f"  Found {len(new_filings)} raw Chapter 11 filing(s).")
 
     if not new_filings:

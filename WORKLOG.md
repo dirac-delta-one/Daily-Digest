@@ -5,7 +5,7 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-28 — server current; debut + Monday validated; PACER O3 alert diagnosed benign)
+## Current state (2026-07-28 — server current; debut + Monday validated; PACER O3 fix built, needs a pull)
 
 **LIVE and healthy.** The Fri 7/24 debut succeeded (12 sends, zero content ops-alerts, §1/rates/
 Cliffwater/FULL-TEAM all correct — 2026-07-24 entry) and the Mon 7/27 log validated the cross-day
@@ -14,13 +14,14 @@ work (`Lookback window: 72h`, weekend content, PACER fresh-only). The server was
 Tuesday 7/28's run**, so all of the 7/24→7/28 backlog is now deployed: 1h cache TTL, weekly 32k
 cap, debut nits (WSJ dedup / mirror-row dates / date-framing), the **freshest-only HY/IG rows**,
 **round-to-zero "unch" rendering**, the **BKLN yield accrual cache**, **REPO_ROOT Phase 0**, and
-the **memory update 8k→16k** cap raise. `pytest` **480**, ruff clean, HEAD past `e3f4760`.
+the **memory update 8k→16k** cap raise. `pytest` **483**, ruff clean.
 
 **Open / to-verify (pick up in a new session):**
-- **PACER O3 ops-alert (7/28) — DIAGNOSED FALSE POSITIVE, fix not yet built.** See HANDOFF §11.B
-  "PACER O3 zero-streak" — the freshness filter works; the alert is a stale-baseline artifact.
-  Recommended fix = monitor PACER RAW discovery hits (not the filtered count); plus the txsb-404
-  coverage gap and the PACER 24h-vs-72h Monday lookback mismatch.
+- **PACER O3 false-positive fix (raw-count re-point) — BUILT 2026-07-28, needs a server pull.**
+  O3 now watches `pacer_raw_ch11` (pre-filter Ch.11 feed hits) instead of the filtered
+  `pacer_entries`; the false alert stops on the first post-pull run. Detail in HANDOFF §11.B +
+  today's second entry. Residual: the txsb-404 coverage gap (the 24h-vs-72h lookback "gap" turned
+  out stale — already handled by `_set_lookback_hours`).
 - **Tuesday 7/28's full LOG still unread** — only the PACER ops-alert email was seen. Confirm from
   the box: `Cache: pass 2 read N` NONZERO (the 1h-TTL fix's real test — was 0 on 7/24 & the 7/27
   old-code run), `Memory pass tokens … out` under the new 16k cap, unch rendering / freshest-only
@@ -29,6 +30,32 @@ the **memory update 8k→16k** cap raise. `pytest` **480**, ruff clean, HEAD pas
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-28 — PACER O3 fix: monitor raw Ch.11 feed hits, not the filtered count
+
+Implemented the raw-count re-point recommended by the morning's diagnosis (next entry). The O3
+content monitor's PACER key is now **`pacer_raw_ch11`** — the count of Ch.11 keyword matches
+across all court RSS feeds in the discovery scan, taken BEFORE the seen/freshness/corporate/size
+filters — instead of the final filtered `pacer_entries`, which is legitimately 0 most days in the
+post-freshness-filter regime. Semantics: raw>0 = feeds alive, nothing digest-worthy today (no
+alert); raw=0 = feeds actually dead (a real alert — existing mega-cases alone generate matching
+docket entries daily, so a healthy scan is never 0). Implementation: `pacer.discover_new_filings`
+counts every `_is_chapter_11_filing` hit before the seen-skip (deliberately including already-seen
+and stale entries, so the signal is seen-state-independent and rerun-safe; resets each scan, so a
+mid-scan crash reads 0 = alert-worthy) and exposes it via `pacer.raw_ch11_count()`; `digest.main`'s
+O3 block swaps the key. New log line: `Ch.11 discovery hits: N pre-filter`. Switchover mechanics:
+the current false alert stops on the FIRST post-pull run (a key absent from the latest counts is
+never streak-checked) and the new key can't signal until it accrues `MIN_HISTORY` (3) prior runs
+plus a 3-run zero streak — no false alarm during warm-up, by design. `content_monitor.py`
+unchanged (the self-calibration handles the new key). Tests: 480→**483** (raw-count
+includes-seen-and-stale + resets-each-scan in `test_pacer.py`; counts-key wiring in
+`test_digest_main.py`); ruff clean. **Server: needs a pull** (digest.py + pacer.py; no
+ReplyMonitor restart — digest-run path only). Also corrected HANDOFF §11.B: the diagnostic's
+"PACER `LOOKBACK_HOURS` hardcoded 24 vs 72h Mondays" gap was stale — `digest._set_lookback_hours`
+(2026-07-23) already retunes it per run before the fetch (pinned by `test_cross_day`); only the
+txsb-404 gap remains open.
 
 ---
 
