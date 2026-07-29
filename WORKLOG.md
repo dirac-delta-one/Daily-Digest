@@ -5,7 +5,21 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-28 — server current; debut + Mon + Tue logs all validated; 7/28 trio built, needs a pull)
+## Current state (2026-07-29 — Wed run FAILED on the BKLN prompt-formatter bug; fix built, needs a pull + optional re-run)
+
+**Wed 7/29 08:00 run CRASHED — no digest went out.** Root cause: a latent bug in the 7/27 BKLN
+yield-cache work (`format_market_data_for_prompt` assumed `pct_1d` non-None whenever `chg_1d` is;
+the BKLN row deliberately carries pct=None) that could only fire the first morning the accrual
+cache produced a 1D value — which was today. **Fix built + pushed (see today's entry); server
+needs a pull**, then optionally `schtasks /Run /TN \DailyDigest\MorningDigest` for a same-day
+digest (~$6.6) — otherwise tomorrow's run auto-covers today (lookback = since last digest file;
+PACER entries incl. today's 1 large filing re-surface via F1a-4). NOT caused by the 7/28 trio —
+that pull was coincidental timing; the log shows the new PACER lines working. Failure emails
+(FAILED 08:02 + MISSING 09:00) both fired correctly; ~$0.007 spent.
+
+---
+
+## Previous state (2026-07-28 — server current; debut + Mon + Tue logs all validated; 7/28 trio built, needs a pull)
 
 **LIVE and healthy.** The Fri 7/24 debut succeeded (12 sends, zero content ops-alerts, §1/rates/
 Cliffwater/FULL-TEAM all correct — 2026-07-24 entry) and the Mon 7/27 log validated the cross-day
@@ -44,6 +58,31 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-29 — Wed run crash: BKLN pct=None vs the prompt formatter (fixed)
+
+The 08:00 run exited nonzero building the TEAM prompt; jared got the 🚨 FAILED (08:02) and
+🚨 MISSING (09:00 watchdog) emails, both working as designed. Diagnosed from the bot's sent mail
+(operator had no server access; `get_gmail_service()` read-only, free — the 7/24 debut-precedent
+method). **Root cause:** `market_data.format_market_data_for_prompt` rendered
+`({item['pct_1d']:+.1f}%)` unconditionally whenever `chg_1d` was set — but the BKLN 12M-yield row
+(7/27 accrual-cache work) deliberately sets `pct_*=None` (percentage-point changes; "% of %" is
+meaningless). The cache seeded silently 7/28, so 7/29 was the FIRST morning `chg_1d` was non-None
+→ `TypeError: unsupported format string passed to NoneType.__format__`. A one-day-fuse time bomb:
+Monday's pull shipped it, Tuesday ran clean, Wednesday detonated — the 7/28 trio pull was
+coincidental (its new `Ch.11 discovery hits: 55 pre-filter` line is visible in the crash log,
+working). The 1W/1M lines carried the same latent bug (would have fired ~8/4).
+**Fix:** new `market_data._fmt_change_for_prompt` — None-safe twin of `_fmt_change_cell`'s number
+formatting: parenthetical % only when pct exists, and pct-unit changes render in **bps**
+(`+3 bps`), matching the table cell (prompt/table consistency = the 7/24 SK Hynix lesson). All
+three windows (1D/1W/1M) go through it. Regression test with the exact BKLN shape (chg set,
+pct None) + old-rendering pin for normal rows: pytest **485**, ruff clean. **Blast radius of the
+crash:** ~$0.007 (pre-generation), no PACER seen-state loss (F1a-4 — today's 1 large filing
+re-surfaces), memory untouched, tomorrow's lookback auto-covers today. **Recovery: server pull,
+then either wait for Thursday's run or `schtasks /Run /TN \DailyDigest\MorningDigest` for a
+same-day digest (~$6.6, operator/jared's call).**
 
 ---
 

@@ -522,6 +522,16 @@ def _build_yahoo_table(data, section, title, extra_rows_html="", footnote_suffix
     return html
 
 
+def _fmt_change_for_prompt(chg, pct, unit):
+    """None-safe prompt twin of _fmt_change_cell's number formatting. The
+    parenthetical % renders only when a pct exists: BKLN's 12M-yield row
+    carries percentage-POINT changes with pct=None (shown in bps, matching
+    the table), and the old unconditional `{pct:+.1f}` crashed the 2026-07-29
+    run — the first morning the yield accrual cache produced a 1D value."""
+    chg_str = f"{chg * 100:+.0f} bps" if unit == "pct" else f"{chg:+.2f}"
+    return f"{chg_str} ({pct:+.1f}%)" if pct is not None else chg_str
+
+
 def format_market_data_for_prompt(data):
     if not data:
         return ""
@@ -535,11 +545,14 @@ def format_market_data_for_prompt(data):
 
         parts = [f"{label}: {val_str}"]
         if item["chg_1d"] is not None:
-            parts.append(f"1D: {item['chg_1d']:+.2f} ({item['pct_1d']:+.1f}%)")
+            parts.append(
+                f"1D: {_fmt_change_for_prompt(item['chg_1d'], item['pct_1d'], item['unit'])}")
         if item["chg_1w"] is not None:
-            parts.append(f"1W: {item['chg_1w']:+.2f} ({item['pct_1w']:+.1f}%)")
+            parts.append(
+                f"1W: {_fmt_change_for_prompt(item['chg_1w'], item['pct_1w'], item['unit'])}")
         if item["chg_1m"] is not None:
-            parts.append(f"1M: {item['chg_1m']:+.2f} ({item['pct_1m']:+.1f}%)")
+            parts.append(
+                f"1M: {_fmt_change_for_prompt(item['chg_1m'], item['pct_1m'], item['unit'])}")
         # Date the row so the model can frame moves to the right day — on
         # 2026-07-24 §1 called SK Hynix's 7/24 Seoul close "Thursday" because
         # the prompt carried no dates on market rows.

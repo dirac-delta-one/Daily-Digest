@@ -217,6 +217,34 @@ def test_market_prompt_carries_row_dates():
     assert "as of" not in out2
 
 
+def test_market_prompt_survives_pct_none_changes():
+    # 2026-07-29 crash: the BKLN 12M-yield row carries percentage-POINT
+    # changes with pct_1d/1w/1m = None (deliberate — no "% of %"), and the
+    # prompt formatter's unconditional `({pct:+.1f}%)` blew up the run the
+    # first morning the accrual cache produced a 1D value. pct-unit changes
+    # render in bps, matching the table cell.
+    bkln = dict(_yahoo_row("BKLN", "private", unit="pct", value=6.59,
+                           ticker="BKLN", metric="12M dist. yield"),
+                as_of="", chg_1d=0.03, chg_1w=-0.12, chg_1m=None)
+    out = market_data.format_market_data_for_prompt([bkln])
+    assert "BKLN 12M dist. yield: 6.59%" in out
+    assert "1D: +3 bps" in out
+    assert "1W: -12 bps" in out
+    assert "1M:" not in out                     # None chg still omitted
+
+    # non-pct rows with a pct keep the old rendering exactly
+    spx = dict(_yahoo_row("S&P 500", "market", ticker="^GSPC"),
+               chg_1d=12.5, pct_1d=0.9)
+    out2 = market_data.format_market_data_for_prompt([spx])
+    assert "1D: +12.50 (+0.9%)" in out2
+
+    # defensive: a non-pct row missing its pct renders the bare change
+    odd = dict(_yahoo_row("VIX", "market", unit="index", value=18.9,
+                          ticker="^VIX", metric="Index"), chg_1d=-0.42)
+    out3 = market_data.format_market_data_for_prompt([odd])
+    assert "1D: -0.42" in out3
+
+
 def test_yahoo_section_tables_filter_by_section():
     data = [_yahoo_row("S&P 500", "market", ticker="^GSPC"),
             _yahoo_row("ARCC (Ares Capital)", "private", ticker="ARCC",
