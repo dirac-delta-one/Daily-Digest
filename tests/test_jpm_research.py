@@ -22,11 +22,13 @@ def test_login_root_preserves_path_and_query():
     ) == "https://share-login.jpmorgan.com/r/abc123"
 
 
-def test_login_root_strips_only_the_dead_session_expire_path():
-    # /sessionExpire was a transient page that later 404'd (2026-07-27).
+def test_login_root_passes_session_expire_through():
+    # 7/27 stripped this path (it 404'd then); 7/29's lesson is that ANY
+    # transformation second-guesses the operator's link — dead URLs are the
+    # runtime error short-circuit's job, so the link passes through verbatim.
     assert jpm_research._login_root(
         "https://share-login.jpmorgan.com/sessionExpire"
-    ) == "https://share-login.jpmorgan.com/"
+    ) == "https://share-login.jpmorgan.com/sessionExpire"
 
 
 def test_login_root_defaults_and_scheme_completion():

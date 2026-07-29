@@ -51,23 +51,19 @@ RECON_DIR = SCRIPT_DIR / "jpm_recon"
 # run — never loop or retry a failed login; on failure, stop and wait
 # (hours). The server has its own IP and budget.
 def _login_root(link):
-    """Resolve JPM_LINK to the URL to open.
+    """Resolve JPM_LINK to the URL to open — pass it through VERBATIM (adding
+    only a missing scheme).
 
-    2026-07-29 correction: this used to strip EVERYTHING to the host root,
-    which is why the gateway answered "Bad Request" — share-login is
-    resource-scoped (it sets a `resourceName` cookie), so the bare root
-    identifies no resource. Only the known-dead `/sessionExpire` path is
-    stripped now; a real share link's path AND query (where the resource
-    id/token lives) are preserved."""
+    History: the 7/27 code stripped everything to the host root because
+    /sessionExpire had 404'd; 7/29 showed the gateway is resource-scoped (the
+    bare root returns a branded "Bad Request" whose cookies include
+    `resourceName`), so stripping guaranteed failure. Any transformation here
+    just second-guesses the operator's link — the runtime error-page
+    short-circuit in do_login() is the real guard against a dead URL."""
     link = (link or "").strip()
     if not link:
         return "https://share-login.jpmorgan.com/"
-    from urllib.parse import urlsplit, urlunsplit
-    parts = urlsplit(link if "://" in link else "https://" + link)
-    path, query = parts.path, parts.query
-    if path.strip("/").lower() == "sessionexpire":   # transient, 404s since 7/27
-        path, query = "/", ""
-    return urlunsplit((parts.scheme, parts.netloc, path or "/", query, ""))
+    return link if "://" in link else "https://" + link
 
 
 LOGIN_URL = _login_root(os.environ.get("JPM_LINK"))
