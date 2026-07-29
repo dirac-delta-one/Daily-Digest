@@ -51,18 +51,30 @@ RECON_DIR = SCRIPT_DIR / "jpm_recon"
 # run — never loop or retry a failed login; on failure, stop and wait
 # (hours). The server has its own IP and budget.
 def _login_root(link):
+    """Resolve JPM_LINK to the URL to open.
+
+    2026-07-29 correction: this used to strip EVERYTHING to the host root,
+    which is why the gateway answered "Bad Request" — share-login is
+    resource-scoped (it sets a `resourceName` cookie), so the bare root
+    identifies no resource. Only the known-dead `/sessionExpire` path is
+    stripped now; a real share link's path AND query (where the resource
+    id/token lives) are preserved."""
     link = (link or "").strip()
     if not link:
         return "https://share-login.jpmorgan.com/"
-    from urllib.parse import urlsplit
+    from urllib.parse import urlsplit, urlunsplit
     parts = urlsplit(link if "://" in link else "https://" + link)
-    return f"{parts.scheme}://{parts.netloc}/"
+    path, query = parts.path, parts.query
+    if path.strip("/").lower() == "sessionexpire":   # transient, 404s since 7/27
+        path, query = "/", ""
+    return urlunsplit((parts.scheme, parts.netloc, path or "/", query, ""))
 
 
 LOGIN_URL = _login_root(os.environ.get("JPM_LINK"))
 
 # Hosts/paths that mean we are NOT past auth / not yet at content.
-_UNAUTH_MARKERS = ("nwas.jpmorgan.com", "sessionexpire", "logon", "/sso", "/login")
+_UNAUTH_MARKERS = ("nwas.jpmorgan.com", "sessionexpire", "logon", "/sso", "/login",
+                   "share-login.jpmorgan.com")  # the gateway itself is never the destination
 
 # The share-login landing shows a button BEFORE the username form — click it
 # first if no username field is present yet.
@@ -121,13 +133,26 @@ def _has_session():
     return SESSION_FILE.exists()
 
 
-def _looks_authenticated(final_url):
+_ERROR_PAGE_TITLES = ("bad request", "error", "forbidden", "access denied",
+                      "not found", "sign in", "log in", "logon")
+
+
+def _looks_authenticated(final_url, page_title=None):
     """Phase-1 heuristic: authenticated if we're on a jpmorgan/jpmm host that
-    is NOT one of the login/SSO/session-expire pages. Tighten to a cookie check
-    once we identify JPM's auth cookie (cf. thirteen_d._looks_authenticated)."""
+    is NOT a login/SSO/session-expire/error page. Tighten to a cookie check
+    once we identify JPM's auth cookie (cf. thirteen_d._looks_authenticated).
+
+    2026-07-29: URL alone gave a FALSE POSITIVE — a JPM-branded "Bad Request"
+    page on share-login.jpmorgan.com/ passed (the host contains "jpmorgan.com"
+    and "-login." doesn't match the "/login" marker), so a dead end was saved
+    as an "authenticated" session, clobbering the prior file. Now the gateway
+    host itself counts as unauthenticated and the page TITLE is checked."""
     u = (final_url or "").lower()
     on_jpm = "jpmorgan.com" in u or "jpmm.com" in u
-    return on_jpm and not any(mark in u for mark in _UNAUTH_MARKERS)
+    if not on_jpm or any(mark in u for mark in _UNAUTH_MARKERS):
+        return False
+    title = (page_title or "").lower()
+    return not any(bad in title for bad in _ERROR_PAGE_TITLES)
 
 
 def read_jpm_code(gmail_service, since_epoch=0, max_wait=120):
@@ -248,6 +273,26 @@ def do_login():
         page.goto(LOGIN_URL, wait_until="domcontentloaded")
         page.wait_for_timeout(2500)
 
+        # Error-page short-circuit (2026-07-29): the gateway answers a
+        # resource-less URL with a JPM-branded "Bad Request". Say so up front
+        # instead of walking the operator through selector misses and an
+        # ENTER prompt that can't lead anywhere.
+        try:
+            title = page.title()
+        except Exception:
+            title = ""
+        if any(bad in (title or "").lower() for bad in _ERROR_PAGE_TITLES[:5]):
+            print(f"\n  ⚠ The gateway returned an error page (title: {title!r}).")
+            print("  This is NOT a credential problem — no login was attempted,")
+            print("  so no auth attempt was spent. The share-login gateway is")
+            print("  resource-scoped: JPM_LINK must be the FULL entitled share")
+            print("  link (path + query, e.g. ...?resourceName=...), not the")
+            print("  bare host. Get the original link from jared's JPM email/")
+            print("  bookmark, put it in env.bat as JPM_LINK, and retry once.")
+            _dump_recon(page, context, tag="error")
+            browser.close()
+            return False
+
         # share-login landing: a button precedes the username form. If no
         # username field is visible yet, click the landing button first.
         if not _has_field(page, _USERNAME_SELECTORS):
@@ -277,9 +322,14 @@ def do_login():
         _dump_recon(page, context, tag="landing")
 
         final_url = page.url
-        authed = _looks_authenticated(final_url)
+        try:
+            final_title = page.title()
+        except Exception:
+            final_title = ""
+        authed = _looks_authenticated(final_url, final_title)
         if not authed:
-            print(f"  NOTE: end URL doesn't look authenticated (url={final_url!r}).")
+            print(f"  NOTE: end state doesn't look authenticated "
+                  f"(url={final_url!r}, title={final_title!r}).")
 
         # Bootstrap: with no existing session there's nothing to clobber, so
         # save whatever we have for inspection. Once a session exists, only

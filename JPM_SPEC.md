@@ -29,11 +29,27 @@ walled to jared's FULL variant the way Substack is.
 
 ## Login flow (mapped 2026-07-27, read-only recon)
 
-- **Entry = the ROOT `https://share-login.jpmorgan.com/`** (confirmed by operator 2026-07-27) —
-  jared's entitled SHARED-ACCESS gateway. The `/sessionExpire` path once stored in `JPM_LINK` was
-  a transient session-expired page (later 404'd); the module now strips any path off `JPM_LINK`
-  down to the host root. Flow: landing (button and/or T&C acceptance) → login form → username +
-  password → (MFA access code only sometimes — the device may be remembered) → entitled research.
+- **⚠️ CORRECTED 2026-07-29 — the entry is NOT the bare root; the gateway is RESOURCE-SCOPED.**
+  Opening `https://share-login.jpmorgan.com/` with no resource identifier returns a JPM-branded
+  **"Bad Request"** page (recon: `jpm_recon/landing.html`, 721 bytes, title
+  `Bad Request | J.P. Morgan`; the only cookies set are `geo_country`, `geo_region` and —
+  the tell — **`resourceName`**). The 7/27 "root works" reading was wrong: what the operator
+  opened successfully in her own browser almost certainly carried history/cookies or the full
+  link. `_login_root` no longer strips path+query — it preserves them (only the known-dead
+  `/sessionExpire` path is stripped). **BLOCKER → the human step: get jared's ORIGINAL entitled
+  share link** (from his JPM email or bookmark — expect something like
+  `https://share-login.jpmorgan.com/<path>?resourceName=…`) and put THAT in `env.bat` as
+  `JPM_LINK`. Until then no login attempt can succeed, and none should be made.
+  Expected flow once the real link is used: landing (button and/or T&C acceptance) → login form
+  → username + password → (MFA access code only sometimes — the device may be remembered) →
+  entitled research.
+- ⚠️ **The Playwright BUNDLED Chromium is 400'd by the gateway** (2026-07-29): identical URL
+  rendered fine in the desktop browser. `_launch_browser` now drives the machine's installed
+  Chrome/Edge via Playwright's `channel`. **No automation-hiding flags** — deliberate: if JPM
+  refuses openly-automated real Chrome as well, that is an approach decision for jared (ask JPM
+  for entitled feed/API access, or keep this human-in-the-loop), not an evasion problem to
+  engineer around. *(Note both 7/29 attempts hit error pages BEFORE any form existed, so
+  **no auth attempts were spent** — the block budget is untouched.)*
 - ⚠️ **Do NOT log in via `markets.jpmorgan.com/login`** — it authenticates but dead-ends at "You
   do not have appropriate entitlement to access this resource" (learned 2026-07-27: jared is
   entitled to the shared resource behind the gateway, not the full markets platform).
@@ -52,7 +68,9 @@ walled to jared's FULL variant the way Substack is.
 
 - `JPM_USERNAME` — login username/email.
 - `JPM_PASSWORD` — login password.
-- `JPM_LINK` — a JPM URL (login/deep-link; exact use TBD once we authenticate).
+- `JPM_LINK` — **must be jared's FULL entitled share link, path and query included** (2026-07-29:
+  the gateway is resource-scoped; a bare host = "Bad Request"). The dev `env.bat` currently holds
+  the dead `https://share-login.jpmorgan.com/sessionExpire` — replace it with the real link.
 - Plus a saved session: `jpm_session.json` (Playwright storage_state, gitignored like
   `thirteen_d_session.json`). Copy to the server the same way as the other secret files.
 

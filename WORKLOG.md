@@ -66,6 +66,38 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
 
 ---
 
+## 2026-07-29 — JPM attempt #3: the gateway is RESOURCE-SCOPED (root = Bad Request) + a false-positive session bug
+
+Retry with installed Chrome reached the page but got the **same JPM-branded "Bad Request"** — and
+this time the recon dump landed, which cracked it. `jpm_recon/landing.html` is 721 bytes, title
+`Bad Request | J.P. Morgan`, and the only cookies set are `geo_country`, `geo_region`, and
+**`resourceName`**. That last one is the tell: **share-login is resource-scoped**, so the bare
+host root identifies no resource and is rejected. The 7/27 "the ROOT is the durable entry"
+conclusion was WRONG — and `_login_root`, which stripped `JPM_LINK` down to the host, was
+guaranteeing the failure it was written to avoid. **Fix:** `_login_root` preserves path AND query
+(only the known-dead `/sessionExpire` path is stripped). **BLOCKER is now a human step:** get
+jared's original entitled share link (JPM email/bookmark, expect `…?resourceName=…`) into
+`env.bat`; no attempt can succeed before that, and none should be made.
+
+**Second bug, found in the same output — a false-positive session save.** The run printed
+`Session saved to jpm_session.json [authenticated]`: `_looks_authenticated` saw a `jpmorgan.com`
+host and no `/login` substring (the host is `share-**-login**.jpmorgan.com`, which the `/login`
+marker misses), so a Bad Request dead end was written over the 7/27 session file — exactly the
+anti-clobber failure 13D taught us to avoid. Fixed: the gateway host is now itself an unauth
+marker, and the page **title** is checked against an error-page list (`bad request`, `forbidden`,
+`access denied`, `sign in`, …). The bogus `jpm_session.json` was deleted (backup in TEMP);
+`_has_session()` correctly reports none. Also added an **error-page short-circuit**: a future run
+against a bad link now says so immediately (with the "get the full share link" instruction) and
+returns, instead of walking the operator through three selector misses and a pointless ENTER.
+
+**New `tests/test_jpm_research.py` (8 tests, offline — no browser/network/credentials):** URL
+resolution (query preserved, only sessionExpire stripped, scheme completion), the auth heuristic
+(the exact 7/29 false positive, gateway host, error titles on good hosts, real content page), and
+the confirmed MFA-code regex. pytest 488→**496**, ruff clean. **Attempts spent: still zero** —
+both 7/29 runs died on error pages before any form existed.
+
+---
+
 ## 2026-07-29 — JPM login attempt #2: gateway 400s the bundled Chromium → drive installed Chrome
 
 Retry prep after the 7/27 IP block cleared (operator's normal browser rendered
