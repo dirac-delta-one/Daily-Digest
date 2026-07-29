@@ -66,6 +66,23 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
 
 ---
 
+## 2026-07-29 — JPM login attempt #2: gateway 400s the bundled Chromium → drive installed Chrome
+
+Retry prep after the 7/27 IP block cleared (operator's normal browser rendered
+`share-login.jpmorgan.com/` fine — IP unblocked, page live). The scripted attempt got **400 Bad
+Request at page LOAD**: same URL, so the gateway is rejecting Playwright's bundled Chromium
+build as a client. **No auth attempt was burned** (a 400 page has no username field; the script
+never submitted credentials — block budget intact). Fix: `jpm_research._launch_browser` prefers
+the machine's installed Chrome/Edge via Playwright `channel` (verified: finds Chrome on the dev
+box), falling back to bundled Chromium. **Deliberately NO automation-hiding flags** (policy +
+firm-relationship risk, per the spec's ToS caveat): if JPM also 400s openly-automated real
+Chrome, the workstream needs an approach decision — ask JPM about entitled feed/API access or
+stay human-in-the-loop — not an evasion arms race. Single-attempt discipline unchanged. Note:
+`JPM_LINK` in dev env.bat still carries the dead `/sessionExpire` path; `_login_root` strips it
+(harmless). pytest 488, ruff clean.
+
+---
+
 ## 2026-07-29 — Armed-path sweep: pre-testing every warm-up feature before the 7/31 departure
 
 Post-mortem follow-through on the morning's crash (operator request: no more features going

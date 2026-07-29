@@ -97,6 +97,26 @@ _SUBMIT_SELECTORS = (
 )
 
 
+def _launch_browser(pw, headless=False):
+    """Prefer the machine's installed Chrome/Edge (Playwright `channel`) over
+    the bundled Chromium: on 2026-07-29 share-login.jpmorgan.com answered the
+    bundled build's page LOAD with 400 Bad Request while the same URL rendered
+    fine in the desktop browser — the gateway appears to reject the bundled
+    build outright. Driving the real browser is a plain configuration choice;
+    deliberately NO automation-hiding flags — if JPM refuses openly-automated
+    clients too, that's an approach-level decision (entitled feed/API, or
+    human-in-the-loop), not something to evade."""
+    for channel in ("chrome", "msedge"):
+        try:
+            browser = pw.chromium.launch(headless=headless, channel=channel)
+            print(f"  Browser: installed {channel} (channel).")
+            return browser
+        except Exception:
+            continue
+    print("  Browser: bundled Chromium (no installed Chrome/Edge found).")
+    return pw.chromium.launch(headless=headless)
+
+
 def _has_session():
     return SESSION_FILE.exists()
 
@@ -222,7 +242,7 @@ def do_login():
 
     print(f"  Opening J.P. Morgan Markets login ({LOGIN_URL})...")
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=False)
+        browser = _launch_browser(pw, headless=False)
         context = browser.new_context()
         page = context.new_page()
         page.goto(LOGIN_URL, wait_until="domcontentloaded")
