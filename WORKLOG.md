@@ -66,6 +66,39 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
 
 ---
 
+## 2026-07-29 — JPM LOGIN SUCCEEDED (attempt #4) — and the portal turns out not to be a research platform
+
+**Phase 1 DONE.** Operator supplied the working entry (`/SessionExpire` — the case-sensitive
+variant renders a landing page with a "go to login" button; the bare root still 400s), the module
+now passes `JPM_LINK` through verbatim (`e44240f`), and the run auto-clicked the landing button,
+auto-filled username+password, and the operator completed the emailed MFA code by hand. Landed at
+`share.jpmorgan.com/folder/my-portal` with **real auth cookies** (`JSESSIONID`, `PF`
+(PingFederate), `oidc_auth_session`, `resourceName`); `jpm_session.json` saved — this time
+legitimately (the 7/29 false-positive guard passed it on merit). Full DOM + screenshot in
+`jpm_recon/` (gitignored). **One attempt, one credential submission, no block.**
+
+**The finding that matters: this is JPM's Secure Content Delivery Portal (SCDP), not J.P. Morgan
+Markets.** Page title says so; the account role is `SCDP_-_External`; nav is Share File / My
+Portal / Shared with me / Sent / Recent / Expiring Soon / Processing — a secure file-TRANSFER
+service. My Portal holds exactly ONE file ("Welcome Jared Tramontano", 2.7 KB, 4/29/26) from
+`michael.t.sweeney@jpmchase.com`, the account's only contact. A read-only session-reuse probe of
+`/folder/shared-with-me` captured every API the SPA calls (`/api/user/me|featureFlags|uiParams|
+myContacts`) — all account/UI metadata, **no research/content API**. The account is also
+registered to jared's personal email, not his Acorn address.
+
+**So the spec's premise — "pull JPM Markets institutional dealer research" — has no evident
+source here.** The one unknown is the "Shared with me" folder, blocked behind a **T&C
+acceptance** (`/disclosure/tac`) that Claude deliberately did NOT click: it is a legal agreement
+in jared's name on his account. **Next step is his, not ours:** accept the T&C, look at that
+folder, answer "does research arrive here, and how often?" → re-scope Phases 2–3 as a
+shared-folder PDF poller (close to the existing forwarded-PDF path) or **drop the workstream**.
+Two blockers survive either answer: the T&C gate would have to be accepted programmatically every
+unattended session (ToS exposure — needs his recorded decision), and banker-to-personal-account
+documents are a weaker basis for FULL+TEAM redistribution than the institutional entitlement this
+spec assumed. All written into JPM_SPEC's new top section.
+
+---
+
 ## 2026-07-29 — JPM attempt #3: the gateway is RESOURCE-SCOPED (root = Bad Request) + a false-positive session bug
 
 Retry with installed Chrome reached the page but got the **same JPM-branded "Bad Request"** — and

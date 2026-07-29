@@ -27,6 +27,39 @@ walled to jared's FULL variant the way Substack is.
 > like Substack. Until then, JPM content rides the shared/team prompt prefix and IS indexed for
 > team-tier reply retrieval.
 
+## ⛔ 2026-07-29 — LOGIN SUCCEEDED, AND IT INVALIDATES THE PREMISE. READ THIS FIRST.
+
+**Phase 1 is DONE** (session saved, real auth cookies: `JSESSIONID`, `PF` (PingFederate),
+`oidc_auth_session`). **But the destination is not a research platform.**
+
+`share.jpmorgan.com` is JPM's **Secure Content Delivery Portal** (page title; the account's role
+is `SCDP_-_External`) — a secure FILE-TRANSFER service. Nav = Share File / My Portal / Shared
+with me / Sent / Recent / Expiring Soon / Processing. It is not J.P. Morgan Markets and carries
+no research library. Observed state (`jpm_recon/landing.png`, `/api/user/*` captures):
+- **My Portal holds exactly ONE file:** "Welcome Jared Tramontano", 2.7 KB, 4/29/26, sent by
+  `michael.t.sweeney@jpmchase.com` — the sole entry in the account's contacts.
+- The account is registered to jared's **personal** email address, not his Acorn address —
+  relevant to this doc's "the firm's JPM relationship" framing and the redistribution decision.
+- `/api/user/me`, `/featureFlags`, `/uiParams`, `/myContacts` are the only APIs the SPA calls;
+  they are account/UI metadata — there is no research/content API in the capture.
+
+**THE ONE OPEN QUESTION (human, jared): does research actually arrive in "Shared with me", and
+how often?** That folder is unread — a **T&C acceptance gate** (`/disclosure/tac`, "Agree and
+Continue") blocks every fresh session and was deliberately NOT clicked by Claude: it is a legal
+agreement in jared's name on jared's account. He should accept it himself and look.
+- **If it holds real research** → the shape is still an occasional banker file-drop, not a daily
+  feed; re-scope Phases 2–3 to "poll a shared folder for new PDFs" (much closer to the existing
+  forwarded-PDF path than to a scraper) and re-decide distribution.
+- **If it is empty / onboarding paperwork** → **drop this workstream.** Nothing to automate.
+
+**Two blockers that survive either answer:**
+1. **The T&C gate is automation-hostile.** An unattended daily run would have to programmatically
+   accept JPM's terms on jared's behalf every session. Do not build that without his explicit,
+   recorded decision — it is precisely the ToS exposure §"Entitlement/ToS" warns about.
+2. **Redistribution.** Documents a banker sends to jared's personal account are a weaker basis
+   for FULL+TEAM fan-out than the institutional-entitlement assumption this spec was written on.
+   Re-confirm with him before any digest wiring.
+
 ## Login flow (mapped 2026-07-27, read-only recon)
 
 - **⚠️ CORRECTED 2026-07-29 — the entry is NOT the bare root; the gateway is RESOURCE-SCOPED.**
