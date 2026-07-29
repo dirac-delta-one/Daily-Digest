@@ -241,6 +241,15 @@ notice in the FULL send's ops footer + digest chunks un-indexed + memory frozen;
   tier (most expensive) in cost accounting. Roll back = point `digest.CLAUDE_MODEL` at `OPUS_MODEL`.
 - **This is a working single-operator tool.** Explicitness and tuned heuristics have real value;
   prefer small, reversible changes over architecture-level refactors.
+- **Warm-up features ship with warmed-up tests.** Any feature whose behavior depends on accrued
+  state (caches needing N days of history, monitors needing run history, date-boundary branches)
+  must ship with a test that CONSTRUCTS the accrued state — the plan's "activates on <date>" line
+  is otherwise the date it crashes. Proven 2026-07-29: the BKLN 1D path, armed by one day of
+  cache history, took down the run; every pre-deploy check had exercised only the empty-cache
+  path, and both a green pytest and a clean live test run on deploy day were unable to see it.
+  When validating a change, ask "what is this code's first ARMED execution?" and simulate that
+  day in a test. (The 2026-07-29 armed-path sweep pre-tested the then-known cases: BKLN 1W/1M,
+  the Fri 7/31 streaming weekly seams, the PACER January window; iShares audited None-safe.)
 - **Test between every phase.** Route all test output **locally or to `acohen@acorninv.com`** —
   never to the config recipients (jared's addresses) during testing.
 - **External tooling falls into three cost tiers — know which before testing:**

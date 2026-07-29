@@ -75,6 +75,33 @@ def test_is_chapter_11_filing_false_no_new_case_signal():
     assert pacer._is_chapter_11_filing("Notice", "Chapter: 11 motion to compel discovery") is False
 
 
+# --- _fresh_filing: the January year-boundary window (fires Jan 2027) ---
+
+import datetime  # noqa: E402
+import email.utils  # noqa: E402
+
+
+def test_fresh_filing_january_accepts_prior_year():
+    # Armed-path sweep (2026-07-29): this branch first executes for real on
+    # the first January 2027 run — pin it now with an injected clock. A Dec 31
+    # petition surfacing Jan 2 is news; a two-year-old case never is.
+    jan = datetime.datetime(2027, 1, 5, tzinfo=datetime.timezone.utc)
+    fresh_pub = email.utils.format_datetime(jan - datetime.timedelta(hours=2))
+    assert pacer._fresh_filing(fresh_pub, "27-10001", now=jan) is True
+    assert pacer._fresh_filing(fresh_pub, "26-99999", now=jan) is True   # Dec spillover
+    assert pacer._fresh_filing(fresh_pub, "25-10001", now=jan) is False  # two years old
+
+
+def test_fresh_filing_non_january_rejects_prior_year():
+    jul = datetime.datetime(2026, 7, 29, tzinfo=datetime.timezone.utc)
+    fresh_pub = email.utils.format_datetime(jul - datetime.timedelta(hours=2))
+    assert pacer._fresh_filing(fresh_pub, "26-10001", now=jul) is True
+    assert pacer._fresh_filing(fresh_pub, "25-10001", now=jul) is False
+    # stale pub date fails even with a current-year case number
+    old_pub = email.utils.format_datetime(jul - datetime.timedelta(days=10))
+    assert pacer._fresh_filing(old_pub, "26-10001", now=jul) is False
+
+
 # --- F1a-4: seen-state stash/commit (persist only after a successful send) ---
 
 import json  # noqa: E402

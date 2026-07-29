@@ -111,6 +111,51 @@ def test_weekly_summary_streams_with_headroom(monkeypatch):
     assert calls[0]["max_tokens"] == 32000
 
 
+def test_weekly_summary_thinking_truncation_and_logscore(monkeypatch):
+    # Armed-path sweep (2026-07-29, pre-departure): Fri 7/31 is the streaming
+    # weekly's FIRST production run — pin its three seams in one pass: a
+    # Fable thinking-first response still yields the HTML (_response_text),
+    # a max_tokens stop is log-only (queued to _TRUNCATIONS, never raises,
+    # output still returned), and the wrap is repetition-scored log-only.
+    scored = []
+    monkeypatch.setattr(digest.repetition, "log_score",
+                        lambda label, html: scored.append((label, html)) or 1)
+    monkeypatch.setattr(digest, "_TRUNCATIONS", [])
+
+    class _FakeStream:
+        def __init__(self, kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get_final_message(self):
+            return SimpleNamespace(
+                content=[SimpleNamespace(type="thinking", thinking="mulling..."),
+                         SimpleNamespace(type="text", text="<div>weekly</div>")],
+                stop_reason="max_tokens",
+                usage=SimpleNamespace(input_tokens=10, output_tokens=32000,
+                                      cache_read_input_tokens=0,
+                                      cache_creation_input_tokens=0),
+            )
+
+    class _FakeClient:
+        def __init__(self):
+            self.messages = SimpleNamespace(
+                stream=lambda **kwargs: _FakeStream(kwargs))
+
+    monkeypatch.setattr(digest.anthropic, "Anthropic", _FakeClient)
+    out = digest.generate_weekly_summary(
+        [{"day": "Monday", "date": "2026-07-20", "html": "<div>d</div>"}],
+        cost_label=" (team)")
+    assert out == "<div>weekly</div>"                  # thinking block skipped
+    assert digest._TRUNCATIONS == ["weekly summary (team)"]  # queued, not raised
+    assert scored == [("weekly (team)", "<div>weekly</div>")]
+
+
 # --- save_weekly_digest ---
 
 def test_save_weekly_digest(tmp_path, monkeypatch):

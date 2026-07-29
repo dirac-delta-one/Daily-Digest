@@ -66,6 +66,33 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
 
 ---
 
+## 2026-07-29 — Armed-path sweep: pre-testing every warm-up feature before the 7/31 departure
+
+Post-mortem follow-through on the morning's crash (operator request: no more features going
+unnoticed-until-detonation after the departure). The crash's class = **a feature whose first
+ARMED execution comes days after deploy** (state accrual, run-history thresholds, date
+boundaries) — every pre-deploy check exercises only the cold path. Swept the live inventory and
+pre-tested each armed path ($0, offline):
+- **iShares OAS accrual cache — audited CLEAN, no code change:** macro-shaped rows (no `pct_*`
+  keys), `format_ishares_for_prompt` guards each chg with `is not None`, and weeks of history
+  mean its armed paths already ran in production.
+- **Fri 7/31 streaming weekly (first production run of the 32k streaming path):** new test pins
+  its three unexecuted seams in one pass — Fable thinking-first content still yields the HTML,
+  `stop_reason=max_tokens` is log-only (queued to `_TRUNCATIONS`, never raises, output still
+  returned), and the wrap is `repetition.log_score`d log-only. (Call shape + 32k cap were
+  already pinned.)
+- **PACER January year-boundary window (first fires Jan 2027):** direct `_fresh_filing` tests
+  with an injected clock — January accepts the prior year (Dec 31 petition surfacing Jan 2),
+  rejects two-years-old; July rejects prior-year; stale pub date fails regardless.
+- **BKLN 1W (~8/4) / 1M (~8/27)** — already covered by the morning's fix + regression test.
+- **Per-court O3 keys / ops footer / orphan-silence / memory 16k** — verified already tested or
+  live-validated; no gaps.
+**New HANDOFF §2 constraint:** "Warm-up features ship with warmed-up tests" — construct the
+accrued state in a test; ask "what is this code's first ARMED execution?" at validation time.
+pytest 485→**488**, ruff clean.
+
+---
+
 ## 2026-07-29 — Wed run crash: BKLN pct=None vs the prompt formatter (fixed)
 
 The 08:00 run exited nonzero building the TEAM prompt; jared got the 🚨 FAILED (08:02) and
