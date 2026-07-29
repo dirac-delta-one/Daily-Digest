@@ -69,6 +69,15 @@ ran production from `main`; that's retired, the server tracks `main`, so **`main
 working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
 be deleted at will.
 
+**⚠ IMMEDIATE (2026-07-29): the server pull is CRASH-BLOCKING.** The Wed 7/29 run crashed on a
+latent BKLN prompt-formatter bug (pct=None — fix pushed `2fc906b`; full anatomy in WORKLOG
+2026-07-29) and, because the BKLN accrual cache now has history permanently, **every run on
+pre-fix code crashes the same way every morning — pull before Thu 08:00.** Operator decision:
+no same-day re-run; Thursday's 48h lookback absorbs Wednesday (PACER entries re-surface via
+F1a-4, memory skips a day, Friday's weekly wraps 4 dailies). Pull only — no ReplyMonitor restart.
+The same pull also delivers the 7/28 trio (PACER O3 raw-count fix + per-court keys + the
+ops-footer reroute — §11.B).
+
 **What remains → the Fri 2026-07-24 08:00 debut of the 7/23 mega-batch, the Mon 7/27 72h-lookback
 check, a week of metric-v2 repetition data + observed costs, and the 7/31 operator departure.**
 The Thu 7/23 dev day (WORKLOG 2026-07-23 — the biggest single day; commits through **`b023ba4`**)
@@ -578,7 +587,8 @@ What remains is only what a future session might still act on.)*
   self-calibrates — it cannot signal until it has `MIN_HISTORY` (3) prior runs plus a 3-run zero
   streak. Tests: `test_pacer.py` raw-count pair + `test_digest_main.test_o3_counts_use_raw_pacer_signal`.
   **Server: needs a pull** (digest.py + pacer.py — digest-run path only, no ReplyMonitor restart
-  needed); until then the false alert nags daily.
+  needed); until then the false alert nags daily. *(2026-07-29: this pull became CRASH-BLOCKING —
+  it also carries the BKLN formatter fix `2fc906b`; see §1's IMMEDIATE note.)*
   **Residual gaps from the diagnostic:** (1) **txsb (Houston) RSS 404 — investigated 2026-07-28;
   a FRESH break, not longstanding:** the feed worked through **7/23** (a txsb filing is in that
   day's archive; txsb has a full 1,000-entry seen-history like every other court) and 404s since

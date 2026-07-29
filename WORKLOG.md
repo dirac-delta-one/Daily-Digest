@@ -5,17 +5,22 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-29 — Wed run FAILED on the BKLN prompt-formatter bug; fix built, needs a pull + optional re-run)
+## Current state (2026-07-29 — Wed run FAILED on the BKLN prompt-formatter bug; fix pushed; ⚠ PULL BEFORE THU 08:00)
 
 **Wed 7/29 08:00 run CRASHED — no digest went out.** Root cause: a latent bug in the 7/27 BKLN
 yield-cache work (`format_market_data_for_prompt` assumed `pct_1d` non-None whenever `chg_1d` is;
 the BKLN row deliberately carries pct=None) that could only fire the first morning the accrual
-cache produced a 1D value — which was today. **Fix built + pushed (see today's entry); server
-needs a pull**, then optionally `schtasks /Run /TN \DailyDigest\MorningDigest` for a same-day
-digest (~$6.6) — otherwise tomorrow's run auto-covers today (lookback = since last digest file;
-PACER entries incl. today's 1 large filing re-surface via F1a-4). NOT caused by the 7/28 trio —
-that pull was coincidental timing; the log shows the new PACER lines working. Failure emails
-(FAILED 08:02 + MISSING 09:00) both fired correctly; ~$0.007 spent.
+cache produced a 1D value — which was today. **Fix built + pushed (`2fc906b`, see today's entry).**
+**⚠ THE SERVER PULL IS NOW CRASH-BLOCKING, NOT ROUTINE: the BKLN cache has history permanently,
+so EVERY run on the old code crashes the same way every morning. Pull before Thursday 08:00.**
+Operator decision (2026-07-29): **NO same-day manual re-run** — Thursday's run auto-covers
+Wednesday by design (48h lookback since the last digest file; PACER entries incl. today's 1 large
+filing re-surface via F1a-4; the BKLN cache recorded today's observation pre-crash, so Thursday's
+1D computes normally; memory skips a day within the 16k cap's headroom; Friday's weekly wrap just
+summarizes 4 dailies). Pull only — no ReplyMonitor restart, no re-run, no state cleanup. The
+crash was NOT caused by the 7/28 trio — that pull was coincidental timing; the log shows the new
+PACER lines working. Failure emails (FAILED 08:02 + MISSING 09:00) both fired correctly; ~$0.007
+spent.
 
 ---
 
@@ -80,9 +85,10 @@ formatting: parenthetical % only when pct exists, and pct-unit changes render in
 three windows (1D/1W/1M) go through it. Regression test with the exact BKLN shape (chg set,
 pct None) + old-rendering pin for normal rows: pytest **485**, ruff clean. **Blast radius of the
 crash:** ~$0.007 (pre-generation), no PACER seen-state loss (F1a-4 — today's 1 large filing
-re-surfaces), memory untouched, tomorrow's lookback auto-covers today. **Recovery: server pull,
-then either wait for Thursday's run or `schtasks /Run /TN \DailyDigest\MorningDigest` for a
-same-day digest (~$6.6, operator/jared's call).**
+re-surfaces), memory untouched, tomorrow's lookback auto-covers today. **Recovery (operator
+decision same day): pull only, NO same-day re-run — Thursday's run absorbs Wednesday. ⚠ The pull
+became crash-blocking: the cache has history permanently, so every pre-fix run crashes every
+morning until the server pulls. Pull before Thu 08:00.**
 
 ---
 
