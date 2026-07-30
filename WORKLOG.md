@@ -19,6 +19,14 @@ the BKLN prompt-formatter fix validated (the crash was in that exact path). So `
 decisions now have data; see the 2026-07-30 log-analysis entry below.** Headline: **txsb RSS
 recovered on its own — do NOT send the helpdesk email.**
 
+**✅ DEPARTURE TASK DONE A DAY EARLY (2026-07-30 evening):** the operator removed
+`acohen@acorninv.com` from `DIGEST_TO_TEAM` in the server's `env.bat`. Takes effect on the Fri
+7/31 08:00 run (fresh process reads env.bat anew). Her alerts pause silently by construction
+(orphan notices were dropped 7/28 — tell jared in person). ReplyMonitor restart advised per the
+durable recipients-change rule. **Fri 7/31 checklist (jared or whoever reads the log):** 5 sends
+not 6 (acohen absent), first production STREAMING weekly completes (<32k, no WARNING), weekly
+`log-only` repetition lines, possibly the first `Memory: aged N stale story(ies)` line.
+
 **Yesterday (Wed 7/29) the 08:00 run CRASHED** — a latent bug in the 7/27 BKLN yield-cache work
 (`format_market_data_for_prompt` assumed `pct_1d` non-None whenever `chg_1d` is; the BKLN row
 deliberately carries pct=None) that could only fire the first morning the accrual cache produced
