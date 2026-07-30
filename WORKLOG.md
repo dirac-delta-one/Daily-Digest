@@ -83,13 +83,20 @@ fix it; no announcement ever appeared. The lesson for the docs: a court-side 404
 of watching before concluding it's permanent. The new `pacer_rss_txsb` key would now surface a
 repeat within 3 runs.
 
-**2. Repetition tripwire — DECIDED: `REPEAT_TRIPWIRE = 5`.** Full metric-v2 week (8 readings,
-7/24–7/30): full 3/2/0/2, team 2/2/4/2 → range **0–4, mean ~2, ceiling 4**. The single 4 (team,
-7/28) dissects as pure noise — `$1.0bn`, `$BFB`, `$PNFP`, `$CABO`, all incidental §3↔§6
-ticker/number collisions, zero story-level repetition. So 5 = one above the observed clean
-ceiling. **Idea 10 (gated Sonnet dedup pass) NOT triggered** — no sustained ≥4, no reader
-complaints, so its recurring spend isn't justified. `REDUCE_REPEATS_SPEC.md` can retire once the
-constant lands (detail in HANDOFF §11.B).
+**2. Repetition — week's data healthy; tripwire REJECTED same day (operator call, supersedes
+the "set it at 5" recommendation made earlier this entry's day).** Full metric-v2 week (8
+readings, 7/24–7/30): full 3/2/0/2, team 2/2/4/2 → range **0–4, mean ~2, ceiling 4**; the lone 4
+(team 7/28) is pure noise (`$1.0bn`/`$BFB`/`$PNFP`/`$CABO`, incidental §3↔§6 collisions). The
+initial recommendation was `REPEAT_TRIPWIRE = 5`; **the operator rejected wiring ANY alert to
+the score, and the reasoning is better than the recommendation:** repetition is a perception
+problem — future prompt work would be triggered by a READER feeling the digest is repetitive
+(exactly how the workstream started), not by a score the post-departure operator has no context
+for. An unexplained "scored 6 strong" footer line would just teach him to ignore footers. The
+metric stays what it always was: a development yardstick — `repetition_scores.json` accrues for
+free so any future complaint-driven tuning has an instrumented baseline. **Idea 10 (gated
+Sonnet dedup) also NOT triggered** — no sustained ≥4, no complaints. **`REDUCE_REPEATS_SPEC.md`
+RETIRED** (its decision checklist is closed; distilled ladder lives in HANDOFF §11.B, full text
+in git history like the other retired specs).
 
 **3. Memory aging — WARRANTED, not urgent, with a cheaper root fix identified.** Store: 106
 (7/24) → 118 → 128 → **138 (7/30)**, **+10/weekday**; update-pass output 7,822 → 6,534 → **9,129**

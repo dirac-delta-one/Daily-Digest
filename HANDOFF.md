@@ -6,13 +6,17 @@
 >
 > **Companion docs:** `WORKLOG.md` = the full dated narrative of every change ever made and why
 > (the archive — start here for the *why* behind anything below). `OPERATIONS.md` = the jared-facing
-> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active specs:**
-> `REDUCE_REPEATS_SPEC.md` (anti-repetition, 15 ideas; Bundle 1 BUILT 2026-07-22, Bundle 2+ pending
-> a week of live `repetition_scores.json` data — metric-v2 series started 2026-07-24, decision
-> ~7/31; see its decision checklist; retire it after that decision) and `JPM_SPEC.md` (JPM Markets
-> dealer research, started 2026-07-27 — in-flight, blocked on a working entitled link).
+> runbook; `MAINTENANCE.md` = the developer keep-it-running guide. **Active spec:**
+> `JPM_SPEC.md` (started 2026-07-27; Phase 1 login DONE 2026-07-29 — the portal turned out to be
+> JPM's file-transfer service, not Markets research; awaiting jared's re-scope-or-drop call —
+> read its top section first).
 > *(Retired/deleted, once built and distilled, to keep the doc set lean — all preserved in
-> git history: `SNAPSHOT_UPDATE.md` (retired 2026-07-27: the snapshot-freshness investigation —
+> git history: `REDUCE_REPEATS_SPEC.md` (retired 2026-07-30: anti-repetition, 15 ideas; Bundles
+> 1+2 + the self-contained §1 all BUILT and live; the metric-v2 week closed its decision
+> checklist — scores healthy (range 0–4, mean ~2), NO tripwire alert (operator call: repetition
+> is a perception problem; a reader complaint is the trigger, not a score), Idea 10 not
+> triggered; the distilled escalation ladder + the Idea 15 post-mortem pointer live in §11.B);
+> `SNAPSHOT_UPDATE.md` (retired 2026-07-27: the snapshot-freshness investigation —
 > every free §5 step DONE 2026-07-23 and live-validated by the 7/24 debut log, which settled its
 > §2.4 same-day-rows question; §2.5's honest-labeling was then superseded by the 7/24 freshest-only
 > rule dropping the broad ICE rows; the one open item, the paid-data lane decision, is distilled
@@ -663,7 +667,8 @@ What remains is only what a future session might still act on.)*
   driving `digest.main()`); fixed 2026-07-23 in `tests/conftest.py` — if the server ever ran
   `check.bat` before pulling that fix, prune the zero entries before reading the series.
 
-  **Escalation plan if repetition complaints continue (ordered; detail in `REDUCE_REPEATS_SPEC.md`).**
+  **Escalation plan if a READER ever complains about repetition again (ordered; the trigger is a
+  human perception, never the score — full spec text in git history, retired 2026-07-30).**
   Context first: the 2026-07-23 dissection showed the PROMPT lever is essentially exhausted — both
   validated test runs had ZERO story-level repetition; the residual strong signals are incidental
   in-story mentions and numeric coincidences that more prompt rules cannot remove (and per the
@@ -672,25 +677,36 @@ What remains is only what a future session might still act on.)*
   1. **Idea 11 — deterministic tripwire** ($0, code). After ~1 week of metric-v2 data, set
      `REPEAT_TRIPWIRE` at the observed clean-day ceiling (likely 4–5 under v2; the spec's 6–8
      guidance is stale v1 scale). Alone it turns a bad day into a logged/alerted event.
-     **✅ DATA IN, 2026-07-30 — the full v2 week (8 readings, 7/24–7/30):** full 3/2/0/2, team
-     2/2/4/2 → **range 0–4, mean ~2, ceiling 4**. Every reading is at or below the documented
-     1–3 noise floor except one team-4 (7/28), and that one dissects as pure noise: `$1.0bn`,
-     `$BFB`, `$PNFP`, `$CABO` — incidental ticker/number collisions between §3 and §6, not
-     story-level repetition. **Decision: set `REPEAT_TRIPWIRE = 5`** (one above the observed
-     clean ceiling — fires only on something no clean day produced). **NOT escalating to Idea
-     10** (the gated Sonnet dedup pass): the week shows no sustained ≥4 and no reader
-     complaints, so its recurring spend isn't justified. Retire `REDUCE_REPEATS_SPEC.md` once
-     the tripwire constant lands.
+     **✅ DECIDED 2026-07-30 — DO NOT BUILD THE TRIPWIRE. The metric is a development
+     yardstick, not a production alert.** The full v2 week (8 readings, 7/24–7/30) reads: full
+     3/2/0/2, team 2/2/4/2 → **range 0–4, mean ~2, ceiling 4**, with the lone 4 (team, 7/28)
+     dissecting as pure noise (`$1.0bn`, `$BFB`, `$PNFP`, `$CABO` — incidental §3↔§6
+     ticker/number collisions, zero story-level repetition). So the output is healthy, but the
+     **reason not to wire an alert is structural, not numeric** (operator call, 2026-07-30):
+     an ops notice reading "team digest scored 6 strong signals" would fire at an operator who
+     has no context for the number and no way to act on it. **Repetition is a perception
+     problem — the real trigger is a reader saying "this feels repetitive"** (exactly how this
+     entire workstream started, 2026-07-23 jared). A score can't substitute for that, and
+     alerting on it trains the operator to ignore footer notices.
+     **What remains true:** `repetition_scores.json` keeps accruing for free (log + file, no
+     alert), so IF a future reader complaint arrives, whoever picks up the prompt work has an
+     instrumented baseline to tune against — which is all this metric was ever for. **Idea 10
+     (gated Sonnet dedup) also NOT triggered** — no sustained ≥4, no complaints, recurring spend
+     unjustified. **`REDUCE_REPEATS_SPEC.md` RETIRED 2026-07-30** (decision checklist closed;
+     full text in git history); the escalation ladder below is the distilled version worth
+     keeping.
   2. **Idea 10 — dedup pass 2.5, gated by the tripwire** (~$0–20/yr gated; ~$75–110/yr ungated —
      **recurring spend, needs owner sign-off**). A single-objective Sonnet rewrite of the final
-     HTML with hard fall-back-to-input guards (spec has the implementation sketch + placement).
+     HTML with hard fall-back-to-input guards (the retired spec, in git history, has the
+     implementation sketch + placement).
      Highest-value remaining lever: it's the only one that mechanically catches paraphrase/
      story-level echo, which prompts ask about but can't verify and the regex metric can't see.
   3. **Structural (jared's sign-off, not an operator call): Idea 15** — merge §4 Themes + §5
      Contrarian into §1–§3. Empirical support: the 7/23 residual collisions all sat on the
      §3/§4/§5 boundaries. **⚠ Attempted 2026-07-23 and REVERTED after a failed test run**
      (truncation at the token cap, §3 bloat, ignored Contrarian markers — full post-mortem in
-     the spec's Idea 15 section; retry preconditions listed there). The failure shipped one
+     the retired spec's Idea 15 section — git history; retry preconditions listed there). The
+     failure shipped one
      durable fix: digest passes now run max_tokens=32,000 with a **truncation guard**
      (`digest._guard_truncation` — WARNING log + "Output truncated" ops-footer notice + pass-2→pass-1
      fallback; stop_reason was previously never checked and a capped pass silently sent
