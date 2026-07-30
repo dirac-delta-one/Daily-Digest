@@ -14,9 +14,10 @@ tripwire (operator call — reader perception is the trigger; `REDUCE_REPEATS_SP
 memory aging = no action (the built-in 30-day ager activates ~7/31–8/15 by design), burn
 re-baselined **$160–180/mo** (OPERATIONS updated), acohen off both channels (env.bat +
 ReplyMonitor restart, done 7/30 evening). The operator departs 2026-07-31; nothing is pending on
-her. **Next actions for any new session:** the optional Fri 7/31 log read (checklist below),
-the JPM re-scope-or-drop decision (jared's — JPM_SPEC top section), and the ~mid-August F13
-index-growth revisit (HANDOFF §5).
+her. **Next actions for any new session:** the optional Fri 7/31 log read (checklist below) and
+the JPM re-scope-or-drop decision (jared's — JPM_SPEC top section). The ~mid-August F13
+index-growth revisit was RETIRED by benchmark the same evening (entry below): no index work
+expected before ~late 2027, trigger = felt latency, not a date.
 
 **Thu 7/30 08:20 — the digest ran clean on the fixed code.** Verified read-only from the bot's
 sent mail: **6 sends** (1 `[FULL]` jtramontano + 5 TEAM: apain, acohen, sarmstrong, azhou,
@@ -86,6 +87,41 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-30 (evening) — F13 index tripwire RETIRED by benchmark: no index work due in August (or 2026)
+
+Prompted by the operator's 7/31 departure ("I won't be around mid-August"), the question was
+whether the F13 escalation ladder's next step should be pre-built now. Answer after measurement:
+**no — the mid-August tripwire was a pre-measurement guess, and the measured reality says no
+index work is needed until ~late 2027.** Docs-only change; zero code, zero Claude spend.
+
+**The benchmark (synthetic, local, free):** random normalized 384-dim float32 vectors through the
+exact operations `search.py` runs — `IndexFlatIP.search` top-100 (the `pool = top_k*10` global
+path), the `reconstruct_batch` subset brute-force path on a ~95% id list (what the exclusion
+filters produce), and `reconstruct_n` over the whole index (the daily E2 reindex copy). Results
+(best of 5): at 50k vectors — the old tripwire ceiling — the worst path is **13 ms**; at 200k,
+**54 ms**; even at 500k (~mid-2028) the worst path is 138 ms and reindex-copy 312 ms. Vector RAM
+at 200k is ~307 MB. Separately, `chunk_metadata.json` measures ~920 bytes/chunk and parses at
+~20 ms per 1k chunks (224 ms for the dev machine's 11.7k-chunk copy) — and it re-parses only
+when the index files change, i.e. once a day in the reply daemon. Full table in HANDOFF §5.
+
+**Why this closes the item:** the reply bot's felt latency is the Opus answer call (seconds);
+FAISS contributes milliseconds at any realistic scale, and the exact index can never return
+wrong answers — the entire failure mode is gradual latency+RAM. There is no armed date, no
+cliff, and nothing a mid-August visit would find. **New tripwire (HANDOFF §5): ~200k vectors
+(~late 2027 at 1,000–1,400/weekday), or earlier only on FELT reply slowness / server memory
+pressure.** The escalation ladder is unchanged and executable by a future developer or a Claude
+Code session pointed at HANDOFF §5; a ⚠ was added there that the date-window step is a
+retrieval-behavior change and must pass the `tools/eval_retrieval.py` gate (rerank and hybrid
+both lost that eval — the reason NOT to pre-build it "while a developer is around": it's
+eval-risky work solving a problem that measurably doesn't exist).
+
+**Deliberately NOT done:** no code change, no date-windowed default, no prune, no IVF. Edits:
+HANDOFF §1 (what-remains bullet struck) + §5 (benchmark table, new tripwire, eval-gate warning),
+OPERATIONS.md (the "slow burn" bullet now says *do nothing unless replies feel slow — realistically
+not before late 2027*), this entry, and the orientation block above.
 
 ---
 

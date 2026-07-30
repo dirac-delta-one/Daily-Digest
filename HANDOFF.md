@@ -89,7 +89,10 @@ $160–180/mo, acohen off both channels a day early):**
   lines; possibly the first `Memory: aged N stale story(ies)` line (the 30-day ager's designed
   activation window opens ~7/31–8/15 — a POSITIVE signal, see §11.B).
 - **JPM** — awaiting jared's re-scope-or-drop call (JPM_SPEC top section).
-- **Mid-to-late August** — the F13 index tripwire (§5; ~20k vectors, +1,000–1,400/weekday).
+- ~~Mid-to-late August — the F13 index tripwire~~ **RETIRED 2026-07-30 by benchmark** (§5):
+  measured flat-index latency stays in single-digit-to-tens of milliseconds far past 50k
+  vectors; no index work is expected before **~late 2027 (~200k vectors)**, and the trigger is
+  felt reply-bot slowness or server memory pressure, not a date. Nothing is due in August.
 - Everything else is watch-only (§11.B) or jared's (§11.A paid lanes).
 
 *(Historical context for the paragraphs below: they narrate the 7/23 mega-batch and its
@@ -365,13 +368,31 @@ TEAM digest's recipients — **must be set on the server**; empty = team generat
   Substack's *unauthenticated* per-post API. If Substack closes that hole they degrade to previews:
   visible via the `[preview only…]` markers in the digest and, if total, via the
   `substack_fulltext` O3 zero-streak. Real per-domain auth (SSO) deliberately not built.
-- **Index growth (F13; re-measured 2026-07-30):** the FAISS index grows ~1,000–1,400 chunks/weekday
-  (15,192 on 7/24 → **20,157 on 7/30**). At that rate the **30–50k revisit tripwire lands
-  mid-to-late August 2026** — materially sooner than the 2026-07-15 "~3–8 months" estimate, so
-  treat it as a near-term developer item rather than a distant one. Degradation is gradual (slower search/reindex/startup), never wrong
-  answers. **Tripwire: revisit at ~30–50k vectors or when reply-bot latency is felt.** Escalation
-  ladder (cheapest first): ✅ vectorized subset scan (done) → date-windowed retrieval default →
-  prune-and-archive old days → IVF. Also noted in OPERATIONS.md for the post-handoff owner.
+- **Index growth (F13; BENCHMARKED 2026-07-30 — the mid-August "tripwire" is RETIRED; no 2026
+  action expected):** the FAISS index grows ~1,000–1,400 chunks/weekday (15,192 on 7/24 →
+  **20,157 on 7/30**). The 30–50k revisit point (and the mid-to-late-August date it implied) was
+  a pre-measurement guess; a same-day synthetic benchmark of the exact `search.py` operations
+  (IndexFlatIP, 384-dim normalized float32 — identical math to production) measured:
+
+  | Vectors | Global top-100 | Subset brute-force (~95% ids) | `reconstruct_n` (reindex) | Vector RAM |
+  |---|---|---|---|---|
+  | 20k (2026-07-30) | 2 ms | 8 ms | 11 ms | 31 MB |
+  | 50k (~Oct 2026) | 4 ms | 13 ms | 27 ms | 77 MB |
+  | 100k (~spring 2027) | 6 ms | 31 ms | 46 ms | 154 MB |
+  | 200k (~late 2027) | 13 ms | 54 ms | 94 ms | 307 MB |
+  | 500k | 30 ms | 138 ms | 312 ms | 768 MB |
+
+  Reply-bot latency is dominated by the Opus API call (seconds); FAISS contributes milliseconds
+  at any 2026–2027 scale. The other growing piece, `chunk_metadata.json` (~920 bytes/chunk,
+  re-parsed only when the index changes — once a day in the reply daemon), is a one-time ~3 s
+  load even at 150k chunks. Degradation is gradual (latency + RAM only), **never wrong answers**
+  (exact index). **New tripwire: revisit at ~200k vectors (~late 2027 at current rates), or
+  earlier ONLY if reply answers actually feel slow or the server shows memory pressure.**
+  Escalation ladder unchanged (cheapest first): ✅ vectorized subset scan (done) → date-windowed
+  retrieval default → prune-and-archive old days → IVF. ⚠ The date-window step is a
+  RETRIEVAL-BEHAVIOR change — eval-gate it like rerank/hybrid (`tools/eval_retrieval.py`,
+  ≥ default on hit@3 AND MRR, no new misses); this project has parked two retrieval
+  "improvements" that lost that eval. Also noted in OPERATIONS.md for the post-handoff owner.
 
 ---
 

@@ -136,12 +136,16 @@ answered normally — asking questions hasn't changed).
   a recovery-info change), log into the bot's Gmail and check the **Gmail
   Alerts** label directly. The filter lives on the Google account itself
   (nothing to set up on the server) — just don't delete it.
-- Known slow burn (developer item, not urgent): the search index grows daily
-  and gets gradually slower as it does. **Measured 2026-07-30: 20,157 vectors,
-  growing ~1,000–1,400/weekday — the developer revisit point (30–50k) lands
-  around mid-to-late August 2026**, sooner than the earlier "~Q4" guess. Not
-  an outage risk (searches just slow down); a developer should revisit per
-  HANDOFF §5/§14 around then or whenever replies feel slow.
+- Known slow burn (developer item, NOT urgent — **nothing is due in August**):
+  the search index grows daily (~1,000–1,400 entries/weekday; 20,157 on
+  2026-07-30) and in theory gets slower as it does. A benchmark run 2026-07-30
+  showed the slowdown is negligible for years: search stays well under a tenth
+  of a second even at 10x today's size, and the reply bot's answer time is
+  dominated by the AI call, not the search. **Do nothing unless reply answers
+  actually start to feel slow (or the server runs low on memory) — realistically
+  not before late 2027.** If that ever happens, a developer (or a Claude Code
+  session pointed at HANDOFF §5) has the fix recipe ready. Not an outage risk;
+  answers never become wrong, only slower.
 - **Off-box backup:** the day's data is copied to OneDrive every weekday — see
   the **"Backups & restore"** section below.
 

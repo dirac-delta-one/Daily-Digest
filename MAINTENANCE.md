@@ -198,7 +198,7 @@ loss). Harmless; no action.
 | Weeks–months (reactive) | 13D re-login when the WILTW zero-streak alert fires. |
 | Monthly | Glance at the Anthropic credit balance; top up before it hits $0. |
 | When you touch the project | Add a few golden-set questions for new archive days, incl. cross-day ones — the eval only stays meaningful if it compounds. |
-| At ~30–50k index vectors, or when replies feel slow | Work the index-growth ladder: (1) vectorized subset scan ✅ done → (2) date-windowed retrieval default → (3) prune old days from the live index → (4) IVF. Detail in `HANDOFF.md §5`. |
+| At ~200k index vectors (~late 2027), or when replies actually feel slow | Work the index-growth ladder: (1) vectorized subset scan ✅ done → (2) date-windowed retrieval default (⚠ eval-gate it — see HANDOFF §5) → (3) prune old days from the live index → (4) IVF. *(Re-baselined 2026-07-30 by benchmark: flat search is milliseconds even at 10x the old 30–50k tripwire — no action expected in 2026.)* Detail in `HANDOFF.md §5`. |
 | Continuous (automatic) since 2026-07-21 | **O4 off-box backup** — `run_backup.bat` (Backup task, weekdays 09:45) robocopies state-only into `%OneDriveCommercial%\DailyDigest-Backup`, synced off-box by OneDrive. Just watch for a "backup FAILED" alert; glance at the OneDrive web folder every few weeks to confirm it's actually uploading. Restore steps in `OPERATIONS.md` → "Backups & restore". *(Re-registering the task needs an **elevated** `setup_tasks.ps1 -StoredPassword` — a non-elevated run fails with `Register-ScheduledTask: Access is denied`.)* |
 
 ---
