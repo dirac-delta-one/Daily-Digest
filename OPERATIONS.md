@@ -73,11 +73,15 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
    `substack_cookie.txt` in the project folder.
 3. **API credit top-up**: the digest stops generating when the Anthropic
    account hits $0 (you'd see run-FAILED alerts mentioning credit/quota).
-   Expected burn: roughly **$90–140/month** (~$4–6/weekday for both digest
-   versions + Friday wraps + your reply questions) since 2026-07-22, when
-   digest generation moved to a stronger, ~2x-priced model (Claude Fable 5) —
-   this range is an estimate; the first live week's cost lines will firm it
-   up. Check/top up at console.anthropic.com (the bot account's login).
+   Expected burn: roughly **$160–180/month** — re-baselined 2026-07-30 from
+   real cost lines, replacing the earlier $90–140 estimate. Observed weekdays
+   run **$6.6–7.8** (both digest versions; the high end is a Monday/catch-up
+   run covering extra days), plus roughly **$4–4.50** extra on Fridays for the
+   two weekly wraps. Reply questions add a little on top. The step up from
+   the old estimate is Claude Fable 5 (~2x price, since 2026-07-22) plus the
+   cross-day context added 2026-07-23; a prompt-cache fix on 2026-07-28 cut
+   about $3.50/run back off. Check/top up at console.anthropic.com (the bot
+   account's login).
 
 ## Managing alerts & the SEC watchlist (by email — no code needed)
 
@@ -133,8 +137,11 @@ answered normally — asking questions hasn't changed).
   Alerts** label directly. The filter lives on the Google account itself
   (nothing to set up on the server) — just don't delete it.
 - Known slow burn (developer item, not urgent): the search index grows daily
-  and will get gradually slower after several months (~2026 Q4 at current
-  rates); a developer should revisit per HANDOFF §14 when replies feel slow.
+  and gets gradually slower as it does. **Measured 2026-07-30: 20,157 vectors,
+  growing ~1,000–1,400/weekday — the developer revisit point (30–50k) lands
+  around mid-to-late August 2026**, sooner than the earlier "~Q4" guess. Not
+  an outage risk (searches just slow down); a developer should revisit per
+  HANDOFF §5/§14 around then or whenever replies feel slow.
 - **Off-box backup:** the day's data is copied to OneDrive every weekday — see
   the **"Backups & restore"** section below.
 

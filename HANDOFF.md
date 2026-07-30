@@ -350,9 +350,10 @@ TEAM digest's recipients — **must be set on the server**; empty = team generat
   Substack's *unauthenticated* per-post API. If Substack closes that hole they degrade to previews:
   visible via the `[preview only…]` markers in the digest and, if total, via the
   `substack_fulltext` O3 zero-streak. Real per-domain auth (SSO) deliberately not built.
-- **Index growth (F13, measured 2026-07-15):** the FAISS index grows ~600–1,500 chunks/weekday since
-  the forwarding body extracts landed; the §6 "~100k revisit" ceiling arrives in ~3–8 months of
-  Mon–Fri operation, not years. Degradation is gradual (slower search/reindex/startup), never wrong
+- **Index growth (F13; re-measured 2026-07-30):** the FAISS index grows ~1,000–1,400 chunks/weekday
+  (15,192 on 7/24 → **20,157 on 7/30**). At that rate the **30–50k revisit tripwire lands
+  mid-to-late August 2026** — materially sooner than the 2026-07-15 "~3–8 months" estimate, so
+  treat it as a near-term developer item rather than a distant one. Degradation is gradual (slower search/reindex/startup), never wrong
   answers. **Tripwire: revisit at ~30–50k vectors or when reply-bot latency is felt.** Escalation
   ladder (cheapest first): ✅ vectorized subset scan (done) → date-windowed retrieval default →
   prune-and-archive old days → IVF. Also noted in OPERATIONS.md for the post-handoff owner.
@@ -597,8 +598,13 @@ What remains is only what a future session might still act on.)*
   **Server: needs a pull** (digest.py + pacer.py — digest-run path only, no ReplyMonitor restart
   needed); until then the false alert nags daily. *(2026-07-29: this pull became CRASH-BLOCKING —
   it also carries the BKLN formatter fix `2fc906b`; see §1's IMMEDIATE note.)*
-  **Residual gaps from the diagnostic:** (1) **txsb (Houston) RSS 404 — investigated 2026-07-28;
-  a FRESH break, not longstanding:** the feed worked through **7/23** (a txsb filing is in that
+  **Residual gaps from the diagnostic:** (1) **txsb (Houston) RSS 404 — ✅ RESOLVED ITSELF
+  2026-07-30. DO NOT send the helpdesk email.** The outage was transient: txsb served filings
+  normally on 7/24, 404'd on 7/27–7/29, and was **back on 7/30** (no `RSS fetch failed` line and
+  ~25 TXSB filings in that run, including the large Republic National Distributing/Young's Market
+  group). Total outage ≈ 3 business days, no announcement, no action taken — consistent with the
+  court's own maintenance. Nothing to fix; the per-court `pacer_rss_txsb` key now makes a repeat
+  visible within 3 runs. Historical detail of the (correct at the time) investigation follows: the feed worked through **7/23** (a txsb filing is in that
   day's archive; txsb has a full 1,000-entry seen-history like every other court) and 404s since
   — the court removed its public RSS report sometime 7/23→7/28. The ECF host itself is up (200 on
   root/login; only `cgi-bin/rss_outside.pl` is gone), there is **no alternate public endpoint**
@@ -618,7 +624,9 @@ What remains is only what a future session might still act on.)*
   permanent, the replacement lane is the **PACER Case Locator API** (once-daily "new Ch.11 in
   txsb" query ≈ pennies/day but needs a PACER account + a small new module — CourtListener's free
   API won't help, its txsb data came from the same dead feed); watch `pacer_rss_txsb` in
-  `source_counts.json` for recovery meanwhile. (2) The diagnostic's second gap —
+  `source_counts.json` for recovery meanwhile. *(All of that is now moot — it recovered on its
+  own 7/30; kept only as the record of what was checked. The PCL-API lane stays a valid option
+  if a court ever removes RSS permanently.)* (2) The diagnostic's second gap —
   "`pacer.LOOKBACK_HOURS` hardcoded 24 vs the digest's 72h Mondays" — was **STALE/WRONG, no
   action:** `digest._set_lookback_hours` (2026-07-23) already retunes `pacer.LOOKBACK_HOURS` per
   run before the fetch phase (pinned by `test_cross_day`); only standalone `python pacer.py` uses
@@ -664,6 +672,15 @@ What remains is only what a future session might still act on.)*
   1. **Idea 11 — deterministic tripwire** ($0, code). After ~1 week of metric-v2 data, set
      `REPEAT_TRIPWIRE` at the observed clean-day ceiling (likely 4–5 under v2; the spec's 6–8
      guidance is stale v1 scale). Alone it turns a bad day into a logged/alerted event.
+     **✅ DATA IN, 2026-07-30 — the full v2 week (8 readings, 7/24–7/30):** full 3/2/0/2, team
+     2/2/4/2 → **range 0–4, mean ~2, ceiling 4**. Every reading is at or below the documented
+     1–3 noise floor except one team-4 (7/28), and that one dissects as pure noise: `$1.0bn`,
+     `$BFB`, `$PNFP`, `$CABO` — incidental ticker/number collisions between §3 and §6, not
+     story-level repetition. **Decision: set `REPEAT_TRIPWIRE = 5`** (one above the observed
+     clean ceiling — fires only on something no clean day produced). **NOT escalating to Idea
+     10** (the gated Sonnet dedup pass): the week shows no sustained ≥4 and no reader
+     complaints, so its recurring spend isn't justified. Retire `REDUCE_REPEATS_SPEC.md` once
+     the tripwire constant lands.
   2. **Idea 10 — dedup pass 2.5, gated by the tripwire** (~$0–20/yr gated; ~$75–110/yr ungated —
      **recurring spend, needs owner sign-off**). A single-objective Sonnet rewrite of the final
      HTML with hard fall-back-to-input guards (spec has the implementation sketch + placement).
@@ -715,12 +732,19 @@ What remains is only what a future session might still act on.)*
   streaming. This also informs the **~7/30 memory-aging decision**: a store whose delta keeps
   growing toward the cap is the concrete signal to start the ~90-day archive-to-side-file batch
   (see the next bullet) rather than just lifting the ceiling forever.
-- **Memory-store growth** — contexts are budget-bounded in code (60 stories / 45k chars; byte-
-  identical until the store outgrows it). Ride-along watch on the next natural runs: resolved-story
-  re-creation (the Sonnet index lists resolved stories as bare id slugs) + the "Memory context: N
-  chars / M of K active" log line. Revert lever named in `memory._story_index_for_prompt`. The
-  ~90-day archive-to-side-file idea stays available if the *store* itself ever needs shrinking.
-  *(7/24: 106 active — growth is accelerating; see the truncation entry above.)*
+- **Memory-store growth — ✅ DECISION DATA IN 2026-07-30; aging is WARRANTED but not yet urgent.**
+  Contexts are budget-bounded in code (60 stories / 45k chars), so the PROMPT side is already
+  capped and stable (~45k chars, 56 of 138 stories shown). What grows unbounded is the STORE and
+  therefore the update-delta output. Measured series: **106 (7/24) → 118 (7/27) → 128 (7/28) →
+  138 (7/30)**, i.e. **+10/weekday**, with update-pass output 7,822 → 6,534 → **9,129** against
+  the 16,000 cap (57%). **The root cause is visible in every single run: `0 resolved`.** Stories
+  are added and updated but NOTHING is ever retired, so the store can only grow — at +10/day it
+  passes 400 stories inside two months and the delta output will approach the cap again (the
+  8k-cap truncation that froze memory on 7/24 is the precedent). **Recommendation (jared's to
+  schedule, not urgent): implement the ~90-day archive-to-side-file batch**, or investigate why
+  the Sonnet pass never marks stories resolved — the latter is the cheaper root fix and would
+  make the store self-limiting. **Interim watch:** if `Memory pass tokens ... out` reaches ~14k,
+  raise the cap or switch to streaming that same day to avoid a silent freeze.
 - **Parked retrieval mechanisms (rerank / hybrid)** — see §6. Re-test kit: `tools/eval_retrieval.py`
   + `tools/eval_golden.json` (29 questions; grow the golden set as archive days accrue —
   cadence in `MAINTENANCE.md §5`).

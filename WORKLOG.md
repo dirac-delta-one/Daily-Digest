@@ -15,9 +15,9 @@ is GONE), and the **Bankruptcy section is back** with a large filing (Freedom Fo
 26-10522) — Wednesday's entries re-surfacing via F1a-4 as designed. The run completing at all is
 the BKLN prompt-formatter fix validated (the crash was in that exact path). So `2fc906b` + the
 7/28 trio (PACER raw-count O3, per-court `pacer_rss_*` keys, ops-footer reroute) are all LIVE.
-**Still needs the server log** for the numbers: `Lookback window: 48h`, `Ch.11 discovery hits`,
-per-court keys incl. the txsb 404, `Cache: pass 2 read N`, `Memory pass tokens`, `Repetition:`,
-cost (2nd TTL-era point for the burn re-baseline).
+**Logs read same day (5-day extract + state files) — everything validated and BOTH pending
+decisions now have data; see the 2026-07-30 log-analysis entry below.** Headline: **txsb RSS
+recovered on its own — do NOT send the helpdesk email.**
 
 **Yesterday (Wed 7/29) the 08:00 run CRASHED** — a latent bug in the 7/27 BKLN yield-cache work
 (`format_market_data_for_prompt` assumed `pct_1d` non-None whenever `chg_1d` is; the BKLN row
@@ -66,6 +66,54 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-30 — 5-day log analysis: txsb self-healed, both open decisions settled, burn re-baselined
+
+Operator pulled a 5-day filtered log extract + `repetition_scores.json` + `bkln_yield_cache.json`
+in one server trip (she has limited access and departs 7/31). Findings:
+
+**1. txsb RSS RECOVERED — the helpdesk email is CANCELLED.** The 7/30 log has **no**
+`txsb: RSS fetch failed` line and carries ~25 TXSB filings (the Republic National Distributing /
+Young's Market group, QVC Group, Trinseo). Timeline correction: txsb served normally on **7/24**,
+404'd **7/27–7/29**, recovered **7/30** — a ~3-business-day transient outage, not the permanent
+removal the 7/28 investigation reasonably inferred from a single day's probe. Nothing was done to
+fix it; no announcement ever appeared. The lesson for the docs: a court-side 404 is worth ~a week
+of watching before concluding it's permanent. The new `pacer_rss_txsb` key would now surface a
+repeat within 3 runs.
+
+**2. Repetition tripwire — DECIDED: `REPEAT_TRIPWIRE = 5`.** Full metric-v2 week (8 readings,
+7/24–7/30): full 3/2/0/2, team 2/2/4/2 → range **0–4, mean ~2, ceiling 4**. The single 4 (team,
+7/28) dissects as pure noise — `$1.0bn`, `$BFB`, `$PNFP`, `$CABO`, all incidental §3↔§6
+ticker/number collisions, zero story-level repetition. So 5 = one above the observed clean
+ceiling. **Idea 10 (gated Sonnet dedup pass) NOT triggered** — no sustained ≥4, no reader
+complaints, so its recurring spend isn't justified. `REDUCE_REPEATS_SPEC.md` can retire once the
+constant lands (detail in HANDOFF §11.B).
+
+**3. Memory aging — WARRANTED, not urgent, with a cheaper root fix identified.** Store: 106
+(7/24) → 118 → 128 → **138 (7/30)**, **+10/weekday**; update-pass output 7,822 → 6,534 → **9,129**
+of the 16k cap (57%). The prompt side is fine (budget-bounded, ~45k chars, 56 of 138 shown). The
+real finding: **every run logs `0 resolved`** — stories are added and updated but never retired,
+so the store can only grow. The ~90-day archive batch would work, but investigating why the
+Sonnet pass never resolves anything is the cheaper fix and would make the store self-limiting.
+Interim tripwire: if `Memory pass tokens ... out` hits ~14k, raise the cap or stream that day.
+
+**4. Burn re-baselined → ~$160–180/mo** (OPERATIONS updated, was $90–140). TTL-era weekdays:
+**$6.64 (7/28), $7.83 (7/30 — 48h catch-up run)**; pre-fix days were $10.32 (7/27) and $15.01
+(7/24, incl. weeklies). Cache reads confirmed a second time (119,554 / 160,534 tok).
+
+**5. Index growth revised: 20,157 vectors, ~1,000–1,400/weekday** → the F13 30–50k revisit
+tripwire lands **mid-to-late August 2026**, not the "~3–8 months" estimated 7/15. HANDOFF §5 +
+OPERATIONS updated; a near-term developer item now, not a distant one.
+
+**6. Incidental confirmations:** 48h lookback absorbed Wednesday; `Ch.11 discovery hits: 96
+pre-filter` (55 on 7/29) — the new O3 signal healthy and clearly decoupled from the filtered
+count; BKLN cache holds 7/28–7/30 all at 6.59 (flat yield → `chg_1d = 0.0`, which is exactly the
+non-None-but-falsy value that crashed 7/29 — diagnosis confirmed from the data side); the
+7/24 weekly truncation WARNINGs are visible in that day's log (fixed since, Friday validates).
+Benign: an `HF_TOKEN` hub warning on every run (model is locally cached; a free token in env.bat
+silences it if it ever rate-limits).
 
 ---
 
