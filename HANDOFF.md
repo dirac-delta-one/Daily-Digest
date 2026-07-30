@@ -748,19 +748,26 @@ What remains is only what a future session might still act on.)*
   streaming. This also informs the **~7/30 memory-aging decision**: a store whose delta keeps
   growing toward the cap is the concrete signal to start the ~90-day archive-to-side-file batch
   (see the next bullet) rather than just lifting the ceiling forever.
-- **Memory-store growth — ✅ DECISION DATA IN 2026-07-30; aging is WARRANTED but not yet urgent.**
-  Contexts are budget-bounded in code (60 stories / 45k chars), so the PROMPT side is already
-  capped and stable (~45k chars, 56 of 138 stories shown). What grows unbounded is the STORE and
-  therefore the update-delta output. Measured series: **106 (7/24) → 118 (7/27) → 128 (7/28) →
-  138 (7/30)**, i.e. **+10/weekday**, with update-pass output 7,822 → 6,534 → **9,129** against
-  the 16,000 cap (57%). **The root cause is visible in every single run: `0 resolved`.** Stories
-  are added and updated but NOTHING is ever retired, so the store can only grow — at +10/day it
-  passes 400 stories inside two months and the delta output will approach the cap again (the
-  8k-cap truncation that froze memory on 7/24 is the precedent). **Recommendation (jared's to
-  schedule, not urgent): implement the ~90-day archive-to-side-file batch**, or investigate why
-  the Sonnet pass never marks stories resolved — the latter is the cheaper root fix and would
-  make the store self-limiting. **Interim watch:** if `Memory pass tokens ... out` reaches ~14k,
-  raise the cap or switch to streaming that same day to avoid a silent freeze.
+- **Memory-store growth — ✅ CLOSED 2026-07-30: NO ACTION NEEDED; the built-in 30-day aging
+  activates on its own ~7/31→8/15.** (This corrects the same-day earlier reading that "`0
+  resolved` every run" was a root-cause bug — it isn't; it's the designed ramp.) The facts:
+  `memory._age_stale_stories` (STALE_DAYS=30, code-enforced, boundary unit-tested) runs on every
+  update and resolves any active story not advanced in 30 days; the MODEL-side "resolved" is
+  deliberately strict ("concluded today" only — v1 taught that model-enforced retirement is
+  lossy). The v2 store began accruing early July, so no story COULD be 31 days stale yet — the
+  code comment predicted the first age-outs "~2026-07-30" to the day. Growth observed 106 (7/24)
+  → 138 (7/30) is the ramp, not a leak. **Equilibrium arithmetic:** ~10 new stories/day × ≥31-day
+  minimum lifetime → the store levels off ~300–400 active. At that size the digest-prompt context
+  is already capped (60/45k budget), the update pass's INPUT grows ~25k tokens (≈ +$0.08/run,
+  Sonnet — trivial), and its OUTPUT — the capped side — scales with stories CHANGED per day
+  (~15–25), not store size, so the 16k cap holds. The resolved-ids index tail grows forever but
+  at ~30 chars/story is a 2027 concern (already noted in `_story_index_for_prompt`).
+  **Watch (positive signal): the first `Memory: aged N stale story(ies)` log line**, plausibly
+  the Fri 7/31 run — its appearance confirms the whole mechanism live. **Safety line stays:** if
+  `Memory pass tokens ... out` reaches ~14k, raise the cap or switch that call to streaming the
+  same day (the 7/24 8k-cap freeze is the precedent). The ~90-day archive-to-side-file batch is
+  NOT needed on current arithmetic — reconsider only if the aged store level materially exceeds
+  ~400 active or the output line trends toward the cap.
 - **Parked retrieval mechanisms (rerank / hybrid)** — see §6. Re-test kit: `tools/eval_retrieval.py`
   + `tools/eval_golden.json` (29 questions; grow the golden set as archive days accrue —
   cadence in `MAINTENANCE.md §5`).

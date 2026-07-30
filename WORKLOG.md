@@ -98,13 +98,18 @@ Sonnet dedup) also NOT triggered** — no sustained ≥4, no complaints. **`REDU
 RETIRED** (its decision checklist is closed; distilled ladder lives in HANDOFF §11.B, full text
 in git history like the other retired specs).
 
-**3. Memory aging — WARRANTED, not urgent, with a cheaper root fix identified.** Store: 106
-(7/24) → 118 → 128 → **138 (7/30)**, **+10/weekday**; update-pass output 7,822 → 6,534 → **9,129**
-of the 16k cap (57%). The prompt side is fine (budget-bounded, ~45k chars, 56 of 138 shown). The
-real finding: **every run logs `0 resolved`** — stories are added and updated but never retired,
-so the store can only grow. The ~90-day archive batch would work, but investigating why the
-Sonnet pass never resolves anything is the cheaper fix and would make the store self-limiting.
-Interim tripwire: if `Memory pass tokens ... out` hits ~14k, raise the cap or stream that day.
+**3. Memory aging — initially read as "root cause: nothing ever resolves"; CORRECTED same day
+after a code-level diagnosis (operator asked for all tests/decisions before departure): NO
+ACTION NEEDED.** The `0 resolved` in every run is the designed RAMP, not a leak:
+`_age_stale_stories` (STALE_DAYS=30, unit-tested to the 30/31-day boundary, runs every update)
+is the intended retirement path — model-side resolve is deliberately strict — and the v2 store
+is simply younger than 31 days, with the code comment predicting first age-outs "~2026-07-30"
+to the day. Equilibrium math: ~10 new/day × ≥31-day lifetime → ~300–400 active steady state,
+at which the capped OUTPUT side still scales with per-day changes (~15–25), not store size, so
+the 16k cap holds; input grows ~+$0.08/run (trivial). The ~90-day archive batch is NOT needed
+on this arithmetic. Watch the first `Memory: aged N stale story(ies)` line (plausibly Fri 7/31)
+as the mechanism's live confirmation; the ~14k-out tripwire stays as the safety line. Full
+corrected analysis in HANDOFF §11.B.
 
 **4. Burn re-baselined → ~$160–180/mo** (OPERATIONS updated, was $90–140). TTL-era weekdays:
 **$6.64 (7/28), $7.83 (7/30 — 48h catch-up run)**; pre-fix days were $10.32 (7/27) and $15.01
