@@ -5,22 +5,25 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-29 — Wed run FAILED on the BKLN prompt-formatter bug; fix pushed; ⚠ PULL BEFORE THU 08:00)
+## Current state (2026-07-30 — RECOVERED: server pulled, Thu run GREEN, all 7/28–7/29 work live)
 
-**Wed 7/29 08:00 run CRASHED — no digest went out.** Root cause: a latent bug in the 7/27 BKLN
-yield-cache work (`format_market_data_for_prompt` assumed `pct_1d` non-None whenever `chg_1d` is;
-the BKLN row deliberately carries pct=None) that could only fire the first morning the accrual
-cache produced a 1D value — which was today. **Fix built + pushed (`2fc906b`, see today's entry).**
-**⚠ THE SERVER PULL IS NOW CRASH-BLOCKING, NOT ROUTINE: the BKLN cache has history permanently,
-so EVERY run on the old code crashes the same way every morning. Pull before Thursday 08:00.**
-Operator decision (2026-07-29): **NO same-day manual re-run** — Thursday's run auto-covers
-Wednesday by design (48h lookback since the last digest file; PACER entries incl. today's 1 large
-filing re-surface via F1a-4; the BKLN cache recorded today's observation pre-crash, so Thursday's
-1D computes normally; memory skips a day within the 16k cap's headroom; Friday's weekly wrap just
-summarizes 4 dailies). Pull only — no ReplyMonitor restart, no re-run, no state cleanup. The
-crash was NOT caused by the 7/28 trio — that pull was coincidental timing; the log shows the new
-PACER lines working. Failure emails (FAILED 08:02 + MISSING 09:00) both fired correctly; ~$0.007
-spent.
+**Thu 7/30 08:20 — the digest ran clean on the fixed code.** Verified read-only from the bot's
+sent mail: **6 sends** (1 `[FULL]` jtramontano + 5 TEAM: apain, acohen, sarmstrong, azhou,
+voterobarba), **NO separate ⚙️ ops email** (the footer reroute is live), **no ops footer at all**
+in the FULL digest (no degradation/truncation/config signals — and the PACER false-positive nag
+is GONE), and the **Bankruptcy section is back** with a large filing (Freedom Forever LLC, DEB
+26-10522) — Wednesday's entries re-surfacing via F1a-4 as designed. The run completing at all is
+the BKLN prompt-formatter fix validated (the crash was in that exact path). So `2fc906b` + the
+7/28 trio (PACER raw-count O3, per-court `pacer_rss_*` keys, ops-footer reroute) are all LIVE.
+**Still needs the server log** for the numbers: `Lookback window: 48h`, `Ch.11 discovery hits`,
+per-court keys incl. the txsb 404, `Cache: pass 2 read N`, `Memory pass tokens`, `Repetition:`,
+cost (2nd TTL-era point for the burn re-baseline).
+
+**Yesterday (Wed 7/29) the 08:00 run CRASHED** — a latent bug in the 7/27 BKLN yield-cache work
+(`format_market_data_for_prompt` assumed `pct_1d` non-None whenever `chg_1d` is; the BKLN row
+deliberately carries pct=None) that could only fire the first morning the accrual cache produced
+a 1D value. No digest went out; ~$0.007 spent; both alert emails fired correctly; no state lost.
+Operator chose no same-day re-run — Thursday absorbed it, exactly as designed.
 
 ---
 

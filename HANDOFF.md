@@ -69,14 +69,13 @@ ran production from `main`; that's retired, the server tracks `main`, so **`main
 working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
 be deleted at will.
 
-**⚠ IMMEDIATE (2026-07-29): the server pull is CRASH-BLOCKING.** The Wed 7/29 run crashed on a
-latent BKLN prompt-formatter bug (pct=None — fix pushed `2fc906b`; full anatomy in WORKLOG
-2026-07-29) and, because the BKLN accrual cache now has history permanently, **every run on
-pre-fix code crashes the same way every morning — pull before Thu 08:00.** Operator decision:
-no same-day re-run; Thursday's 48h lookback absorbs Wednesday (PACER entries re-surface via
-F1a-4, memory skips a day, Friday's weekly wraps 4 dailies). Pull only — no ReplyMonitor restart.
-The same pull also delivers the 7/28 trio (PACER O3 raw-count fix + per-court keys + the
-ops-footer reroute — §11.B).
+**✅ RESOLVED 2026-07-30: server pulled, Thursday's run GREEN.** The Wed 7/29 crash (latent BKLN
+prompt-formatter bug, pct=None — `2fc906b`; anatomy in WORKLOG 2026-07-29) is fixed and the
+Thu 7/30 08:20 run delivered 6 sends clean. That pull also activated the 7/28 trio, all three
+confirmed live from the sent mail: **no separate ⚙️ ops email** (footer reroute), **no ops
+footer** at all (so the PACER false-positive nag is gone), and PACER content back with a large
+filing re-surfaced via F1a-4. Remaining: read the 7/30 server log for the numbers (48h lookback,
+per-court keys incl. txsb's 404, cache reads, memory tokens, repetition, cost).
 
 **What remains → the Fri 2026-07-24 08:00 debut of the 7/23 mega-batch, the Mon 7/27 72h-lookback
 check, a week of metric-v2 repetition data + observed costs, and the 7/31 operator departure.**
