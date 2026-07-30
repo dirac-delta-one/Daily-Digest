@@ -22,8 +22,9 @@ recovered on its own — do NOT send the helpdesk email.**
 **✅ DEPARTURE TASK DONE A DAY EARLY (2026-07-30 evening):** the operator removed
 `acohen@acorninv.com` from `DIGEST_TO_TEAM` in the server's `env.bat`. Takes effect on the Fri
 7/31 08:00 run (fresh process reads env.bat anew). Her alerts pause silently by construction
-(orphan notices were dropped 7/28 — tell jared in person). ReplyMonitor restart advised per the
-durable recipients-change rule. **Fri 7/31 checklist (jared or whoever reads the log):** 5 sends
+(orphan notices were dropped 7/28 — tell jared in person). ReplyMonitor restarted same evening
+(per the durable recipients-change rule; the daemon's asker allow-list now matches the new
+recipient set — acohen is fully off both channels). **Fri 7/31 checklist (jared or whoever reads the log):** 5 sends
 not 6 (acohen absent), first production STREAMING weekly completes (<32k, no WARNING), weekly
 `log-only` repetition lines, possibly the first `Memory: aged N stale story(ies)` line.
 
