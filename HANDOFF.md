@@ -78,11 +78,22 @@ prompt-formatter bug, pct=None — `2fc906b`; anatomy in WORKLOG 2026-07-29) is 
 Thu 7/30 08:20 run delivered 6 sends clean. That pull also activated the 7/28 trio, all three
 confirmed live from the sent mail: **no separate ⚙️ ops email** (footer reroute), **no ops
 footer** at all (so the PACER false-positive nag is gone), and PACER content back with a large
-filing re-surfaced via F1a-4. Remaining: read the 7/30 server log for the numbers (48h lookback,
-per-court keys incl. txsb's 404, cache reads, memory tokens, repetition, cost).
+filing re-surfaced via F1a-4. The 7/30 log was read the same day (5-day extract) — every number
+validated, both open decisions settled, txsb self-healed; see WORKLOG 2026-07-30.
 
-**What remains → the Fri 2026-07-24 08:00 debut of the 7/23 mega-batch, the Mon 7/27 72h-lookback
-check, a week of metric-v2 repetition data + observed costs, and the 7/31 operator departure.**
+**What remains (as of the 2026-07-30 handoff — the operator's soak-week checklist is CLOSED:
+debut validated, Monday validated, the metric-v2 week decided NO-tripwire, costs re-baselined
+$160–180/mo, acohen off both channels a day early):**
+- **Fri 7/31, optional log read** (jared or next session): **5 sends** not 6; the first
+  production STREAMING weekly completes (<32k out, no WARNING) + its `log-only` repetition
+  lines; possibly the first `Memory: aged N stale story(ies)` line (the 30-day ager's designed
+  activation window opens ~7/31–8/15 — a POSITIVE signal, see §11.B).
+- **JPM** — awaiting jared's re-scope-or-drop call (JPM_SPEC top section).
+- **Mid-to-late August** — the F13 index tripwire (§5; ~20k vectors, +1,000–1,400/weekday).
+- Everything else is watch-only (§11.B) or jared's (§11.A paid lanes).
+
+*(Historical context for the paragraphs below: they narrate the 7/23 mega-batch and its
+soak week, all since validated.)*
 The Thu 7/23 dev day (WORKLOG 2026-07-23 — the biggest single day; commits through **`b023ba4`**)
 shipped, each validated on permissioned test runs to acohen before reaching jared: **anti-repetition
 Bundles 1+2 + second batch + the jared-APPROVED self-contained §1** (Idea 3(a+): §1 = complete

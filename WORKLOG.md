@@ -5,7 +5,18 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-30 — RECOVERED: server pulled, Thu run GREEN, all 7/28–7/29 work live)
+## Current state (2026-07-30 EOD — HANDOFF COMPLETE: soak week closed, no must-dos remain)
+
+**Fresh-session orientation:** the system is LIVE and green; server current with `main`; `pytest`
+**496**, ruff clean. Every open decision from the soak week is CLOSED and recorded (this block +
+the 2026-07-30 entries below): txsb self-healed (helpdesk email cancelled), NO repetition
+tripwire (operator call — reader perception is the trigger; `REDUCE_REPEATS_SPEC` retired),
+memory aging = no action (the built-in 30-day ager activates ~7/31–8/15 by design), burn
+re-baselined **$160–180/mo** (OPERATIONS updated), acohen off both channels (env.bat +
+ReplyMonitor restart, done 7/30 evening). The operator departs 2026-07-31; nothing is pending on
+her. **Next actions for any new session:** the optional Fri 7/31 log read (checklist below),
+the JPM re-scope-or-drop decision (jared's — JPM_SPEC top section), and the ~mid-August F13
+index-growth revisit (HANDOFF §5).
 
 **Thu 7/30 08:20 — the digest ran clean on the fixed code.** Verified read-only from the bot's
 sent mail: **6 sends** (1 `[FULL]` jtramontano + 5 TEAM: apain, acohen, sarmstrong, azhou,
