@@ -5,19 +5,23 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-30 EOD — HANDOFF COMPLETE: soak week closed, no must-dos remain)
+## Current state (2026-07-31 — OPERATOR'S LAST DAY: handoff complete, Fri run email-side validated)
 
 **Fresh-session orientation:** the system is LIVE and green; server current with `main`; `pytest`
 **496**, ruff clean. Every open decision from the soak week is CLOSED and recorded (this block +
-the 2026-07-30 entries below): txsb self-healed (helpdesk email cancelled), NO repetition
+the dated entries below): txsb self-healed (helpdesk email cancelled), NO repetition
 tripwire (operator call — reader perception is the trigger; `REDUCE_REPEATS_SPEC` retired),
 memory aging = no action (the built-in 30-day ager activates ~7/31–8/15 by design), burn
 re-baselined **$160–180/mo** (OPERATIONS updated), acohen off both channels (env.bat +
-ReplyMonitor restart, done 7/30 evening). The operator departs 2026-07-31; nothing is pending on
-her. **Next actions for any new session:** the optional Fri 7/31 log read (checklist below) and
-the JPM re-scope-or-drop decision (jared's — JPM_SPEC top section). The ~mid-August F13
-index-growth revisit was RETIRED by benchmark the same evening (entry below): no index work
-expected before ~late 2027, trigger = felt latency, not a date.
+ReplyMonitor restart, done 7/30 evening; **confirmed live in the Fri 7/31 sends**), the F13
+index revisit RETIRED by benchmark (no index work expected before ~late 2027; trigger = felt
+latency, not a date). **The Fri 7/31 run was validated EMAIL-SIDE the same day** (entry below):
+5 digests + 5 weeklies, acohen absent, the first production STREAMING weekly complete — but the
+**server LOG was NOT read** (operator's server access ended first). **Next actions for any new
+session:** the JPM re-scope-or-drop decision (jared's — JPM_SPEC top section), and optionally,
+on any future server visit: the 7/31+ log-only items (weekly `log-only` repetition lines, run
+cost, the first `Memory: aged N stale story(ies)` line — that ager fires ~7/31–8/15, so ANY
+early-August log shows it; nothing depends on catching the first one).
 
 **Thu 7/30 08:20 — the digest ran clean on the fixed code.** Verified read-only from the bot's
 sent mail: **6 sends** (1 `[FULL]` jtramontano + 5 TEAM: apain, acohen, sarmstrong, azhou,
@@ -36,9 +40,10 @@ recovered on its own — do NOT send the helpdesk email.**
 7/31 08:00 run (fresh process reads env.bat anew). Her alerts pause silently by construction
 (orphan notices were dropped 7/28 — tell jared in person). ReplyMonitor restarted same evening
 (per the durable recipients-change rule; the daemon's asker allow-list now matches the new
-recipient set — acohen is fully off both channels). **Fri 7/31 checklist (jared or whoever reads the log):** 5 sends
-not 6 (acohen absent), first production STREAMING weekly completes (<32k, no WARNING), weekly
-`log-only` repetition lines, possibly the first `Memory: aged N stale story(ies)` line.
+recipient set — acohen is fully off both channels). **Fri 7/31 checklist — the email-side half
+VALIDATED 2026-07-31 (entry below): 5 sends not 6 ✓, acohen absent ✓, streaming weekly complete
+✓.** Log-only half (repetition `log-only` lines, cost, possible first `Memory: aged N stale
+story(ies)` line) remains for any future server visit — the log could not be pulled 7/31.
 
 **Yesterday (Wed 7/29) the 08:00 run CRASHED** — a latent bug in the 7/27 BKLN yield-cache work
 (`format_market_data_for_prompt` assumed `pct_1d` non-None whenever `chg_1d` is; the BKLN row
@@ -87,6 +92,46 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-07-31 — Fri run validated EMAIL-SIDE (last-day check): recipient drop live, streaming weekly complete; server log NOT read
+
+The operator's last-day verification, done the established free way (read-only pull of the bot's
+sent mail via `digest.get_gmail_service()` — no Claude calls, no sends). The server log could
+NOT be pulled today (no server access), so this validation is deliberately email-side only; the
+log-only residue is listed at the end and carries no deadline.
+
+**Sends — exactly the post-departure shape.** 10 messages: **5 digests** 08:21:34–36 ET
+(1 `[FULL]` jtramontano + 4 TEAM: apain, sarmstrong, azhou, voterobarba) and **5 weekly wraps**
+(FULL 08:28, TEAM 08:30–38). **acohen absent from every send** — the 7/30 `env.bat` recipient
+drop is confirmed live. **No 🚨 failure email, no ⚙️ ops email, and no "System notices" footer**
+in the digest bodies (zero truncation/degradation/config signals).
+
+**Digest content spot-checked (FULL + one TEAM):** all sections in order (6 snapshots → §1–§9 →
+WSJ/FT → Bankruptcy), self-contained §1 with `Contrarian:` sub-bullets + `(→ §1)` pointers
+intact, alerts box present in FULL only, both variants end cleanly (closing tags) on fresh
+26-series bankruptcy filings (Tonopah Solar DEB 26-10060, Spanish Broadcasting DEB 26-10708) —
+the freshness filter behaving. FULL ~80k HTML chars / TEAM ~75k, normal range.
+
+**The armed-path headliner PASSED: the first production STREAMING weekly is COMPLETE.** Both
+weeklies carry all four sections and end properly with the reply-teaching footer; ~13–14k text
+chars — nowhere near the 32k cap, no mid-bullet cutoff (the 7/24 debut's truncation mode). The
+last untested seam from the 2026-07-29 armed-path sweep is now live-validated.
+
+**One cosmetic nit, recorded not fixed:** both weeklies noticed the missing Wednesday digest and
+synthesized around the gap (good), but ATTRIBUTED it to "FOMC day" — a model-invented rationale;
+the real cause was the 7/29 BKLN crash. The wrap prompt gives the model no information about WHY
+a day is absent, so it guessed plausibly and wrongly. Harmless here (crash gaps are rare, the
+synthesis itself was correct) and no prompt change was made on a last day under G1 — but if a
+reader ever asks why a wrap cites FOMC for a missing day, this is the answer. A future session
+could have the weekly-wrap prompt say "if a weekday's digest is absent, note the absence without
+inferring a reason" — one-line change, needs a validated test run per G1.
+
+**Log-only residue (optional, jared or any future server session — no deadline):** the weekly
+`log-only` repetition lines, the run cost line, and the first `Memory: aged N stale story(ies)`
+line — the 30-day ager's window is ~7/31–8/15, so ANY early-August log read shows it working;
+nothing depends on catching the first firing.
 
 ---
 

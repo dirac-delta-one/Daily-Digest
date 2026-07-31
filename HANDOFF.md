@@ -81,13 +81,22 @@ footer** at all (so the PACER false-positive nag is gone), and PACER content bac
 filing re-surfaced via F1a-4. The 7/30 log was read the same day (5-day extract) — every number
 validated, both open decisions settled, txsb self-healed; see WORKLOG 2026-07-30.
 
-**What remains (as of the 2026-07-30 handoff — the operator's soak-week checklist is CLOSED:
+**What remains (as of 2026-07-31, the operator's last day — the soak-week checklist is CLOSED:
 debut validated, Monday validated, the metric-v2 week decided NO-tripwire, costs re-baselined
 $160–180/mo, acohen off both channels a day early):**
-- **Fri 7/31, optional log read** (jared or next session): **5 sends** not 6; the first
-  production STREAMING weekly completes (<32k out, no WARNING) + its `log-only` repetition
-  lines; possibly the first `Memory: aged N stale story(ies)` line (the 30-day ager's designed
-  activation window opens ~7/31–8/15 — a POSITIVE signal, see §11.B).
+- **Fri 7/31 run — EMAIL SIDE VERIFIED same day** (read-only sent-mail pull; WORKLOG
+  2026-07-31): **5 digest sends + 5 weeklies, acohen absent from both** (the recipient drop
+  live), **the first production STREAMING weekly COMPLETE** — all sections + proper reply
+  footer, ~13k chars, nowhere near 32k, no mid-bullet cutoff (the 7/24 truncation mode is
+  gone) — no ops footer, no alert emails, §1/(→ §1)/Contrarian format intact, fresh
+  bankruptcies only. **Log side UNREAD (server access ended before the log could be pulled) —
+  optional, jared or a future server session:** the weekly `log-only` repetition lines, run
+  cost, and possibly the first `Memory: aged N stale story(ies)` line (the 30-day ager's
+  designed activation window opens ~7/31–8/15 — a POSITIVE signal, see §11.B; if it didn't
+  fire 7/31 it will in the following ~2 weeks, and nothing depends on catching the first one).
+  One cosmetic nit recorded, no action: both weeklies explained the missing Wednesday digest
+  as "FOMC day" — a model-invented rationale; the real cause was the 7/29 BKLN crash. Crash
+  gaps are rare; noted in case a reader ever asks.
 - **JPM** — awaiting jared's re-scope-or-drop call (JPM_SPEC top section).
 - ~~Mid-to-late August — the F13 index tripwire~~ **RETIRED 2026-07-30 by benchmark** (§5):
   measured flat-index latency stays in single-digit-to-tens of milliseconds far past 50k
@@ -794,8 +803,10 @@ What remains is only what a future session might still act on.)*
   Sonnet — trivial), and its OUTPUT — the capped side — scales with stories CHANGED per day
   (~15–25), not store size, so the 16k cap holds. The resolved-ids index tail grows forever but
   at ~30 chars/story is a 2027 concern (already noted in `_story_index_for_prompt`).
-  **Watch (positive signal): the first `Memory: aged N stale story(ies)` log line**, plausibly
-  the Fri 7/31 run — its appearance confirms the whole mechanism live. **Safety line stays:** if
+  **Watch (positive signal): the first `Memory: aged N stale story(ies)` log line** — its
+  appearance confirms the whole mechanism live. *(The 7/31 log went unread — operator access
+  ended first; the window runs ~7/31–8/15, so ANY early-August log read shows it. Nothing
+  depends on catching the first firing.)* **Safety line stays:** if
   `Memory pass tokens ... out` reaches ~14k, raise the cap or switch that call to streaming the
   same day (the 7/24 8k-cap freeze is the precedent). The ~90-day archive-to-side-file batch is
   NOT needed on current arithmetic — reconsider only if the aged store level materially exceeds
