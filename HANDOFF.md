@@ -51,7 +51,7 @@ FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
 server (`ShawnArmstrong`) is the SOLE instance, running unattended: four scheduled tasks Ready under
 a **stored-password** principal (MorningDigest 08:00 / Watchdog 09:00 / Backup 09:45 / ReplyMonitor;
 the MiddayAlert task was removed 2026-07-21), `DIGEST_UNATTENDED=1` machine-wide, production digests
-delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **473 green**,
+delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **502 green**,
 retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
 (`tools/eval_results/2026-07-15_post_index_filter.json`). **Operator since 2026-08-03:
 `jtramontano@acorninv.com` (jared)** — built and handed off by `acohen@acorninv.com`, departed
@@ -102,9 +102,16 @@ secrets).
   cost, and possibly the first `Memory: aged N stale story(ies)` line (the 30-day ager's
   designed activation window opens ~7/31–8/15 — a POSITIVE signal, see §11.B; if it didn't
   fire 7/31 it will in the following ~2 weeks, and nothing depends on catching the first one).
-  One cosmetic nit recorded, no action: both weeklies explained the missing Wednesday digest
-  as "FOMC day" — a model-invented rationale; the real cause was the 7/29 BKLN crash. Crash
-  gaps are rare; noted in case a reader ever asks.
+  One cosmetic nit found — both weeklies explained the missing Wednesday digest as "FOMC day",
+  a model-invented rationale (the real cause was the 7/29 BKLN crash) — and **FIXED code-side
+  2026-08-03** (operator judged the confabulation class worth closing): `_get_week_digests`
+  silently skips absent days, leaving the wrap model an information vacuum; now
+  `digest._weekly_digest_text` injects a factual gap note in the missing day's slot ("no digest
+  exists... do NOT infer or invent a reason"). Full weeks are byte-identical to the old prompt
+  (pinned by test), so only the armed path changed; the armed state is unit-test-constructed
+  per §2's warm-up rule (pytest 496→502). **⚠ Needs a server pull** (digest.py only — no
+  ReplyMonitor restart); live validation = the first Friday wrap after a missing weekday,
+  which is rare by construction.
 - **JPM** — awaiting jared's re-scope-or-drop call; **he was told 2026-08-03 it's waiting on
   him**, and the departing operator's lead is that **the share link he originally sent may have
   been the wrong one** (which would explain the SCDP file-transfer dead end) — details + re-run

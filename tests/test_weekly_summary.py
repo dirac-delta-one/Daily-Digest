@@ -71,6 +71,99 @@ def test_strip_to_html_keeps_non_div_closing_tag():
     assert digest._strip_to_html(html + "\n\nDone — hope that helps!") == html
 
 
+# --- missing-day gap notes (2026-08-03 confabulation fix) ---
+# The 7/31 wraps invented a reason ("FOMC day") for the crash-missing 7/29
+# digest. Fix = name the gap as grounded data instead of leaving a vacuum.
+# Warm-up rule (HANDOFF §2): these tests CONSTRUCT the armed state — a week
+# with a hole — because production only arms after a run crashes.
+
+def _week(days):  # the real crash week: Mon 7/27 … Fri 7/31
+    all_days = {
+        "Monday": "2026-07-27", "Tuesday": "2026-07-28",
+        "Wednesday": "2026-07-29", "Thursday": "2026-07-30",
+        "Friday": "2026-07-31",
+    }
+    return [{"day": d, "date": all_days[d], "html": f"<div>{d}</div>"}
+            for d in days]
+
+
+def test_weekly_digest_text_full_week_byte_identical():
+    # No missing day -> output must equal the pre-fix concatenation exactly;
+    # the gap-note machinery must be invisible on the common path.
+    digests = _week(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"])
+    legacy = ""
+    for d in digests:
+        legacy += f"\n{'='*60}\n{d['day']} ({d['date']})\n{'='*60}\n{d['html']}\n"
+    assert digest._weekly_digest_text(digests) == legacy
+    assert digest._missing_week_days(digests) == []
+
+
+def test_missing_week_days_finds_the_hole():
+    digests = _week(["Monday", "Tuesday", "Thursday", "Friday"])
+    assert digest._missing_week_days(digests) == [
+        {"date": "2026-07-29", "day": "Wednesday"}]
+
+
+def test_missing_week_days_anchors_to_digest_week_not_today():
+    # A single mid-week digest still implies ITS week's Monday, whatever
+    # today's date is (the helper must be pure w.r.t. its inputs).
+    digests = _week(["Wednesday"])
+    missing = digest._missing_week_days(digests)
+    assert [m["date"] for m in missing] == [
+        "2026-07-27", "2026-07-28", "2026-07-30", "2026-07-31"]
+
+
+def test_missing_week_days_empty_input():
+    assert digest._missing_week_days([]) == []
+
+
+def test_weekly_digest_text_gap_note_in_chronological_slot():
+    digests = _week(["Monday", "Tuesday", "Thursday", "Friday"])
+    text = digest._weekly_digest_text(digests)
+    assert "Wednesday (2026-07-29) — NO DIGEST" in text
+    assert "do NOT infer or invent a reason" in text
+    # The note sits between Tuesday's and Thursday's blocks
+    assert (text.index("Tuesday (2026-07-28)")
+            < text.index("Wednesday (2026-07-29) — NO DIGEST")
+            < text.index("Thursday (2026-07-30)"))
+
+
+def test_weekly_summary_prompt_carries_gap_note(monkeypatch):
+    # End-to-end wiring: the note must reach the API call's user message.
+    calls = []
+
+    class _FakeStream:
+        def __init__(self, kwargs):
+            calls.append(kwargs)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get_final_message(self):
+            return SimpleNamespace(
+                content=[SimpleNamespace(type="text", text="<div>weekly</div>")],
+                stop_reason="end_turn",
+                usage=SimpleNamespace(input_tokens=10, output_tokens=5,
+                                      cache_read_input_tokens=0,
+                                      cache_creation_input_tokens=0),
+            )
+
+    class _FakeClient:
+        def __init__(self):
+            self.messages = SimpleNamespace(
+                stream=lambda **kwargs: _FakeStream(kwargs))
+
+    monkeypatch.setattr(digest.anthropic, "Anthropic", _FakeClient)
+    digest.generate_weekly_summary(
+        _week(["Monday", "Tuesday", "Thursday", "Friday"]))
+    prompt = calls[0]["messages"][0]["content"]
+    assert "Wednesday (2026-07-29) — NO DIGEST" in prompt
+    assert "state plainly that no digest was produced" in prompt
+
+
 # --- generate_weekly_summary call shape (fake client, no API) ---
 
 def test_weekly_summary_streams_with_headroom(monkeypatch):

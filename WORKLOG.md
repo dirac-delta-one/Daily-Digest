@@ -7,8 +7,11 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ## Current state (2026-08-03 — OPERATOR DEPARTED: final wrap-up done, system fully unattended and green)
 
-**Fresh-session orientation:** the system is LIVE and green; server current with `main`; `pytest`
-**496**, ruff clean. **⚠ The DEV machine (`KimCohen`) holds NO secrets since 2026-08-03** —
+**Fresh-session orientation:** the system is LIVE and green; `pytest` **502**, ruff clean.
+**⚠ The server is ONE PULL BEHIND `main`** since the 2026-08-03 weekly-wrap gap-note fix
+(digest.py only — pull needs NO ReplyMonitor restart; until pulled, a crash-missing weekday can
+still be confabulated about in that week's wrap, the 7/31 "FOMC day" mode — nothing else is
+affected). **⚠ The DEV machine (`KimCohen`) holds NO secrets since 2026-08-03** —
 all credential/session files deleted at departure (entry below), so nothing authenticated
 (including the read-only sent-mail checks used for validation) can run from this box until
 secrets are re-installed per MAINTENANCE §2; the server is self-sufficient and unaffected.
@@ -144,9 +147,27 @@ throughout the soak week; re-provisioning = copy from the server or regenerate p
 
 **Still open (unchanged, no deadline):** the log-only residue (Fri 7/31 + later logs — first
 `Memory: aged N stale` line, weekly log-only repetition scores, costs; operator may still do a
-later server trip, else jared/whoever), and jared's JPM decision. **Deliberately not done:** the
-FOMC-attribution weekly-wrap nit (needs a paid validated run per G1 — recorded 2026-07-31, left
-for a future session).
+later server trip, else jared/whoever), and jared's JPM decision.
+
+**5. (added later the same day) FOMC-attribution confabulation FIXED code-side — the operator
+overruled the initial leave-it call.** The 7/31 "cosmetic nit" was re-assessed at her push-back:
+the mechanism (model fills a data vacuum with confident fiction, read by a team with no one
+left to catch it) is a hallucination class, not a cosmetic one — bounded though it is (arms only
+when a weekday digest file is missing; wraps are never indexed or memory-fed, so it can't
+compound; outages alert jared independently). Fix = **grounding, not a rule**:
+`digest._missing_week_days` (anchored to the digests' own week, pure/testable) +
+`digest._weekly_digest_text`, which injects a factual block in the missing day's slot —
+"NO DIGEST ... cause is not known to you ... do NOT infer or invent a reason (holiday, FOMC,
+outage, etc.); synthesizing from surrounding days is fine when labeled." **Full weeks produce
+byte-identical prompt text to the old concatenation (pinned by test)** — the change is inert
+until armed. Six new tests construct the armed state per HANDOFF §2's warm-up rule (the real
+crash week, Wed 7/29 missing; chronological slot placement; end-to-end wiring into the API
+call's user message; purity vs today's clock). `pytest` 496→**502**, ruff clean. **G1 note:**
+no paid validation was possible (this machine was de-credentialed hours earlier) — precedent is
+the 7/24 "nit 3" tiny prompt change validated on the next production run, and this one is
+STRICTLY safer (byte-identical common path). Live validation = the first Friday wrap after a
+missing weekday. **Server pull pending** (digest.py only, no ReplyMonitor restart — can ride
+the operator's possible later log trip, or any future pull).
 
 ---
 
@@ -181,7 +202,9 @@ a day is absent, so it guessed plausibly and wrongly. Harmless here (crash gaps 
 synthesis itself was correct) and no prompt change was made on a last day under G1 — but if a
 reader ever asks why a wrap cites FOMC for a missing day, this is the answer. A future session
 could have the weekly-wrap prompt say "if a weekday's digest is absent, note the absence without
-inferring a reason" — one-line change, needs a validated test run per G1.
+inferring a reason" — one-line change, needs a validated test run per G1. *(SUPERSEDED
+2026-08-03: built that day as a code-side grounding fix — gap notes injected as data, stronger
+than a rule; see the 2026-08-03 entry item 5.)*
 
 **Log-only residue (optional, jared or any future server session — no deadline):** the weekly
 `log-only` repetition lines, the run cost line, and the first `Memory: aged N stale story(ies)`

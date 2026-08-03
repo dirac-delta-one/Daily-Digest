@@ -1486,6 +1486,56 @@ def _get_week_digests(team=False):
     return digests
 
 
+def _missing_week_days(digests):
+    """Mon–Fri days of the digests' own week that have NO saved digest.
+
+    Anchored to the earliest date IN the list (not today's clock) so the
+    helper is pure and test-constructable. Returns [{"date", "day"}, ...].
+
+    Why this exists (2026-08-03): _get_week_digests silently skips absent
+    days, so after the 7/29 crash the wrap model saw Mon/Tue/Thu/Fri with no
+    explanation and CONFABULATED one — both 7/31 wraps stated the missing
+    Wednesday was "FOMC day" (plausible, false; the cause was a crash). The
+    fix is grounding, not a rule: name the gap as data so there is no vacuum
+    to fill (see _weekly_digest_text).
+    """
+    if not digests:
+        return []
+    first = datetime.date.fromisoformat(min(d["date"] for d in digests))
+    monday = _week_monday(first)
+    present = {d["date"] for d in digests}
+    missing = []
+    for i in range(5):  # Mon-Fri, mirrors _get_week_digests
+        day = monday + datetime.timedelta(days=i)
+        if day.isoformat() not in present:
+            missing.append({"date": day.isoformat(), "day": day.strftime("%A")})
+    return missing
+
+
+def _weekly_digest_text(digests):
+    """Chronological source text for the weekly prompt: each day's digest,
+    plus a factual gap note in the slot of any weekday with no digest.
+
+    A full week produces byte-identical output to the pre-2026-08-03
+    concatenation (pinned by test) — the gap notes exist only when a day is
+    actually missing, so the common path carries no new prompt risk.
+    """
+    blocks = [(d["date"],
+               f"\n{'='*60}\n{d['day']} ({d['date']})\n{'='*60}\n{d['html']}\n")
+              for d in digests]
+    for m in _missing_week_days(digests):
+        blocks.append((m["date"], (
+            f"\n{'='*60}\n{m['day']} ({m['date']}) — NO DIGEST\n{'='*60}\n"
+            "[No digest exists for this weekday. The cause is not known to "
+            "you — if the wrap mentions this day's absence, state plainly "
+            "that no digest was produced and do NOT infer or invent a reason "
+            "(holiday, FOMC, outage, etc.). Synthesizing this day's market "
+            "events from the surrounding days' coverage is fine when "
+            "labeled as such.]\n")))
+    blocks.sort(key=lambda b: b[0])
+    return "".join(text for _, text in blocks)
+
+
 def generate_weekly_summary(digests, cost_label=""):
     """Generate a weekly summary by synthesizing the week's daily digests with Opus."""
     if not digests:
@@ -1495,9 +1545,7 @@ def generate_weekly_summary(digests, cost_label=""):
 
     client = anthropic.Anthropic()
 
-    digest_text = ""
-    for d in digests:
-        digest_text += f"\n{'='*60}\n{d['day']} ({d['date']})\n{'='*60}\n{d['html']}\n"
+    digest_text = _weekly_digest_text(digests)
 
     # max_tokens 10,000 -> 32,000 STREAMING (2026-07-24): BOTH debut weeklies
     # hit the old cap at exactly 10,000 out — Fable's thinking bills as output,
