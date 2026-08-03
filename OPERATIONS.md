@@ -71,17 +71,19 @@ To re-run the digest by hand: double-click `run_digest.bat` in the project folde
    substack.com in a browser, copy the `substack.sid` cookie value (browser dev
    tools → Application → Cookies), paste it as the only contents of
    `substack_cookie.txt` in the project folder.
-3. **API credit top-up**: the digest stops generating when the Anthropic
-   account hits $0 (you'd see run-FAILED alerts mentioning credit/quota).
-   Expected burn: roughly **$160–180/month** — re-baselined 2026-07-30 from
-   real cost lines, replacing the earlier $90–140 estimate. Observed weekdays
-   run **$6.6–7.8** (both digest versions; the high end is a Monday/catch-up
-   run covering extra days), plus roughly **$4–4.50** extra on Fridays for the
-   two weekly wraps. Reply questions add a little on top. The step up from
-   the old estimate is Claude Fable 5 (~2x price, since 2026-07-22) plus the
-   cross-day context added 2026-07-23; a prompt-cache fix on 2026-07-28 cut
-   about $3.50/run back off. Check/top up at console.anthropic.com (the bot
-   account's login).
+3. **API billing**: the Anthropic account is **firm-paid with auto-reload ON**
+   (confirmed 2026-08-03 by the departing operator), so there is **no manual
+   monthly top-up** — the residual failure mode is the auto-reload payment
+   itself failing (e.g. an expired card), which shows up as run-FAILED alerts
+   mentioning credit/quota; fix at console.anthropic.com (the bot account's
+   login). Expected burn: roughly **$160–180/month** — re-baselined 2026-07-30
+   from real cost lines, replacing the earlier $90–140 estimate. Observed
+   weekdays run **$6.6–7.8** (both digest versions; the high end is a
+   Monday/catch-up run covering extra days), plus roughly **$4–4.50** extra on
+   Fridays for the two weekly wraps. Reply questions add a little on top. The
+   step up from the old estimate is Claude Fable 5 (~2x price, since
+   2026-07-22) plus the cross-day context added 2026-07-23; a prompt-cache fix
+   on 2026-07-28 cut about $3.50/run back off.
 
 ## Managing alerts & the SEC watchlist (by email — no code needed)
 

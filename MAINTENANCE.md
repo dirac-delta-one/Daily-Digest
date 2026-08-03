@@ -53,12 +53,16 @@ All gitignored; account-bound (not machine-bound). Copy from a working install o
 | `token.json` | Gmail **access/refresh** token | the bot Gmail account | Durable **only in Production** publishing status. Rotate when Google revokes it (see §2a). |
 | `substack_cookie.txt` | Substack session (`substack.sid`) | jared's Substack account | Expires in **weeks**. Auto-renews via OTP; manual paste is the fallback (§4). |
 | `thirteen_d_session.json` | Playwright storage state | jared's **paid** 13D account | Expires in **weeks–months**. Manual re-login only (§4) — **requires Jared's 13D credentials; no free/alternative account.** |
-| `ANTHROPIC_API_KEY` (env) | Claude API key | the bot's Anthropic account | No expiry. Rotate if leaked. Watch the credit balance. |
-| `FRED_API_KEY` (env) | FRED data key | free FRED account | Stable, free. No rotation. |
+| `ANTHROPIC_API_KEY` (env) | Claude API key | the bot's Anthropic account | No expiry. Rotate if leaked. Billing is **firm-paid, auto-reload ON** (confirmed 2026-08-03) — no manual top-ups; the failure mode is the reload card expiring. |
+| `FRED_API_KEY` (env) | FRED data key | free FRED account (registered on the bot Gmail, per the departing operator 2026-08-03) | Stable, free. No rotation. |
 | `SUBSTACK_EMAIL` (env) | inbox the Substack OTP code arrives at | — | Config value, not a secret. |
 
-**Do NOT copy `credentials_JARED.json` to the server** — it's a dev-machine backup only. The server
-uses `credentials.json` + the production `token.json`.
+**⚠ The SERVER holds the only live copy of every secret since 2026-08-03** — the dev machine's
+copies (`credentials.json`, `token.json`, `substack_cookie.txt`, `thirteen_d_session.json`,
+`jpm_session.json`, `env.bat`) were deliberately deleted at the operator's departure. To stand up
+a new dev environment, copy from the server or regenerate per this section. Gmail 2FA backup
+codes: in the vault, and also emailed to jared on the thread where `acorn.research.bot@gmail.com`
+was created. *(`credentials_JARED.json`, an obsolete dev backup, was already deleted 2026-07-27.)*
 
 ### 2a. The Gmail token — the one that bites you
 
@@ -167,8 +171,10 @@ malicious once (new sender + emoji subject + link-dense HTML). IT allowlisted
 doesn't receive digests, get their mail security to allowlist the bot — the failure alerts share the
 sender, so quarantine can silence both signal paths at once.
 
-**API credit exhausted.** "run FAILED" alerts mentioning credit/quota. Top up at
-console.anthropic.com (the bot account's billing). Expected burn ~$45–55/month.
+**API credit exhausted.** "run FAILED" alerts mentioning credit/quota. Billing is firm-paid with
+auto-reload ON (2026-08-03), so this should only happen if the reload payment itself fails (e.g.
+card expired) — fix at console.anthropic.com (the bot account's billing). Expected burn
+~$160–180/month (re-baselined 2026-07-30; the ~$45–55 figure predates Fable 5 + cross-day context).
 
 **Reply bot double-answering / racing.** Exactly ONE reply daemon may run anywhere — two poll the
 same inbox and race (mark-as-read isn't atomic). This only happens if a second instance was left
@@ -196,7 +202,7 @@ loss). Harmless; no action.
 | Continuous (automatic) | Failure/watchdog/degradation alerts; log rotation (30-day). Just watch your inbox. |
 | Every few weeks (reactive) | Substack cookie — usually auto-renews; paste manually if the degradation alert fires. |
 | Weeks–months (reactive) | 13D re-login when the WILTW zero-streak alert fires. |
-| Monthly | Glance at the Anthropic credit balance; top up before it hits $0. |
+| Occasionally (auto-reload covers the routine case) | Glance at the Anthropic billing page — firm-paid auto-reload is ON (2026-08-03), so the only thing to catch is a failing reload card. A credit/quota run-FAILED alert is the active signal. |
 | When you touch the project | Add a few golden-set questions for new archive days, incl. cross-day ones — the eval only stays meaningful if it compounds. |
 | At ~200k index vectors (~late 2027), or when replies actually feel slow | Work the index-growth ladder: (1) vectorized subset scan ✅ done → (2) date-windowed retrieval default (⚠ eval-gate it — see HANDOFF §5) → (3) prune old days from the live index → (4) IVF. *(Re-baselined 2026-07-30 by benchmark: flat search is milliseconds even at 10x the old 30–50k tripwire — no action expected in 2026.)* Detail in `HANDOFF.md §5`. |
 | Continuous (automatic) since 2026-07-21 | **O4 off-box backup** — `run_backup.bat` (Backup task, weekdays 09:45) robocopies state-only into `%OneDriveCommercial%\DailyDigest-Backup`, synced off-box by OneDrive. Just watch for a "backup FAILED" alert; glance at the OneDrive web folder every few weeks to confirm it's actually uploading. Restore steps in `OPERATIONS.md` → "Backups & restore". *(Re-registering the task needs an **elevated** `setup_tasks.ps1 -StoredPassword` — a non-elevated run fails with `Register-ScheduledTask: Access is denied`.)* |

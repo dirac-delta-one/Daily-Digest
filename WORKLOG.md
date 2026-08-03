@@ -5,10 +5,20 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-07-31 — OPERATOR'S LAST DAY: handoff complete, Fri run email-side validated)
+## Current state (2026-08-03 — OPERATOR DEPARTED: final wrap-up done, system fully unattended and green)
 
 **Fresh-session orientation:** the system is LIVE and green; server current with `main`; `pytest`
-**496**, ruff clean. Every open decision from the soak week is CLOSED and recorded (this block +
+**496**, ruff clean. **⚠ The DEV machine (`KimCohen`) holds NO secrets since 2026-08-03** —
+all credential/session files deleted at departure (entry below), so nothing authenticated
+(including the read-only sent-mail checks used for validation) can run from this box until
+secrets are re-installed per MAINTENANCE §2; the server is self-sufficient and unaffected.
+**Post-departure confirmations (2026-08-03):** Mon 8/3 run verified clean email-side — the
+first fully-unattended run (5 digests 08:19 ET, no weeklies = correct Monday shape, no alert
+emails); jared confirmed as operator and failure-alert recipient; **Anthropic billing =
+firm-paid with auto-reload ON** (no manual top-ups; OPERATIONS + MAINTENANCE re-written
+accordingly, incl. a stale $45–55/mo figure fixed to $160–180); FRED key registered on the bot
+Gmail (operator's recollection, unverified); Gmail backup codes in the vault AND with jared on
+the bot-creation thread; JPM explicitly handed to jared with the wrong-link lead (JPM_SPEC top). Every open decision from the soak week is CLOSED and recorded (this block +
 the dated entries below): txsb self-healed (helpdesk email cancelled), NO repetition
 tripwire (operator call — reader perception is the trigger; `REDUCE_REPEATS_SPEC` retired),
 memory aging = no action (the built-in 30-day ager activates ~7/31–8/15 by design), burn
@@ -92,6 +102,51 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-08-03 — Departure wrap-up: Mon run verified, ownership answers recorded, dev machine DE-CREDENTIALED
+
+The operator's final session (she was reachable through 8/3, past the nominal 7/31 last day).
+Four wrap-up threads, all closed:
+
+**1. Mon 8/3 run — the first fully-unattended production run — verified clean email-side**
+(read-only sent-mail pull, the last one this machine can do — see item 4): **5 digests**
+08:19:26–28 ET (1 `[FULL]` jtramontano + 4 TEAM), **no weeklies** (correct — Monday), **no
+alert emails**, acohen absent. The system runs itself.
+
+**2. Human-handoff confirmations (operator, in person):** jared knows he is THE operator and
+receives the failure alerts; JPM + any future dealer-credential sources are explicitly waiting
+on him — and her parting lead is that **the share link he originally sent may have been the
+WRONG one**, which would explain the 7/29 SCDP file-transfer dead end (JPM_SPEC top section
+updated with re-run instructions: new link goes in `JPM_LINK` verbatim, expect
+`…?resourceName=…`, and Phase-1 recon must be re-run fresh since the session/recon files are
+deleted).
+
+**3. Account-ownership answers (recorded in OPERATIONS + MAINTENANCE):** **Anthropic = firm-paid
+with auto-reload ON** — the monthly manual top-up duty DOES NOT EXIST; the residual failure mode
+is the reload card expiring, surfacing as credit/quota run-FAILED alerts. (Fixing this also
+caught a stale `~$45–55/month` burn figure in MAINTENANCE — now $160–180.) FRED key: registered
+on `acorn.research.bot@gmail.com` per the operator's recollection (unverified — it's free and
+non-rotating either way). Gmail 2FA backup codes: in the vault AND emailed to jared on the
+thread where the bot account was created. Substack/13D remain jared's accounts; bot Gmail MFA
+team-owned — all as documented.
+
+**4. Dev machine DE-CREDENTIALED (operator-authorized deletion):** removed `credentials.json`,
+`token.json`, `substack_cookie.txt`, `thirteen_d_session.json`, `jpm_session.json`, `env.bat`,
+and the `jpm_recon/` dumps (authenticated-portal DOM/screenshots). Verified: no secrets in
+Windows user/machine env vars either. Rationale: the server is fully self-sufficient (own
+secrets, off-box backups), so a departed employee's laptop holding the production Gmail token
+was a loose credential with zero operational value. Consequences: **nothing authenticated runs
+from this box anymore** — including the read-only sent-mail verification pattern used
+throughout the soak week; re-provisioning = copy from the server or regenerate per MAINTENANCE
+§2. The checkout, `.venv`, caches, and Claude session memory remain for a future dev pickup.
+
+**Still open (unchanged, no deadline):** the log-only residue (Fri 7/31 + later logs — first
+`Memory: aged N stale` line, weekly log-only repetition scores, costs; operator may still do a
+later server trip, else jared/whoever), and jared's JPM decision. **Deliberately not done:** the
+FOMC-attribution weekly-wrap nit (needs a paid validated run per G1 — recorded 2026-07-31, left
+for a future session).
 
 ---
 

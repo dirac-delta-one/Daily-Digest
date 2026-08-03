@@ -4,6 +4,17 @@
 > research (`markets.jpmorgan.com`), accessed with jared's dealer credentials. First of a
 > planned family of dealer-research sources (JPM first). No code wired into the digest yet —
 > this doc is the plan; build proceeds in the phases below.
+>
+> **2026-08-03 handoff status (operator's departure):** jared has been told this workstream —
+> and any future dealer-credential source — is **waiting on him** (the ⛔ 2026-07-29 section
+> below is the decision he owes). One more lead from the departing operator: **the share link
+> jared originally sent may have been the WRONG one** — which would explain the 7/29 finding
+> that the portal is the SCDP file-transfer service rather than Markets research. If he supplies
+> a different/correct entitled link, re-run recon with it as `JPM_LINK` (passed VERBATIM — the
+> gateway is resource-scoped; expect `…?resourceName=…`) before concluding anything from the
+> SCDP dead end. Note: the dev machine's `jpm_session.json` + `jpm_recon/` dumps were deleted at
+> departure (secrets cleanup); Phase-1 recon must be re-run fresh on whatever machine picks this
+> up.
 
 ## Objective
 

@@ -53,8 +53,9 @@ a **stored-password** principal (MorningDigest 08:00 / Watchdog 09:00 / Backup 0
 the MiddayAlert task was removed 2026-07-21), `DIGEST_UNATTENDED=1` machine-wide, production digests
 delivered from the box, the reply daemon polling. Code is `ruff` clean, `pytest` **473 green**,
 retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
-(`tools/eval_results/2026-07-15_post_index_filter.json`). Operator `acohen@acorninv.com`; **Jared's
-instance is decommissioned.** **Digest generation runs on Claude Fable 5 since 2026-07-22**
+(`tools/eval_results/2026-07-15_post_index_filter.json`). **Operator since 2026-08-03:
+`jtramontano@acorninv.com` (jared)** — built and handed off by `acohen@acorninv.com`, departed
+2026-07-31; **Jared's old dev instance is decommissioned.** **Digest generation runs on Claude Fable 5 since 2026-07-22**
 (`config.FABLE_MODEL` → `digest.CLAUDE_MODEL`; alerts/13D/reply bot stay on Opus) — expect
 **~$5.0–5.5 per FULL 2-pass run since 2026-07-23** (the cross-day PREVIOUS-DIGEST context +
 self-contained-§1 output added ~$1.7/run to the earlier ~$3.5; observed $5.26 validated;
@@ -81,9 +82,16 @@ footer** at all (so the PACER false-positive nag is gone), and PACER content bac
 filing re-surfaced via F1a-4. The 7/30 log was read the same day (5-day extract) — every number
 validated, both open decisions settled, txsb self-healed; see WORKLOG 2026-07-30.
 
-**What remains (as of 2026-07-31, the operator's last day — the soak-week checklist is CLOSED:
-debut validated, Monday validated, the metric-v2 week decided NO-tripwire, costs re-baselined
-$160–180/mo, acohen off both channels a day early):**
+**What remains (final wrap-up 2026-08-03, the operator's actual last touch — the soak-week
+checklist is CLOSED: debut validated, Monday validated, the metric-v2 week decided NO-tripwire,
+costs re-baselined $160–180/mo, acohen off both channels a day early). Post-departure
+confirmations recorded 2026-08-03:** the Mon 8/3 run verified clean email-side (5 digests 08:19,
+no weeklies — correct for a Monday, no alert emails: the first fully-unattended run worked);
+**jared confirmed as operator** (knows he receives the failure alerts); **Anthropic billing =
+firm-paid, auto-reload ON** (no manual top-ups — OPERATIONS/MAINTENANCE updated); FRED key on
+the bot Gmail (per the operator, unverified); Gmail backup codes in the vault AND with jared on
+the bot-creation email thread; **dev machine de-credentialed** (§7.1 — server holds the only
+secrets).
 - **Fri 7/31 run — EMAIL SIDE VERIFIED same day** (read-only sent-mail pull; WORKLOG
   2026-07-31): **5 digest sends + 5 weeklies, acohen absent from both** (the recipient drop
   live), **the first production STREAMING weekly COMPLETE** — all sections + proper reply
@@ -97,7 +105,10 @@ $160–180/mo, acohen off both channels a day early):**
   One cosmetic nit recorded, no action: both weeklies explained the missing Wednesday digest
   as "FOMC day" — a model-invented rationale; the real cause was the 7/29 BKLN crash. Crash
   gaps are rare; noted in case a reader ever asks.
-- **JPM** — awaiting jared's re-scope-or-drop call (JPM_SPEC top section).
+- **JPM** — awaiting jared's re-scope-or-drop call; **he was told 2026-08-03 it's waiting on
+  him**, and the departing operator's lead is that **the share link he originally sent may have
+  been the wrong one** (which would explain the SCDP file-transfer dead end) — details + re-run
+  instructions in JPM_SPEC's top section.
 - ~~Mid-to-late August — the F13 index tripwire~~ **RETIRED 2026-07-30 by benchmark** (§5):
   measured flat-index latency stays in single-digit-to-tens of milliseconds far past 50k
   vectors; no index work is expected before **~late 2027 (~200k vectors)**, and the trigger is
@@ -186,8 +197,10 @@ dropped 2026-07-28: small team, handled in person). Finish the soak while a fixe
   silently refused to *launch* the tasks; `setup_tasks.ps1 -StoredPassword` (needs Shawn's Windows
   password) is the working path. Re-register that way, never the bare S4U default.
 - **The server's Gmail token is the dev laptop's copied token pair (Plan B)** — the MFA lockout was
-  never resolved, just routed around; refresh-token auth works through it. MFA is team-owned (backup
-  codes in the vault; recovery phone = a teammate staying past 7/31).
+  never resolved, just routed around; refresh-token auth works through it. (The dev laptop's copy
+  was deleted 2026-08-03 — the server's is now the only one.) MFA is team-owned (backup codes in
+  the vault AND emailed to jared on the thread where `acorn.research.bot@gmail.com` was created;
+  recovery phone = a teammate staying past 7/31).
 - **O4 backup = state-only `robocopy` into `%OneDriveCommercial%\DailyDigest-Backup`** (weekday
   09:45), which OneDrive syncs off-box; works because the server is kept logged-in-and-locked.
 - **Live watches (detail in §11.B):** memory active-count climbing (73→82→87 across 7/17/20/21;
@@ -351,6 +364,10 @@ notice in the FULL send's ops footer + digest chunks un-indexed + memory frozen;
 All caches/state self-seed if absent (no manual copy needed); the *secrets* above must be
 installed. *(`credentials_JARED.json`, a pre-2026-06-30-flip OAuth-client dev backup, was deleted
 2026-07-27 — obsolete since the bot-identity flip; the live client is `credentials.json`.)*
+**⚠ Since 2026-08-03 the SERVER holds the only live copy of every secret:** the dev machine's
+copies (all six files above, plus the `jpm_recon/` dumps) were deliberately deleted at the
+operator's departure. Standing up a new dev environment = copy from the server or regenerate
+per MAINTENANCE §2.
 
 **Env vars:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),
 `SUBSTACK_EMAIL` (Substack OTP-code renewal), `DIGEST_TO` (full-digest recipient override — leave
@@ -433,12 +450,20 @@ Investigated and confirmed as deliberate. Changing them adds risk for no benefit
 
 ## 7. Machine migration
 
-### 7.1 Dev machine (`KimCohen`) — ✅ DONE
+### 7.1 Dev machine (`KimCohen`) — ✅ DONE; **DE-CREDENTIALED 2026-08-03**
 
-Location + identity de-hardcoding complete: `.bat`/`setup_tasks.ps1` use `%~dp0` + project `.venv`
-+ `PYTHONUTF8=1`; recipients are `DIGEST_TO`/`DIGEST_TO_TEAM`-env-driven; the SEC/PACER User-Agent
-contact and the recipient/allow-list point at the bot `acorn.research.bot@gmail.com`; all secret
-files are installed and working. The email identity flipped to the bot 2026-06-30 (jared's
+**As of the operator's departure the dev machine holds NO secrets** — `credentials.json`,
+`token.json`, `substack_cookie.txt`, `thirteen_d_session.json`, `jpm_session.json`, `env.bat`,
+and the `jpm_recon/` dumps were deleted 2026-08-03 (operator-authorized; no secrets were in
+Windows env vars). The checkout, `.venv`, caches/state, and Claude session memory remain, but
+nothing authenticated can run from this box until secrets are re-installed (copy from the
+server or regenerate per MAINTENANCE §2). The server is unaffected and self-sufficient.
+
+Historical record of the de-hardcoding (completed earlier): `.bat`/`setup_tasks.ps1` use `%~dp0`
++ project `.venv` + `PYTHONUTF8=1`; recipients are `DIGEST_TO`/`DIGEST_TO_TEAM`-env-driven; the
+SEC/PACER User-Agent contact and the recipient/allow-list point at the bot
+`acorn.research.bot@gmail.com`; all secret files were installed and working until the 2026-08-03
+cleanup. The email identity flipped to the bot 2026-06-30 (jared's
 rule-based forwards flow into the bot inbox; `token.json` = the bot sends + reads inbox; Substack
 renewal reads the forwarded OTP code from the bot inbox). The Substack *account* stays jared's — an
 optional end-state flip to the bot is his call (§13). Full history in WORKLOG.
