@@ -1,12 +1,14 @@
 # Repo Reorg Checklist (src/ layout) — execution runbook
 
-> **Status: PLAN, not started.** Written 2026-07-27 in response to "the repo is messy — flat
-> root, no `src/`." The reorg is *doable* but it is a **coordinated code+server maintenance
-> operation, not a `git pull`** — the flat layout is coupled to how the server runs. Do NOT
-> attempt it in the current window (operator departs 2026-07-31; JPM in-flight; Monday validation
-> pending). Do it only when a maintainer has a dedicated window AND access to re-register server
-> tasks if needed (Shawn's Windows password — see §Server). This doc is the safe way to do it
-> when that time comes.
+> **Status: PLAN — Phase 0 DONE (2026-07-27), Phase 1 parked indefinitely.** Written 2026-07-27
+> in response to "the repo is messy — flat root, no `src/`." The reorg is *doable* but it is a
+> **coordinated code+server maintenance operation, not a `git pull`** — the flat layout is
+> coupled to how the server runs. The original operator departed 2026-07-31 without attempting
+> Phase 1 (correctly — see the last gotcha: it buys organization, not capability). Do it only if
+> a future maintainer has a working dev environment (the dev machine was de-credentialed
+> 2026-08-03 — see §Gotchas), a dedicated window, AND access to re-register server tasks if
+> needed (Shawn's Windows password — see §Server). This doc is the safe way to do it when that
+> time comes; it is equally fine for it never to come.
 
 ## Why this isn't just moving files (the coupling inventory)
 
@@ -130,8 +132,9 @@ insert is the pragmatic, pull-friendly choice.)
    sys.path insert and keep bare imports — pick one convention and apply everywhere, incl. tests
    and `tools/`).
 4. Update `ruff.toml` if it has per-path rules; update `check.bat` if it names paths.
-5. `ruff check .` → `pytest` (must stay 478 green) → **one permissioned full dev run to acohen**
-   (`DIGEST_TO=acohen@acorninv.com`, `DIGEST_TO_TEAM=` empty — the §8 footgun). Confirm: digest
+5. `ruff check .` → `pytest` (all green; 502 as of 2026-08-03) → **one permissioned full dev run
+   to yourself** (`DIGEST_TO=<your own @acorninv.com address>`, `DIGEST_TO_TEAM=` empty — the
+   §8 footgun). Confirm: digest
    sends, memory/archive/index/caches read+write at root, reply bot answers, weekly path imports.
 6. Also dry-run `reply_monitor.py --once` and `run_alert.py digest --check-completed` (the
    satellites the daemon/watchdog use).
@@ -147,8 +150,9 @@ Because Phase 0 anchored data to root, **no secret/state file migration is neede
    four tasks (or just ensure none fire during the window).
 3. `git pull` on the box.
 4. **Smoke-test each entry point manually, in order, before re-enabling:**
-   - `run_digest.bat` equivalent with `DIGEST_TO=acohen` override (do NOT let it send to jared
-     during the test) — or at minimum `python -c "import digest"` + a dry import of every entry.
+   - `run_digest.bat` equivalent with a `DIGEST_TO=<your own address>` override (do NOT let it
+     send to jared during the test) — or at minimum `python -c "import digest"` + a dry import
+     of every entry.
    - `python reply_monitor.py --once`
    - `python run_alert.py digest --check-completed`
    - `python search.py --rebuild` is NOT needed (index path unchanged) — but confirm
@@ -168,10 +172,14 @@ Because Phase 0 anchored data to root, **no secret/state file migration is neede
 
 ## Repo-specific gotchas (do not relearn the hard way)
 
-- **`credentials_JARED.json` is NOT clutter** — it's a deliberate dev-machine credentials backup
-  (HANDOFF §4: "do NOT copy to the server"), gitignored. Leave it; don't "tidy" it away.
-- **`env.bat` footgun** (HANDOFF §8): its `DIGEST_TO` values are the PRODUCTION recipients. Every
-  dev test run must override `DIGEST_TO=acohen@acorninv.com` + `DIGEST_TO_TEAM=` empty.
+- **The dev machine holds NO secrets since 2026-08-03** (departure cleanup — `credentials.json`,
+  `token.json`, cookies/sessions, `env.bat` all deleted; `credentials_JARED.json` was already
+  deleted 2026-07-27 as obsolete). Whoever runs Phase 1 must first stand up a working dev
+  environment: copy secrets from the server or regenerate per MAINTENANCE §2. The SERVER's
+  copies are the live set — treat them as precious during the maintenance window.
+- **`env.bat` footgun** (HANDOFF §8): the server `env.bat`'s `DIGEST_TO` values are the
+  PRODUCTION recipients — a recreated dev copy inherits that trap. Every dev test run must
+  override `DIGEST_TO=<your own @acorninv.com address>` + `DIGEST_TO_TEAM=` empty.
 - **ReplyMonitor holds old code until restarted** — any pull touching `reply_monitor.py`/
   `alert_commands.py` needs `schtasks /End`+`/Run` (HANDOFF §1).
 - **The FAISS index is inside `archive/`** (`archive/index.faiss` + metadata) — treat `archive/`

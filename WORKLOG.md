@@ -169,6 +169,15 @@ STRICTLY safer (byte-identical common path). Live validation = the first Friday 
 missing weekday. **Server pull pending** (digest.py only, no ReplyMonitor restart — can ride
 the operator's possible later log trip, or any future pull).
 
+**6. (same day) Post-departure doc staleness sweep:** the test-recipient rule was generalized
+across HANDOFF §2/§8 + REORG_CHECKLIST from the literal `acohen@acorninv.com` (departed; mailbox
+will die) to "**your own `@acorninv.com` address** — never the production recipients," which was
+always the principle. REORG_CHECKLIST also updated: the `credentials_JARED.json` "leave it"
+gotcha (file deleted 7/27, and ALL dev secrets deleted 8/3) replaced with a stand-up-a-dev-env
+prerequisite for Phase 1, and its status header now reflects Phase 0 done / Phase 1 parked
+indefinitely post-departure. Reorg remains a legitimate future maintenance-window op, never a
+pull; equally fine never to happen.
+
 ---
 
 ## 2026-07-31 — Fri run validated EMAIL-SIDE (last-day check): recipient drop live, streaming weekly complete; server log NOT read

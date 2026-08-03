@@ -296,8 +296,11 @@ notice in the FULL send's ops footer + digest chunks un-indexed + memory frozen;
   When validating a change, ask "what is this code's first ARMED execution?" and simulate that
   day in a test. (The 2026-07-29 armed-path sweep pre-tested the then-known cases: BKLN 1W/1M,
   the Fri 7/31 streaming weekly seams, the PACER January window; iShares audited None-safe.)
-- **Test between every phase.** Route all test output **locally or to `acohen@acorninv.com`** —
-  never to the config recipients (jared's addresses) during testing.
+- **Test between every phase.** Route all test output **locally or to YOUR OWN
+  `@acorninv.com` address** (whoever is doing the dev work) — never to the config recipients
+  (jared's addresses) during testing. *(Wording generalized 2026-08-03: the rule used to name
+  `acohen@acorninv.com`, the original operator, who has departed — the principle was always
+  "send test output to yourself.")*
 - **External tooling falls into three cost tiers — know which before testing:**
   - **Pay-per-query (the only real per-call cost): the Anthropic/Claude API.** Token-billed across
     the 2-pass **Fable** digest (~$5.0–5.5/run since 2026-07-23 — cross-day context + §1 redesign;
@@ -532,12 +535,12 @@ race on the shared bot inbox; two digests double-send).
   scraping is a flat subscription — **free to test** (makes no Claude call).
 - **Token discipline:** prefer unit tests; when an LLM path must run, run **once** on a **small**
   input (e.g. temporarily lower `MAX_EMAILS`), never in a loop. **Always** redirect email output to
-  `acohen@acorninv.com` (or render HTML to a local file) during tests. For reply/memory testing,
+  **your own `@acorninv.com` address** (or render HTML to a local file) during tests. For reply/memory testing,
   drive `answer_question()` / `update_memory()` directly on archived inputs (avoids racing the
   production reply monitor on the shared bot inbox; needs no live Gmail injection).
 - **⚠ Dev `env.bat` FOOTGUN (found 2026-07-22):** its comment says `DIGEST_TO` is a "test-recipient
   override," but its VALUES are the production recipients (jtramontano + apain + acohen). Any manual
-  dev run MUST explicitly override: `DIGEST_TO=acohen@acorninv.com` and `DIGEST_TO_TEAM=` (empty —
+  dev run MUST explicitly override: `DIGEST_TO=<your own @acorninv.com address>` and `DIGEST_TO_TEAM=` (empty —
   which also triggers the §1a misconfig guard: FULL-only, memory frozen, digest chunks un-indexed —
   the correct state for a dev test run; a "Team config missing" line in the FULL email's grey
   "System notices" footer is expected — since 2026-07-28 it rides the digest footer, not a
