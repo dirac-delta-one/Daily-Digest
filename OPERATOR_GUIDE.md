@@ -15,42 +15,12 @@ digest watches. Written for the person who receives the alerts (jtramontano@acor
 
 To check they're registered/running (PowerShell): `Get-ScheduledTask -TaskPath "\DailyDigest\"`
 
-Everything flows through one dedicated Google account, **`acorn.research.bot@gmail.com`**
-("the bot"): research sources are forwarded into its inbox, digests send from it, and your
+Everything flows through one dedicated Google account, **`acorn.research.bot@gmail.com`**: research sources are forwarded into its inbox, digests send from it, and your
 replies are read by it.
 
----
+**Alerts & the SEC watchlist are managed by replying to any digest in plain English** ("watch for CLO downgrade news until July 28th", "add CRWV to the watchlist", "what alerts are set up?") — the bot confirms within ~5 minutes. Alerts are personal to each recipient; the watchlist is shared.
 
-## Everything you need to know about alerts & the SEC watchlist
-
-The digest watches two configurable lists: **thematic alerts** (plain-English triggers checked
-every morning — e.g. "Any new Chapter 11 filing with over $500M in liabilities" — hits show in
-the red ⚠️ ALERTS box) and the **SEC watchlist** (tickers whose SEC filings and earnings dates
-are monitored).
-
-**Alerts are personal; the watchlist is shared.** Each person's alerts are their own: only you
-see them (your digest's alert box is yours alone), only you can add/remove/list them, and
-nobody else's alerts appear in your digest. The SEC watchlist is one shared list the whole team
-can edit. **Onboarding someone new** = add their @acorninv.com address to `DIGEST_TO_TEAM` in
-the server's `env.bat` — they start with no alerts and set up their own by replying to their
-first digest.
-
-**To change either, just reply to any digest email** in plain English from your work address.
-The bot understands things like:
-
-- "For the next two weeks, watch for anything on Argentina sovereign debt"
-- "Until July 28th, look out for CLO downgrade news"
-- "Add CRWV to the watchlist" / "stop watching MSTR"
-- "Watch WOLF through earnings, say until Aug 10"
-- "Extend the Argentina alert to end of August"
-- "Remove the insider selling alert"
-- "What alerts are set up right now?"
-
-You'll get a confirmation reply within ~5 minutes stating exactly what changed; the change
-takes effect on the next morning's digest. Anyone who receives a digest can do this. Items
-with a time limit expire on their own: on the last active day the digest shows a **"Watch item
-expiring"** advance warning (renew by email reply), and the first digest after
-the end date shows a one-line **"Watch item expired"** notice. If the bot isn't sure what you meant, it replies asking you to rephrase instead of guessing.
+**Onboarding someone new** = add their @acorninv.com address to `DIGEST_TO_TEAM` in the server's `env.bat` — they start with no alerts and set up their own by replying to their first digest.
 
 ---
 
@@ -71,48 +41,31 @@ Two things worth knowing:
 ## How To: re-login to 13D (when the WILTW session expires)
 
 13D Research's weekly "What I Learned This Week" (WILTW) report is one of the digest's paid
-sources, scraped from client.13d.com under a saved login session. When that session expires:
+sources, scraped from client.13d.com under a saved login session. 
+
+When that session expires:
 on the server, open a terminal in the project folder and run
 `.venv\Scripts\python.exe thirteen_d.py --login` — a browser opens; log in to client.13d.com,
 then press ENTER in the terminal. Until this is done, WILTW is simply skipped (the digest
 still sends).
 
 *Note:* WILTW publishes on Thursdays and takes occasional multi-week breaks. A
-`Report not found` line in the log on a non-publishing week is NORMAL — the session is fine,
-there just isn't a report yet. Only a `Session expired — re-login required` line means the
-login actually died. You can't tell staleness from the session file (it's a server-side
-session with no visible expiry) — only a live request shows it, so if you know a report is
-due, refresh the session ahead of time with the same `--login` command. One monitoring
-caveat: after a multi-week break the degradation notice can't arm until WILTW logs one
+`Report not found` line in the log on a non-publishing week is normal. Only a `Session expired — re-login required` line means the
+login actually died. 
+
+Note: After a multi-week break the degradation notice can't arm until WILTW logs one
 nonzero week again (a long break looks "normally zero" to the monitor), so confirm the first
 post-break report arrived yourself.
 
-**Who can do this:** the login uses 13D's PAID subscription account (Jared's). Only someone
-with those credentials can refresh the session — there is no free or alternative account, and
-a new signup would have no access to WILTW. If the session dies and Jared is unavailable,
-WILTW simply stays skipped until he logs in again; the digest is otherwise unaffected.
-(Long-term account ownership — keep it Jared's vs. transfer under the bot — is a billing
-decision for Acorn, not a code task.)
+**Who can do this:** the login uses 13D's PAID subscription account (Jared's). Only someone with those credentials can refresh the session.
 
 ## How To: paste a fresh Substack cookie (only if auto-renewal fails)
 
-It renews itself via a login code Substack emails to Jared's gmail, auto-forwarded to the bot
-(this depends on his `no-reply@substack.com` auto-forward staying live). This manual fallback
+It renews itself via a login code Substack emails to Jared's gmail, auto-forwarded to the bot. This manual fallback
 is only for when a degradation notice names `substack`, or `[preview only…]` markers appear
-where full article text used to be: log in to substack.com in a browser **as Jared's Substack
-account**, copy the `substack.sid` cookie value (browser dev tools → Application → Cookies),
+where full article text used to be: log in to substack.com in a browser as Jared's Substack
+account, copy the `substack.sid` cookie value (browser dev tools → Application → Cookies),
 and paste it as the only contents of `substack_cookie.txt` in the project folder.
-
-*Note:* 9 of the 17 publications live on custom domains the cookie can't reach — they get full
-text through a Substack side door that could close someday. If it does, those pubs degrade to
-previews permanently (visible via the markers) — a developer decision, not a cookie problem.
-
-## How To: fix API billing (only if the auto-reload card dies)
-
-The Anthropic (Claude) account is **firm-paid with auto-reload ON** — there is no manual
-top-up. The only failure mode is the reload payment itself failing (e.g. an expired card),
-which shows up as run-FAILED emails mentioning **credit/quota**. Fix the payment method at
-console.anthropic.com (the bot account's login). Expected burn: ~**$160–180/month**.
 
 ---
 
@@ -120,18 +73,18 @@ console.anthropic.com (the bot account's login). Expected burn: ~**$160–180/mo
 
 - **🚨 Daily Digest run FAILED — …** — the morning run crashed; the email body shows the last
   ~40 log lines. Usually transient (network); if it repeats two days running, get a developer
-  to read `logs\digest_<date>.log`. If the body mentions **credit/quota**, the billing
-  auto-reload card failed → the billing How-To above.
+  to read `logs\digest_<date>.log`. If the body mentions **credit/quota**, the firm-paid
+  auto-reload card failed — fix the payment method at console.anthropic.com (the bot
+  account's login).
 - **🚨 Daily Digest MISSING — no completed run — …** — the 9 AM watchdog: the run hung or never
   started (machine off/asleep, network down at wake, or a login/consent prompt is blocking —
-  DEPLOYMENT §3b). Check the machine is on, then rerun by hand (How-To above) or let tomorrow's
-  run absorb the gap.
+  DEPLOYMENT §3b). Check the machine is on.
 - **Grey "⚙️ System notices" footer at the BOTTOM of your [FULL] digest** — system-health
   notices, visible only on the FULL digest, never the team's. The ones to know:
   - **"Source degradation: <source>: 0 items for 3 straight runs…"** — a data source silently
     died. `substack` → the cookie How-To. `wiltw` → the 13D How-To. `pacer_rss_<court>` → that
     court's RSS feed died court-side; nothing to fix locally, and worth ~a week of watching
-    before calling it permanent (a 2026-07 outage self-healed in 3 days). Anything else →
+    before calling it permanent. Anything else →
     developer (likely a feed/endpoint change).
   - **"Output truncated"** — a generation pass hit its token cap; the digest may be missing
     trailing sections. One-off is fine; recurring → developer.
