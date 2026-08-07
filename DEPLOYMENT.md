@@ -76,9 +76,11 @@ The single highest-risk credential. Two rules:
 2. **Regenerating the token needs a browser** (copy `token.json` to the server)
 
 **Symptom of a dead token:** `invalid_grant` in the log, or a "run FAILED" alert mentioning
-auth. **Fix:** on a browser machine, delete `token.json`, run `python digest.py` (or a Gmail
-metadata call) to trigger consent as `acorn.research.bot@gmail.com`, verify `getProfile`
-returns the bot, copy the new `token.json` to the server. Never re-consent in Testing mode.
+auth. **Fix:** on a browser machine, delete `token.json`, run
+`.venv\Scripts\python.exe digest.py` to trigger consent as `acorn.research.bot@gmail.com`
+(Ctrl-C once the browser consent completes and `token.json` appears — letting it continue is a
+full paid run that sends email; see step 5), verify the token works, copy the new `token.json`
+to the server. Never re-consent in Testing mode.
 
 **Creating the OAuth client from scratch** (only if no working `credentials.json` exists
 anywhere): in the [Google Cloud Console](https://console.cloud.google.com/), create/select a

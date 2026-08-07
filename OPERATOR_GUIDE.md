@@ -107,6 +107,13 @@ and paste it as the only contents of `substack_cookie.txt` in the project folder
 text through a Substack side door that could close someday. If it does, those pubs degrade to
 previews permanently (visible via the markers) — a developer decision, not a cookie problem.
 
+## How To: fix API billing (only if the auto-reload card dies)
+
+The Anthropic (Claude) account is **firm-paid with auto-reload ON** — there is no manual
+top-up. The only failure mode is the reload payment itself failing (e.g. an expired card),
+which shows up as run-FAILED emails mentioning **credit/quota**. Fix the payment method at
+console.anthropic.com (the bot account's login). Expected burn: ~**$160–180/month**.
+
 ---
 
 ## Question: what does each email mean?
