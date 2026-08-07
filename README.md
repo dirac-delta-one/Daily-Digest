@@ -164,10 +164,9 @@ Account-bound — must exist on the machine; copy from a working install or rege
 | Doc | Audience | Contents |
 |---|---|---|
 | `README.md` | anyone | this file — what it is, setup, scheduling |
-| `HANDOFF.md` | developer | current state, constraints, "do NOT touch," risks, remaining work |
+| `HANDOFF.md` | developer | THE continuity doc: current state, constraints, "do NOT touch," risks, and the condensed session history (absorbed `WORKLOG.md` 2026-08-07; the full dated narrative is in git history at `3965f7e`) |
 | `MAINTENANCE.md` | developer | keeping it running: secrets, rotation, failure cases & fixes |
 | `OPERATIONS.md` | operator (non-technical) | what each email means + the manual fixes |
-| `WORKLOG.md` | developer | the full dated history of every change and why |
 | `JPM_SPEC.md` | developer | the one parked workstream (JPM dealer research) — awaiting the owner's re-scope-or-drop decision; read its top section first |
 
 **Project status:** DEPLOYED, LIVE & FULLY UNATTENDED — running on the dedicated Windows server

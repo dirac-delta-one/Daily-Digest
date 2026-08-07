@@ -3,7 +3,7 @@
 > For the person who receives the alerts (jared) — no code knowledge assumed.
 > One page: what each email means and the three manual fixes you may ever need.
 > Written 2026-07-15 ahead of the server handoff; the technical companion
-> docs are HANDOFF.md / WORKLOG.md (for a developer).
+> docs are HANDOFF.md and MAINTENANCE.md (for a developer).
 
 ## What runs, when (Windows Task Scheduler, folder `\DailyDigest\`)
 
@@ -191,12 +191,13 @@ data is safe on the server in the meantime.
 
 The archive, memory, and search index all come back, and the system continues
 from the last backup. *(Developer detail — the copy mechanism, what's included,
-and the safety flags — is in `run_backup.bat`'s comments and the 2026-07-20
-WORKLOG entry.)*
+and the safety flags — is in `run_backup.bat`'s comments and HANDOFF's Session
+history, 07-20 entry.)*
 
 ## If something breaks beyond the three fixes above
 
 Any developer can pick the project up cold: everything they need is in the
-project folder — start with `HANDOFF.md` §1 (state + constraints), then
-`WORKLOG.md` (every change ever made, and why). The git history is the full
-record. Nothing about the system lives only in someone's head.
+project folder — start with `HANDOFF.md` (state + constraints at the top,
+then the condensed Session history for the "why" behind any decision; the
+full dated narrative is in git history). Nothing about the system lives only
+in someone's head.

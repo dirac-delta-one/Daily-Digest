@@ -6,8 +6,9 @@
 > a fix, and how to change the code safely.
 >
 > **Read order for a cold start:** `HANDOFF.md` §1–§6 (state + constraints + do-NOT-touch) → this
-> file → `WORKLOG.md` (the full "why" behind any decision; the executed deploy/cutover is the
-> 2026-07-20/21 entries).
+> file → HANDOFF's **Session history** section (the condensed "why" behind any decision; the
+> executed deploy/cutover is the 07-20/21 digests; the full dated narrative is `WORKLOG.md` in
+> git history at `3965f7e`).
 
 ---
 
@@ -240,15 +241,16 @@ loss). Harmless; no action.
   only in the owner's box — by design.
 - **Commits:** `main` is the working/authoritative branch (since 2026-07-20 — the server tracks it;
   the old `ava-updates` branch was retired with Jared's instance). Commit and deploy from `main`;
-  use a short-lived feature branch only for risky in-progress work. Keep the WORKLOG habit — a dated
-  entry explaining what changed and *why* is how the next person (or you, in six months) stays
-  oriented.
+  use a short-lived feature branch only for risky in-progress work. Keep the change-log habit — a
+  dated digest in HANDOFF's Session history explaining what changed and *why* is how the next
+  person (or you, in six months) stays oriented.
 
 ---
 
 ## 7. If you're stuck
 
-Everything needed to pick this up cold is in the repo. Start with `HANDOFF.md §1`, then the
-`WORKLOG.md` entry for whatever you're touching (it records the reasoning, the alternatives
-considered, and what was measured). The git history is the complete record. Nothing about this
-system lives only in someone's head — which is the whole point of these docs.
+Everything needed to pick this up cold is in the repo. Start with `HANDOFF.md` §1 + its PICKUP
+block, then its **Session history** digest for whatever you're touching (reasoning, alternatives,
+what was measured — with the full dated narrative in git history, `WORKLOG.md` at `3965f7e`).
+The git history is the complete record. Nothing about this system lives only in someone's head —
+which is the whole point of these docs.
