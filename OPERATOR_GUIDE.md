@@ -17,6 +17,10 @@ setting up a machine see `DEPLOYMENT.md`.
 
 To check they're registered/running (PowerShell): `Get-ScheduledTask -TaskPath "\DailyDigest\"`
 
+Everything flows through one dedicated Google account, **`acorn.research.bot@gmail.com`**
+("the bot"): research sources are forwarded into its inbox, digests send from it, and your
+replies are read by it.
+
 ---
 
 ## Everything you need to know about alerts & the SEC watchlist
@@ -58,7 +62,9 @@ same channel).
 ## How To: rerun a missed or failed digest
 
 Double-click `run_digest.bat` in the project folder on the server (or run it from PowerShell).
-It runs the exact same chain as the 08:00 task and emails everyone as normal.
+It runs the exact same chain as the 08:00 task and emails everyone as normal. (Don't know
+where the project folder is? Task Scheduler → `\DailyDigest\MorningDigest` → its Action shows
+the full path.)
 
 Two things worth knowing:
 - **After a FAILED run this is the intended recovery** — a failed run saved nothing, so the
@@ -70,7 +76,9 @@ Two things worth knowing:
 
 ## How To: re-login to 13D (when the WILTW session expires — weeks/months)
 
-On the server, open a terminal in the project folder and run
+13D Research's weekly "What I Learned This Week" (WILTW) report is one of the digest's paid
+sources, scraped from client.13d.com under a saved login session. When that session expires:
+on the server, open a terminal in the project folder and run
 `.venv\Scripts\python.exe thirteen_d.py --login` — a browser opens; log in to client.13d.com,
 then press ENTER in the terminal. Until this is done, WILTW is simply skipped (the digest
 still sends).
@@ -90,9 +98,9 @@ WILTW simply stays skipped until he re-logs in; the digest is otherwise unaffect
 
 It renews itself via a login code emailed to the owner's gmail and auto-forwarded to the bot —
 this manual fallback is only for when the degradation notice names `substack`: log in to
-substack.com in a browser, copy the `substack.sid` cookie value (browser dev tools →
-Application → Cookies), paste it as the only contents of `substack_cookie.txt` in the project
-folder.
+substack.com in a browser **as Jared's Substack account** (the subscriptions are his), copy the
+`substack.sid` cookie value (browser dev tools → Application → Cookies), paste it as the only
+contents of `substack_cookie.txt` in the project folder.
 
 ## How To: fix API billing (only if the auto-reload card dies)
 

@@ -12,13 +12,16 @@ managing alerts, and monitoring/failure handling, see `OPERATOR_GUIDE.md`.
 
 ## What you're deploying
 
-Three entry points, all Python, all scheduled via `run_*.bat` wrappers using Task Scheduler:
+Everything runs through one dedicated Google account, **`acorn.research.bot@gmail.com`** ("the
+bot"): research sources are forwarded into its inbox, digests send from it, and reply questions
+are read from it. Three entry points, all Python, all scheduled via `run_*.bat` wrappers using
+Task Scheduler:
 
-- `digest.py` — the morning job (fetches sources, prompts Fable 5, generates a
-  **full** and a **team** digest, emails both, archives raw content, indexes it into FAISS,
-  updates memory, and sends the weekly summaries on Fridays).
-- `reply_monitor.py` — long-running daemon (answers emailed replies to digests via RAG over the
-  archive, the write path for the email-managed watch config).
+- `digest.py` — the morning job (fetches sources, prompts Claude, generates a
+  **full** and a **team** digest, emails both, archives raw content, indexes it into FAISS
+  (a local vector-search index), updates memory, and sends the weekly summaries on Fridays).
+- `reply_monitor.py` — long-running daemon (answers emailed replies to digests by retrieving
+  from that index + archive; also the write path for the email-managed alerts/watchlist).
 - `run_alert.py` — invoked by the wrappers on nonzero exit (failure alert) and by the 9 AM
   watchdog.
 
@@ -61,7 +64,9 @@ All gitignored; account-bound (not machine-bound). Copy from a working install o
 | `FRED_API_KEY` (env) | FRED data key | free FRED account (registered on the bot Gmail, per the departing operator 2026-08-03) | Stable, free. No rotation. |
 | `SUBSTACK_EMAIL` (env) | inbox the Substack OTP code arrives at | — | Config value, not a secret. |
 
-**⚠** To set up a new environment, copy credentials from the server or regenerate. Gmail 2FA backup were emailed to jared on the thread where `acorn.research.bot@gmail.com` was created.
+**⚠** To set up a new environment, copy credentials from the server (the only machine holding
+them since 2026-08-03) or regenerate. Gmail 2FA backup codes were emailed to jared on the
+thread where `acorn.research.bot@gmail.com` was created.
 
 ### 3b — The Gmail token
 
@@ -100,7 +105,8 @@ crash under cp1252 — set it yourself when running scripts by hand).
 set ANTHROPIC_API_KEY=sk-ant-...
 set FRED_API_KEY=...                  REM Macro Dashboard + Fed balance sheet
 set SUBSTACK_EMAIL=owner@gmail.com    REM Substack renews via a one-time code emailed here
-set DIGEST_TO_TEAM=teammate@acorninv.com   REM REQUIRED in production (load-bearing, below)
+set DIGEST_TO_TEAM=teammate@acorninv.com   REM REQUIRED in production — without it the run
+REM freezes indexing+memory as a privacy guard (OPERATOR_GUIDE: "Team config missing")
 REM TEST machines ONLY — route all digest/alert/reply email to yourself
 REM (leave UNSET in production; defaults to the production owner):
 set DIGEST_TO=you@acorninv.com
@@ -109,7 +115,7 @@ set DIGEST_TO=you@acorninv.com
 ### 3e — Seed state (only when rebuilding an existing install)
 
 All caches/state self-seed when missing — a fresh machine needs **no** state copy. When
-**restoring** a failed server, copy the O4 backup's contents back in (`archive\`, `digests\`,
+**restoring** a failed server, copy the OneDrive backup's contents back in (`archive\`, `digests\`,
 the memory files, caches, the search index) — the restore procedure is
 `OPERATOR_GUIDE.md` → "Backups & restore".
 
