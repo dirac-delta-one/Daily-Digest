@@ -80,6 +80,12 @@ be deleted at will.
   recipients in `env.bat`) needs `schtasks /End` + `/Run` on `\DailyDigest\ReplyMonitor`** —
   the daemon holds old code/config until restarted. Pulls touching only the digest-run path
   (e.g. `digest.py`) need no restart: each morning run is a fresh process.
+- **Doc-freeze rule (operator, 2026-08-07): `README.md`, `DEPLOYMENT.md`, and
+  `OPERATOR_GUIDE.md` are formatted and edited to the operator's taste — do NOT edit them
+  unless strictly necessary** (a new feature changes behavior they describe, or a factual
+  error). Any necessary edit must match the target doc's existing formatting and plain, simple
+  style — no reflows, no new sections, no style drift. Routine/living updates belong in THIS
+  doc (the PICKUP block + a Session history digest), never in those three.
 
 ---
 
