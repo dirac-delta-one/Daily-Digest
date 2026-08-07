@@ -14,7 +14,8 @@ because several blunt-looking pieces of code are intentional and battle-tested �
 not bugs._
 
 _**Companion docs:** `OPERATIONS.md` = the operator-facing (non-technical) runbook;
-`MAINTENANCE.md` = the developer keep-it-running guide; `README.md` = setup + scheduling.
+`MAINTENANCE.md` = the developer keep-it-running guide (incl. machine bring-up: setup +
+scheduling); `README.md` = the repo TLDR.
 **Active spec:** `JPM_SPEC.md` (the one parked workstream — JPM dealer research; Phase 1 login
 succeeded 2026-07-29 but the portal is JPM's file-transfer service, not Markets research;
 awaiting jared's re-scope-or-drop call — read its top section first). **Retired docs (all →
@@ -163,8 +164,12 @@ end of this section._
 
 **Dated digests (newest first):**
 
-- **08-07 (later — the WORKLOG merge):** `WORKLOG.md` merged into this doc and both pruned;
-  full text preserved at `3965f7e`. Cross-reference conventions declared in the header.
+- **08-07 (later — the doc-set realignment to the user's cross-project format):** `WORKLOG.md`
+  merged into this doc and both pruned (4,764 → ~1,150 lines; full text preserved at
+  `3965f7e`); cross-reference conventions declared in the header; a cold-read review pass then
+  fixed 7 stale spots (`533cfa5`). README rewritten as a true repo TLDR (~65 lines); its
+  setup/scheduling content moved to MAINTENANCE's new "Machine bring-up" section (the rebuild
+  path pointer in §7.2 updated).
 - **08-07 (`f731d73`):** Server pull to `f731d73` confirmed (weekly-wrap gap-note fix, armed
   from Mon 8/10) and the full 7/31–8/7 log set read, closing every remaining observation: the
   30-day memory ager is live (first firing Fri 7/31 `aged 2`; store 146→157→166→183→194→**203
@@ -756,8 +761,8 @@ optional end-state flip to the bot is his call (§10). Full history: Session his
 
 **The server is DEPLOYED and LIVE** (cutover 2026-07-20; see §1). The executed deploy/cutover
 step-by-step was `NEXT_STEPS_SPEC §5` (retired 2026-07-21 — in git history; the deploy narrative is
-in WORKLOG 07-20/21). For a rebuild, README (setup + scheduling) + MAINTENANCE §2 (secrets) +
-OPERATIONS "Backups & restore" are the path. Requirements the deploy implemented:
+in WORKLOG 07-20/21). For a rebuild, MAINTENANCE "Machine bring-up" (setup + scheduling) +
+MAINTENANCE §2 (secrets) + OPERATIONS "Backups & restore" are the path. Requirements the deploy implemented:
 
 1. **Always-on + headless:** stays powered, awake (no sleep/hibernate), survives reboots. The reply
    monitor is a continuous process — an always-on server is what makes it reliable.

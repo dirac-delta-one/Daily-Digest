@@ -116,6 +116,86 @@ forever).
 
 ---
 
+## Machine bring-up (one-time setup + scheduling)
+
+_Moved from README 2026-08-07 (README is now the repo TLDR). This section + §2 (secrets) +
+OPERATIONS "Backups & restore" is the full machine-rebuild path (HANDOFF §7.2)._
+
+### Dependencies
+
+```bash
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+playwright install chromium
+```
+
+Python **3.12** (3.14 lacked torch/faiss wheels at bring-up); Playwright's Chromium is for the
+13D scraper.
+
+### Google Cloud (Gmail) credentials
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create/select a project and
+   enable the **Gmail API**.
+2. **APIs & Services → Credentials → Create Credentials → OAuth client ID → Desktop app.**
+   Download the JSON and save it as `credentials.json` in the project root.
+3. **OAuth consent screen must be in "Production" publishing status** — Testing-mode refresh
+   tokens expire after 7 days and break a headless server weekly (§2a). Publish the app, then
+   mint the token via the first run. The resulting `token.json` is durable; **copy that exact
+   file** to any new machine rather than re-consenting there.
+
+### `env.bat` (gitignored; the `run_*.bat` wrappers `call` it)
+
+```bat
+set ANTHROPIC_API_KEY=sk-ant-...
+set FRED_API_KEY=...                  REM Macro Dashboard + Fed balance sheet
+set SUBSTACK_EMAIL=owner@gmail.com    REM Substack renews via a one-time code emailed here
+set DIGEST_TO_TEAM=teammate@acorninv.com   REM REQUIRED in production (see §3)
+REM TEST machines ONLY — route all digest/alert/reply email to yourself
+REM (leave UNSET in production; defaults to the production owner):
+set DIGEST_TO=you@acorninv.com
+```
+
+`PYTHONUTF8=1` is set by the wrappers (logs contain Unicode and crash under cp1252); set it
+yourself when running scripts by hand.
+
+### First run
+
+```bash
+.venv\Scripts\python digest.py
+```
+
+Opens a browser for Google OAuth (authorize as the bot account), authenticates Substack via the
+emailed one-time code, and sends a digest. **⚠ A full run costs ~$7 of Claude and SENDS REAL
+EMAIL — set `DIGEST_TO` to your own address first** (§6 + HANDOFF §8's testing protocol).
+
+### Scheduling (Windows Task Scheduler)
+
+The repo ships four wrappers — `run_digest.bat`, `run_watchdog.bat`, `run_reply_monitor.bat`,
+`run_backup.bat` — each `%~dp0`-relative, setting `PYTHONUTF8=1`, calling `env.bat`, running the
+project `.venv` Python, and writing a date-stamped log under `logs\` with a 30-day prune.
+Register all four from an **elevated** PowerShell in the repo folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup_tasks.ps1 -StoredPassword   # -DryRun to preview
+```
+
+**⚠ `-StoredPassword` is REQUIRED on an AzureAD-joined box** — the bare S4U default registers
+all four tasks without error and then silently never launches them (HANDOFF's Post-mortem
+library, 07-20 entry). It registers, under folder `\DailyDigest\`:
+
+| Task | When | What |
+|---|---|---|
+| MorningDigest | Mon–Fri 08:00 | Build + email the FULL and TEAM digests |
+| Watchdog | Mon–Fri 09:00 | Alert if the morning digest never completed |
+| Backup | Mon–Fri 09:45 | Copy state off-box to OneDrive |
+| ReplyMonitor | at startup, always on | Answer emailed reply questions |
+
+All run whether or not a user is logged on, with wake/catch-up/network-required settings, and
+the script sets `DIGEST_UNATTENDED=1` machine-wide so a dead Gmail token fails fast instead of
+hanging. Verify with `Get-ScheduledTask -TaskPath "\DailyDigest\"`.
+
+---
+
 ## 4. Failure cases & fixes
 
 Ordered roughly by how often you'll see them. Each: **symptom → cause → fix.**

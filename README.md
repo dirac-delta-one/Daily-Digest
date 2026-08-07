@@ -1,176 +1,64 @@
 # Daily Research Digest
 
-An automated daily research briefing for a credit/distressed investment desk. Once a day it gathers
-~17 financial/market sources, summarizes them with Claude in a two-pass flow, and emails a
-structured HTML digest with configurable plain-English alerts (managed by replying to the digest in
-plain English). It also archives everything it reads into a local search index that powers an
-**email-reply Q&A bot**.
+An automated daily research briefing for a credit/distressed investment desk. Every weekday
+morning it gathers **~17 financial/market sources** (inbox + forwarded research PDFs, paid
+Substack, SEC EDGAR, FRED, PACER bankruptcy courts, rating actions, market data, and more),
+summarizes them with Claude in a **two-pass flow**, and emails two digest variants — **FULL**
+(with the owner's paid Substack) and **TEAM** (without). Everything it reads is archived and
+indexed into a local FAISS store that powers an **email-reply Q&A bot** (reply to any digest
+with a question — or manage alerts and the SEC watchlist in plain English). Fridays add a
+weekly wrap. Runs unattended on a dedicated Windows server via Task Scheduler; the Claude API
+(~$160–180/month) is the only per-run cost.
 
-Runs unattended on a Windows machine via Task Scheduler. Single-operator tool; Python 3.12.
-
----
-
-## What it produces
-
-Each run (weekday mornings) sends two variants of the digest:
-
-- **Full digest** → the primary recipient: includes paid Substack content and a personal
-  cross-story memory layer.
-- **Team digest** → colleagues: identical *minus* Substack (kept private to the owner). This is the
-  variant indexed for the Q&A bot, so a teammate's question can never surface the owner's private
-  Substack content.
-
-Alongside the morning digest:
-
-- **Reply Q&A bot** (`reply_monitor.py`) — reply to any digest email with a question and it answers
-  in-thread within ~5 minutes, using RAG over everything archived. Answers are tiered: the owner
-  sees Substack-derived context, teammates get the Substack-free view.
-- **Friday weekly wrap** — a synthesized summary of the week's digests.
-
-## Sources
-
-Gmail inbox + forwarded research PDFs, paid Substack subscriptions, SEC EDGAR filings, FRED macro
-data, the Fed balance sheet (H.4.1), Yahoo Finance market data, an earnings calendar, PACER
-bankruptcy court RSS, 13F fund position changes, rating-agency actions (Moody's/S&P/Fitch),
-central-bank & research feeds, Treasury auctions, CFTC Commitments of Traders, FDIC bank failures,
-WSJ/FT RSS, and the 13D "What I Learned This Week" report.
-
-Only the **Anthropic (Claude) API** costs money per run. Substack and 13D are flat paid
-subscriptions. Everything else is free public data (SEC, Yahoo, FRED, Treasury, CFTC, FDIC, RSS)
-plus local compute (FAISS + sentence-transformer embeddings).
-
----
-
-## Setup (one-time)
-
-### 1. Install dependencies
-
-```bash
-cd Daily-Digest
-python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt   # Windows
-playwright install chromium                      # for the 13D scraper
-```
-
-### 2. Google Cloud (Gmail) credentials
-
-1. In the [Google Cloud Console](https://console.cloud.google.com/), create/select a project and
-   enable the **Gmail API**.
-2. **APIs & Services → Credentials → Create Credentials → OAuth client ID → Desktop app**. Download
-   the JSON and save it as `credentials.json` in the project root.
-3. **APIs & Services → OAuth consent screen:** for unattended/server use, the app must be in
-   **"Production" publishing status** — Testing-mode refresh tokens expire after 7 days and will
-   break a headless server weekly. Publish the app, then mint the token (step 4). The resulting
-   `token.json` is durable; copy that exact file to the server rather than re-consenting there.
-
-### 3. Environment variables — `env.bat`
-
-Create `env.bat` in the project root (gitignored). The `run_*.bat` wrappers `call` it:
-
-```bat
-set ANTHROPIC_API_KEY=sk-ant-...
-set FRED_API_KEY=...                  REM Macro Dashboard + Fed balance sheet
-set SUBSTACK_EMAIL=owner@gmail.com    REM Substack renews via a one-time code emailed here
-REM Team-digest recipients (the Substack-free variant). REQUIRED in production:
-REM a missing value pauses digest indexing + memory as a privacy guard and puts a "Team config
-REM missing" notice in the FULL digest's grey System-notices footer.
-set DIGEST_TO_TEAM=teammate@acorninv.com
-REM On a TEST machine, route ALL digest/alert/reply email to yourself instead of the
-REM production recipients (leave UNSET in production — defaults to the production owner):
-set DIGEST_TO=you@example.com
-```
-
-`PYTHONUTF8=1` is set automatically by the `run_*.bat` wrappers (logs contain Unicode and crash
-under the default Windows cp1252 console). Set it yourself when running a script by hand:
-`set PYTHONUTF8=1`.
-
-### 4. First run
-
-```bash
-.venv\Scripts\python digest.py
-```
-
-The first run opens a browser for Google OAuth (authorize as the sending account), authenticates
-Substack via an emailed one-time code, and sends a digest. Confirm it arrives and renders, then
-proceed to scheduling.
-
----
-
-## Scheduling (Windows Task Scheduler)
-
-The repo ships four wrappers — `run_digest.bat`, `run_watchdog.bat`, `run_reply_monitor.bat`,
-`run_backup.bat` — each of which `cd`s to its own folder (`%~dp0`), sets `PYTHONUTF8=1`, calls
-`env.bat`, runs the project `.venv` Python, and writes a date-stamped log under `logs\` with a
-30-day prune. No hardcoded paths.
-
-Register all four tasks with `setup_tasks.ps1`, from an **elevated** PowerShell in the repo folder:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\setup_tasks.ps1   # add -DryRun to preview
-```
-
-It registers, under Task Scheduler folder `\DailyDigest\`:
-
-| Task | When | What |
-|---|---|---|
-| MorningDigest | Mon–Fri 08:00 | Build + email the full and team digests |
-| Watchdog | Mon–Fri 09:00 | Alert if the morning digest never completed |
-| Backup | Mon–Fri 09:45 | Copy state off-box to OneDrive |
-| ReplyMonitor | at startup, always on | Answer emailed reply questions |
-
-All run whether or not a user is logged on, with wake/catch-up/network-required settings, and the
-script sets `DIGEST_UNATTENDED=1` machine-wide so a dead Gmail token fails fast instead of hanging.
-Verify with `Get-ScheduledTask -TaskPath "\DailyDigest\"`.
-
----
-
-## Configuration
-
-Top of `digest.py`: `HOURS_LOOKBACK` (24 — the base; each run auto-extends it to cover the gap
-since the last digest, e.g. 72h on Mondays), `MAX_EMAILS` (50), `MAX_PDF_SIZE_MB` (5), the
-email-body prompt budgets, `MAX_FETCH_WORKERS` (6). Recipients are env-driven (`DIGEST_TO` / `DIGEST_TO_TEAM`).
-Model IDs and pricing are centralized in `config.py`. Top of `substack.py`: `MAX_ARTICLES_PER_PUB`,
-`MAX_ARTICLE_CHARS`, and the `SUBSCRIPTIONS` list.
-
-## Cost
-
-Roughly **$160–180/month** in steady state (re-baselined 2026-07-30 from production cost lines,
-and confirmed by the first unattended week: two digest variants on Claude Fable 5 + Friday wraps
-+ answered reply questions). Individual weekday runs land around **$6.50–8.50** (Mondays at the
-high end — the weekend catch-up window), Fridays ~**$12** including both weekly wraps. Every
-entry point prints a per-call cost summary at the end of its run. Billing is firm-paid with
-auto-reload ON (no manual top-ups); monitor at
-[console.anthropic.com](https://console.anthropic.com).
-
----
-
-## Secret & state files (gitignored)
-
-Account-bound — must exist on the machine; copy from a working install or regenerate:
-
-- `credentials.json` — Google OAuth client
-- `token.json` — Gmail auth token (the durable **production** token; see setup step 2)
-- `substack_cookie.txt` — Substack session (auto-renews; manual paste is the fallback)
-- `thirteen_d_session.json` — 13D login session (manual re-login when it expires)
-- `jpm_session.json` — JPM portal session (only if the parked JPM workstream is revived — `JPM_SPEC.md`)
-- `env.bat` — environment variables (above)
-- State/caches: `memory.json`, `substack_memory.json`, `*_cache.json`, `pacer_seen.json`,
-  `source_counts.json`, and the `archive/` tree (raw content + the FAISS index).
-
----
+**Status:** LIVE & fully unattended since 2026-07-20; handoff closed 2026-08-07 with the first
+unattended week validated green. Work happens on `main`. The server holds the only live
+credentials.
 
 ## Documentation
 
-| Doc | Audience | Contents |
-|---|---|---|
-| `README.md` | anyone | this file — what it is, setup, scheduling |
-| `HANDOFF.md` | developer | THE continuity doc: current state, constraints, "do NOT touch," risks, and the condensed session history (absorbed `WORKLOG.md` 2026-08-07; the full dated narrative is in git history at `3965f7e`) |
-| `MAINTENANCE.md` | developer | keeping it running: secrets, rotation, failure cases & fixes |
-| `OPERATIONS.md` | operator (non-technical) | what each email means + the manual fixes |
-| `JPM_SPEC.md` | developer | the one parked workstream (JPM dealer research) — awaiting the owner's re-scope-or-drop decision; read its top section first |
+| Doc | What it's for |
+|---|---|
+| `HANDOFF.md` | Engineering continuity — current state, constraints, do-NOT-touch list, risks, condensed session history + post-mortems. **Start here for any code change.** |
+| `MAINTENANCE.md` | Keeping it running — secrets & rotation, env vars, machine bring-up (setup + scheduling), every known failure case with its fix. |
+| `OPERATIONS.md` | The operator's runbook (non-technical) — what each email means + the few manual fixes. |
+| `JPM_SPEC.md` | The one parked workstream (JPM dealer research) — awaiting the owner's re-scope-or-drop decision. |
 
-**Project status:** DEPLOYED, LIVE & FULLY UNATTENDED — running on the dedicated Windows server
-since 2026-07-20. The build/soak/handoff cycle closed 2026-08-07 with the first fully-unattended
-week validated green from the logs; the original developer has departed and the system requires no
-scheduled human care (billing auto-reloads; alerts announce anything that needs a hand — see
-`OPERATIONS.md`). Work happens on the `main` branch. New developers start with `HANDOFF.md` §1.
+## Quick start
+
+Run via the project venv (`.venv\Scripts\python.exe`); deps install with
+`pip install -r requirements.txt`. Full machine setup (OAuth, `env.bat`, scheduled tasks):
+`MAINTENANCE.md` → "Machine bring-up".
+
+```bash
+check.bat
+```
+
+runs ruff + the full offline test suite (502 tests, no network, no cost). The standalone
+fetchers are also free to run (`python news.py`, `market_data.py`, `sec_filings.py`, …).
+
+**⚠ A full `python digest.py` run costs real money (~$7 of Claude) and SENDS REAL EMAIL to the
+production recipients unless `DIGEST_TO` is overridden to your own address** — read HANDOFF §8
+(testing protocol + the `env.bat` footgun) before running anything that calls Claude. The reply
+bot has a safe single-poll mode: `python reply_monitor.py --once`.
+
+## Repo layout
+
+- **Flat root, deliberately** (a solo-operator tool; the module map is HANDOFF §4).
+  `digest.py` orchestrates: fetch all sources → build prompt → 2-pass Claude → assemble HTML →
+  send → archive → index → memory → (Fri) weekly wrap. `config.py` centralizes models/pricing/
+  identities; `search.py` = FAISS index + retrieval; `memory.py` = cross-digest story memory;
+  `reply_monitor.py` = the Q&A/alert-command daemon; `run_*.bat` + `setup_tasks.ps1` = the
+  scheduled-task wiring.
+- `archive/` · `digests/` · `logs/` + all secrets/state (`token.json`, `env.bat`, caches) are
+  **gitignored** — data and credentials never enter git. Caches self-seed; secrets must be
+  installed (MAINTENANCE §2).
+
+## Tests & lint
+
+```bash
+.venv\Scripts\python -m ruff check .
+.venv\Scripts\python -m pytest -q
+```
+
+Both are wrapped by `check.bat`. The suite is offline by design — Claude-calling paths are
+permission-gated and never exercised by tests (HANDOFF §2/§8).
