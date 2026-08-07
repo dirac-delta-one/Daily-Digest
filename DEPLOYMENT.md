@@ -1,7 +1,7 @@
 # Daily Research Digest — Deployment
 
-**TLDR:** how to set up the automated digest on a Windows machine, and every known failure case
-with its fix. The scheduled tasks fetch ~17 sources, generate and email the digests via Claude,
+**TLDR:** how to set up the automated digest on a Windows machine as well as every known failure case
+and its corresponding fix. The scheduled tasks fetch ~17 sources, generate and email the digests via Claude,
 and answer emailed replies.
 
 Any code changes should first reference `HANDOFF.md`. For running/rerunning the digest and
