@@ -635,6 +635,16 @@ What remains is only what a future session might still act on.)*
   degrades gracefully. Options if it ever breaks: a free-tier search API (e.g. Brave) or drop the
   web step. Low priority, low volume.
 - **Index growth** — see §5 (F13 ladder + tripwire).
+- **Repo reorg to a `src/` layout — parked indefinitely; runbook in git history**
+  (`REORG_CHECKLIST.md`, retired 2026-08-07 — it read like pending work and it isn't; flat-at-root
+  is a legitimate layout for a solo tool, and the reorg buys organization, not capability). What
+  survives it: **Phase 0 is DONE and load-bearing** — `config.REPO_ROOT` (sentinel-walk anchor)
+  is how all modules locate root state/secrets/`archive/`; never revert to
+  `Path(__file__).parent` for those. If a future maintainer wants the reorg anyway: it is a
+  coordinated code+server maintenance-window op, NOT a pull (entry points + `.bat` wrappers stay
+  at root so tasks need no re-registration; stop the daemon, pull, smoke-test every entry point,
+  restart, watch the next 08:00 run) — recover the full checklist from git history before
+  attempting it.
 
 ### B. Watch → trigger → fix (implement only if the output says otherwise)
 - **Cross-day "daily delta" (2026-07-23 evening, jared: "it isn't really a daily digest —

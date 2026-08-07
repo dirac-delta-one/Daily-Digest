@@ -145,6 +145,13 @@ open observation is now closed, and every one came back healthy:**
 re-scope-or-drop decision.** Remaining passive self-announcing watches: the gap-note fix's
 first armed Friday, the memory-pass ~14k line, the F13 ~200k-vector horizon (~late 2027).
 
+**Same day, later: `REORG_CHECKLIST.md` RETIRED** (operator call — a root-level runbook for
+indefinitely-parked work reads like a pending TODO to a future developer, and no live doc even
+referenced it). Standard retire-and-distill: the surviving essentials (Phase 0 / `REPO_ROOT` is
+done and load-bearing — never revert to `Path(__file__).parent` for root data; Phase 1 = a
+maintenance-window op, never a pull; recover the full checklist from git history first) are now
+a HANDOFF §11.A bullet; full text in git history like every other retired spec.
+
 ---
 
 ## 2026-08-03 — Departure wrap-up: Mon run verified, ownership answers recorded, dev machine DE-CREDENTIALED
