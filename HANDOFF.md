@@ -1,6 +1,8 @@
 # Daily Research Digest — Engineering Handoff
 
-_Last updated: 2026-08-07 (the WORKLOG merge + prune — this doc absorbed `WORKLOG.md`'s role).
+_Last updated: 2026-08-07 (the WORKLOG merge + two prune passes — this doc absorbed
+`WORKLOG.md`'s role; closed-watch narratives compressed to their live residue, full text at
+each pre-prune git tip).
 Living continuity doc for `Daily-Digest`. This keeps only what you need to understand, run, and
 extend the system today; the full dated narrative of every change ever made and why lives in
 git history — `WORKLOG.md` through commit `3965f7e`, plus each pre-prune tip of this file — and
@@ -118,28 +120,13 @@ newest first; durable rules and numbers are folded into the numbered sections. T
 post-mortems keep faithful multi-sentence distillations in the **Post-mortem library** at the
 end of this section._
 
-**Closed tracks at a glance (June–mid-July build era):**
-
-| Track | Outcome | Date |
-|---|---|---|
-| Refactor Phases 0–3 + Opus 4.6→4.8 + model/UA centralization + A1 cost accounting + A2 structured outputs + de-hardcoding | All done & committed | 06-19 → 06-30 |
-| Credentialed bring-up + first live end-to-end run ($1.52) | Green; identity flipped to the bot | 06-30 |
-| Cost refactor (13D summary cache, memory→Sonnet, 2-pass prompt caching; Group B Opus↔Sonnet A/B) | Done; A/B verdict = keep all four on Opus | 07-01 |
-| Memory / retrieval refactor (Stages 0–5) | v2 story-timeline memory + reply router; **rerank + hybrid parked permanently** (lost the eval) | 07-01 → 07-09 |
-| Accrual week (6/6 green) + F1a deploy-blocking fixes | Consent guard, `setup_tasks.ps1`, PACER seen-state durability, O2 watchdog | 07-06 → 07-09 |
-| Efficiency batch (S1 registry, E1 parallel fetch, E2 reconstruct-reindex, O1 log rotation, O3 content monitor) | Built; E3 Gmail-batch skipped (not the bottleneck) | 07-09 → 07-10 |
-| PDF-extraction review + PyPDF2→pypdf | The aggressive clean rules WERE the damage; trimmed; eval identical | 07-09/10 |
-| OAuth production publish + durable production `token.json` | Done; that token is the one the server runs on | 07-10 |
-| Substack audit (11→17 pubs) + dead-cookie fix + OTP-code auto-renewal | Live-validated | 07-13/14 |
-| `TEAM_DIGEST_SPEC` — dual FULL/TEAM variants | Built + activated | 07-13 |
-| Forwarding-visibility fix + golden-set refresh (26→29 Q) | Shipped, live-validated | 07-14 |
-| Second-pass cleanup (5 stages; tests 307→336; TEAM leak guard code-enforced) | Done, $0 spend | 07-14/15 |
-
 **Dated digests (newest first):**
 
 - **08-07 (later — the doc-set realignment to the user's cross-project format):** `WORKLOG.md`
   merged into this doc and both pruned (4,764 → ~1,150 lines; full text preserved at
-  `3965f7e`); cross-reference conventions declared in the header; a cold-read review pass then
+  `3965f7e`); a second prune pass then compressed §11.B's closed-watch narratives, §7.2, and
+  the build-era digests to their live residue (~1,200 → ~900; full text at the pre-prune tip);
+  cross-reference conventions declared in the header; a cold-read review pass then
   fixed 7 stale spots (`533cfa5`). README rewritten as a true repo TLDR (~65 lines). The final
   step renamed the companion docs to the reference set's names and shapes: `OPERATIONS.md` →
   **`OPERATOR_GUIDE.md`** (TLDR header + How-To/Question sections; gained the rerun-a-missed-
@@ -300,144 +287,69 @@ end of this section._
   live, manual run GREEN at $2.03. **THE FINDING: S4U task launch fails on the AzureAD-joined
   server** (see the Post-mortem library) → `-StoredPassword` switch added (`6793009`); any
   future re-registration must use it. Also fixed the reply monitor's empty log (unbuffered `-u`).
-- **07-17 (written 07-20):** Friday interim run GREEN, $3.72 — WILTW resumed (O3 `wiltw = 1`,
-  its first nonzero), the memory context budget **activated for the first time** (58 of 64
-  stories), and the Substack-via-email exclusion live-exercised. **Credit was exhausted on the
-  run's final Claude call** (the TEAM weekly wrap), which is non-fatal by design and therefore
-  fired **no failure alert** — the only signals were a log line and a missing email. Google
-  security alerts were being ingested as digest source email (the operator's own lockout
-  attempts, editorialized by Opus as a possible compromise) → filtered to a "Gmail Alerts"
-  label, accepting that bot-account compromise alerts no longer surface in the digest. The MFA
-  lockout extended 48h→72h because repeated sign-in attempts reset the window. Memory archival
-  deferred as the wrong lever (only 8 resolved stories); cleanup track complete at `pytest`
-  **349**, eval baseline hit@1 **0.897** / hit@3 1.0 / MRR **0.937**.
-- **07-16 (5 entries):** Snapshot build-out at jared's request: the 20Y UST mirrored from FRED
-  into the Market Snapshot; a **Metric column** added to every snapshot table, with
-  `MARKET_FRED_EXTRAS` and derived-row anchors re-keyed on `series_id` since labels are no
-  longer unique; IGLB/IGIB price rows replaced by **fund-reported Portfolio OAS** from a new
-  `ishares_data.py` after confirming no free ETF G-spread source exists (changes accrue in
-  `ishares_oas_cache.json`, keyed by the site's as-of date so same-day reruns don't
-  self-compare); HYG (250.05 bps) and LQD (82.00 bps) added the same way; and **SpaceX**, no
-  longer private, added as `SPCX` (IPO'd June 12 2026, Nasdaq). `pytest` **362**; first live run
-  on the new format GREEN at $1.78.
-- **07-15 (9 entries; `5ee7397`):** Cleanup Stages 2–5 completed the track ($0 Claude, `pytest`
-  327→**334**): code-enforced TEAM leak guard, chunk_id collisions fixed with a full rebuild
-  (6,067 chunks, 0 dupes), the reply allow-list made config-driven with `FULL_ACCESS_SENDERS`
-  trimmed to jtramontano alone, O3 partial-degradation floors, a **self-ingestion guard**
-  removing the bot from both recipient defaults, a self-activating memory context budget
-  (60 stories / 45,000 chars), lazy BM25, vectorized subset scan, and the new `OPERATIONS.md`.
-  An index-side self-artifact filter plus a reindex (1,484→1,372 chunks) **improved the eval to
-  0.897 / 1.0 / 0.937** — self-ingested reply artifacts had been measurably suppressing real
-  sources. Two incidents: a `thirteen_d.py --login` where pressing ENTER overwrote a valid
-  session with an unauthenticated one (hardened: `_save_session` refuses unauthenticated
-  state), and the **Substack-via-email leak into the TEAM digest** — paid newsletters also
-  arrive as inbox email, so the scraper-layer exclusion wasn't enough; `config.is_substack_email`
-  now filters both variants identically; 322 chunks retagged. The snapshot redesign (`5ee7397`)
-  also surfaced a **latent off-by-one** (`>= 20` then `iloc[-21]`) that silently dropped *every*
-  US-listed ticker on a 20-trading-day download; `pytest` **353**. Server deploy started,
-  blocked on a 48h MFA lockout.
-- **07-14 (4 entries):** Test pins landed before Stage 2 touched `main()`
-  (`tests/test_digest_main.py` drives the real `main()` with all effects stubbed; `pytest`
-  **314**). **Substack auto-renewal was found never to have worked** — the docs' "AUTOMATED"
-  claim was aspirational: the code POSTed the password endpoint, Substack now emails a 6-digit
-  code, and `_complete_login` was a false positive saving an anonymous cookie. Reworked to
-  `/api/v1/email-login` + `/email-otp-login/complete` with a real `/profile/self` probe and a
-  newer-than-request freshness check, live-validated end to end. The 3-stage forwarding fix
-  shipped (embedded-sender detection, capped 4k body extract on a 40k/run budget, index
-  attribution; rebuild 5,997 chunks; eval re-baselined 0.846/0.923/0.894 with Stage 3 proven
-  metric-neutral), plus the numbering-collision fix (appended sections unnumbered); `pytest`
-  **302**.
-- **07-13 (~10 entries):** `TEAM_DIGEST_SPEC` went spec → build → paid validation → activation
-  → live-run proof in one day. Stages 1–4 made Substack jared-personal, with the team prompt a
-  **byte-identical strict prefix** of the full prompt so the full run reads the team run's cache
-  and pays only for the substack tail; an asker-tiered reply bot; `substack_memory.json`; and
-  the team digest as the indexed one (`pytest` 238→**277**). Paid validations passed at $1.81
-  total; a team render proved the Stage-5 **memory cleanse is load-bearing** (pub names leaked
-  via the pre-cleanse memory context). Activated with acohen as pilot: 52→32 shared stories, 20
-  substack-sourced moved out; first activated run GREEN at $1.47 with zero substack markers.
-  Also: a **dead-cookie incident** (fixed by probing `/api/v1/user/profile/self`), paid pubs
-  11→**17**, and three coverage closures — TRACE removed as a module ($750/mo ≈ $9k/yr for a
-  2-issuer watchlist), forwarding completeness resolved ("we have everything"; Grant's genuinely
-  absent), Octus/HY-new-issue accepted with no replacement.
-- **07-10 (12 entries):** A GREEN live validation run at **$1.58** cleared the 9-item checklist,
-  produced the first-ever weekly summary and the first v2 memory delta, and **closed the E3
-  Gmail-batch track as SKIP** (the wall clock is Claude calls and embedding, not Gmail). The
-  bot's OAuth app was **published to production and a durable token minted** — order matters,
-  since a token minted in Testing keeps its 7-day expiry even after publishing. The whole
-  `CLEANUP_REFACTOR_SPEC` track ran: dead code, shared constants + `ruff==0.15.17` pinned,
-  `exit /b 0` on all wrappers (absorbing the `forfiles` exit-1 quirk), test additions,
-  correctness fixes, **insertion-ordered PACER seen-state eviction**, CFTC COT comparing against
-  the prior *week* rather than the prior file, the weekly-wrap bundle, the 13D unattended-login
-  guard, and PyPDF2→**pypdf 6.14.2** with a metric-identical eval gate (pytest 180→227).
-- **07-09 (9 entries):** The week's CHECKPOINT scored 6/6 green runs at ~$6.45 total and ruled
-  on pre-committed gates: **default cosine+boost wins every metric** (0.846 / 1.0 / 0.904),
-  rerank REJECTED, hybrid REJECTED, Stage 3b SKIPPED (hit@3 = 1.0 leaves no embedder-addressable
-  headroom). Stage 4 shipped same-day-digest exclusion, deterministic regex query filters and
-  near-dup dedup; its one permitted rerank retest **failed the gate again** → rerank and hybrid
-  park permanently, param-gated but never default. Stage 5 delivered the v2 story-timeline
-  memory + reply router: incremental deltas cost **$0.098 vs v1's $0.274** and the model can no
-  longer silently drop a story. Efficiency Stages 1–4 landed the source registry + parallel
-  fetch (21s→7s), E2 reindex-via-`reconstruct` (208.8s→0.01s), dated logs with a 30-day prune,
-  and the O3 content monitor + O2 hung-run watchdog. F1a closed the three deploy blockers
-  (unattended-consent fast-fail `SystemExit 3`, `setup_tasks.ps1`, PACER `commit_seen` only
-  after the send). The PDF-extraction review found **the "rescue" rules were the damage**
-  (`pytest` **180**).
-- **07-07:** Two §7.2 failure modes fired for real. The `StartWhenAvailable` catch-up ran
-  **before Wi-Fi connected**, so the Gmail token refresh died on DNS *and the failure alert died
-  the same way* — a fully silent miss; fixed by `RunOnlyIfNetworkAvailable`. The **Testing-mode
-  7-day refresh-token death** hit exactly on schedule (`invalid_grant`), with the 6/21 hardening
-  correctly falling through to consent.
-- **07-06:** Monday's 8 AM run missed because the machine was signed out, and the logon catch-up
-  died in ~6s with `0xC000013A` — its console window was closed. Fixes: `StartWhenAvailable`
-  plus operator guidance to **lock (Win+L), never sign out**. Separately, corporate mail
-  security (Abnormal AI) **quarantined the 7/2 digest as malicious** — and because digests and
-  failure alerts share a sender, "no email" no longer strictly means "no run"; allowlisting the
-  bot sender became a required deploy item (later done org-wide for Outlook).
-- **07-02 (5 entries):** Memory Stage 2 added a mtime-invalidated search-state cache (so the
-  long-running reply monitor picks up the day's index without restarting) plus param-gated
-  BM25+RRF hybrid, which lost to the default; Stage 3a added entity tagging and date-range
-  filters with `--retag` backfill. The first wrapper-driven run crashed because relative
-  `call env.bat` didn't resolve — all wrappers now use `call "%~dp0env.bat"`. `run_alert.py`
-  shipped so unattended failures are no longer silent — deliberately self-contained (no
-  `import digest`, since the failure path must not depend on the code that just failed).
-  `NEXT_STEPS_SPEC.md` captured the checkpoint procedure with **pre-committed decision gates**.
-- **07-01 (6 entries):** The Group B A/B ($1.89) ruled **keep all four secondary calls on
-  Opus** — Sonnet's reply came back wrapped in a code fence with a full DOCTYPE (renders
-  broken) and its 13D summary blew the 500–800-word cap at ~1,900 words. Cost steps shipped the
-  WILTW summary cache (~$2.5–3/week) and moved memory to Sonnet. The two Opus passes were
-  restructured to share one `system` + an identical source prefix with an ephemeral cache
-  breakpoint — cache engagement confirmed live. The memory/retrieval refactor was scoped
-  (finding a **date-filter-applied-after-retrieval scaling bug** and a per-call index reload);
-  Stage 0's eval harness + 15 golden questions established the 0.933 / 1.0 / 0.956 baseline;
-  Stage 1 fixed the date filter pre-retrieval and added a param-gated cross-encoder, **deferred
-  rather than flipped** (overriding a just-built eval on a 1-day archive would invert the
-  Stage-0 discipline).
-- **06-30 (5 entries):** First credentialed end-to-end run — digest $1.52, reply $0.20 — with
-  the email identity swapped to `acorn.research.bot@gmail.com`, Octus deleted entirely (its
-  stale login would have hung an unattended run), and FRED provisioned — which caught a real
-  data bug: `fed_balance_sheet` series **mislabeled by magnitude** (both "Discount Window" and
-  "Treasury Holdings" were actually the Treasury General Account) → fixed to
-  `WSHOTSL`/`WLCFLPCL`, plus an ON RRP ×1000 units bug and a retuned `check_fed_stress` wired
-  into `digest.main` as a deterministic check. Opus 4.6→**4.8**, model IDs and User-Agents
-  consolidated, dead caches removed. `SYSTEM_PROMPT` §9 made explicitly Opus-owned and
-  `build_ratings_html` removed as dead code that would have duplicated it. A2 structured
-  outputs live on all 5 JSON call sites (`pytest` **56**).
-- **06-21:** First session with the gitignored secrets present: Substack valid, **Gmail's
-  copied refresh token rejected (`invalid_grant`)**, Octus cookies expired. `get_gmail_service`
-  hardened — the unguarded `creds.refresh()` crashed the whole run on a dead refresh token, now
-  catches `RefreshError` and falls through to consent. Recorded the deploy finding that OAuth
-  apps in **"Testing" status have 7-day refresh tokens** — the risk that fired for real on 7/07.
-- **06-19 (`1f400f6` … `004722b`):** Project bring-up on the dev machine. Phase 0: Python
-  3.12.10 venv (3.14 lacked torch/faiss wheels), deps pinned, `ruff.toml` + 28 findings fixed,
-  `grab_session.py` deleted; `PYTHONUTF8=1` required or emoji logs crash under cp1252. Phase 1:
-  new `config.py` centralizing model IDs and pricing — the stale $15/$75 literals had
-  **overstated reported cost ~3×** — plus HTML escaping (`esc()`/`safe_href()`) in all five
-  build functions. Stage 1 de-hardcoded the machine (`%~dp0` wrappers, `DIGEST_TO` env-driven).
-  Phase 2 added `claude_utils.parse_json_response`, shared `feeds.py`, a search-model singleton,
-  and **dropped naive prompt caching as specced** — with pass 2's different system prompt it
-  would produce zero reads while paying the 1.25× write premium (the cache-correct version
-  arrived 7/01). A1 added `cost.py` across 12 call sites. Phase 3 added the first pytest suite
-  (34 tests).
+- **07-17 (written 07-20):** Friday run GREEN $3.72 — WILTW resumed, the memory context budget
+  activated (58 of 64 stories). **Credit exhausted on the run's final Claude call fired NO
+  failure alert** (non-fatal by design — a log line + a missing email were the only signals).
+  Google security alerts were being ingested as digest source email → filtered to a "Gmail
+  Alerts" label (bot-account compromise alerts no longer surface in the digest — check the
+  label directly). Eval baseline 0.897 / 1.0 / 0.937, `pytest` 349.
+- **07-16:** Snapshot build-out (jared): Metric column on every table (anchors re-keyed on
+  `series_id`), IGLB/IGIB/HYG/LQD as fund-reported Portfolio OAS via new `ishares_data.py` (no
+  free ETF G-spread source exists; changes accrue in a cache keyed by the site's as-of date),
+  20Y UST mirror, SpaceX added as `SPCX` (IPO'd June 12 2026). `pytest` 362.
+- **07-15 (9 entries; `5ee7397`):** Cleanup Stages 2–5 ($0 Claude): code-enforced TEAM leak
+  guard, chunk_id dedup rebuild (0 dupes), config-driven reply allow-list (`FULL_ACCESS_SENDERS`
+  = jtramontano only), self-ingestion guard, memory context budget (60/45k), lazy BM25,
+  vectorized subset scan, `OPERATIONS.md`. The index-side self-artifact filter **improved the
+  eval to 0.897/1.0/0.937** (self-ingested reply artifacts had been suppressing real sources).
+  Incidents: `--login` could overwrite a valid session with an unauthenticated one (hardened),
+  and the **Substack-via-email TEAM leak** (newsletters also arrive as inbox email →
+  `config.is_substack_email` filters both variants). A latent off-by-one (`>= 20` +
+  `iloc[-21]`) had silently dropped every US-listed ticker on 20-day downloads. `pytest` 353.
+- **07-14:** `main()` test pins landed before refactors touched it (`test_digest_main.py`, all
+  effects stubbed). **Substack auto-renewal had never worked** (see Post-mortem library) —
+  rebuilt on the OTP-code flow, live-validated. 3-stage forwarding fix (embedded-sender
+  detection + attribution; eval re-baselined metric-neutral); appended sections unnumbered.
+- **07-13:** `TEAM_DIGEST_SPEC` spec→build→activation in one day: Substack became
+  jared-personal; the team prompt is a **byte-identical strict prefix** of the full prompt (the
+  full run reads the team run's cache); asker-tiered reply bot; the TEAM digest is the indexed
+  one. A team render proved the memory cleanse is load-bearing (pub names leaked via memory
+  context). Also: dead-cookie incident (probe fixed), paid pubs 11→**17**, TRACE removed
+  ($9k/yr for a 2-issuer watchlist), forwarding completeness resolved.
+- **07-10 (12 entries):** GREEN live validation $1.58 (first weekly wrap, first v2 memory
+  delta); E3 Gmail-batch SKIPPED (not the bottleneck). **OAuth app published to production +
+  durable token minted** — order matters: a token minted in Testing keeps its 7-day expiry even
+  after publishing. The `CLEANUP_REFACTOR_SPEC` track ran end to end (dead code, correctness,
+  insertion-ordered PACER seen-state eviction, CFTC COT vs prior *week*, PyPDF2→pypdf with a
+  metric-identical eval gate; pytest 180→227).
+- **07-09 (9 entries):** The CHECKPOINT ruled on pre-committed gates: **default cosine+boost
+  wins every metric; rerank + hybrid REJECTED and parked permanently** (Post-mortem library).
+  Stage 5 delivered **memory v2** (story-timeline deltas, $0.098 vs v1's $0.274 — Post-mortem
+  library). Efficiency: parallel fetch 21s→7s, reindex-via-`reconstruct` 208.8s→0.01s, O2/O3
+  monitors, dated logs. F1a closed the three deploy blockers. The PDF review found **the
+  "rescue" rules were the damage** (Post-mortem library).
+- **07-06/07:** Deploy failure modes fired for real: a signed-out machine missed the 8 AM run
+  (0xC000013A when its console was closed → lock, never sign out); the catch-up ran before
+  Wi-Fi, killing the run AND the failure alert silently → `RunOnlyIfNetworkAvailable`; the
+  Testing-mode 7-day token death hit on schedule; **Abnormal AI quarantined the 7/2 digest as
+  malicious** → org-wide Outlook allowlist became a deploy requirement.
+- **07-01/02:** Group B A/B ruled **keep all secondary calls on Opus** (Sonnet's reply rendered
+  broken; its 13D summary blew the word cap). The 2-pass prompt cache got its correct form
+  (shared system + source prefix + ephemeral breakpoint, engagement confirmed live). Eval
+  harness + golden set established (Stage-0 discipline: a param-gated cross-encoder was
+  **deferred rather than flipped** — never override a just-built eval on a 1-day archive).
+  `run_alert.py` shipped, deliberately self-contained (the failure path must not import the
+  code that just failed); wrappers fixed to `call "%~dp0env.bat"`.
+- **06-19 → 06-30 (build era; `1f400f6` … `004722b`):** Bring-up: Python 3.12 venv (3.14
+  lacked torch/faiss wheels), ruff, first tests; `config.py` centralized model IDs/pricing (the
+  stale literals had overstated reported cost ~3×); HTML escaping; `%~dp0`/env-driven
+  de-hardcoding; naive prompt caching deliberately dropped (zero reads + 1.25× write premium
+  with differing system prompts). 06-21: hardened `get_gmail_service` against dead refresh
+  tokens; recorded the Testing-mode 7-day rule. 06-30: first credentialed end-to-end run
+  ($1.52), identity flipped to the bot, Octus deleted, FRED provisioned — catching mislabeled
+  `fed_balance_sheet` series + an ON RRP ×1000 bug; Opus 4.6→4.8; A2 structured outputs on all
+  5 JSON call sites; `SYSTEM_PROMPT` §9 made explicitly model-owned (`build_ratings_html`
+  removed as dead code that would have duplicated it).
 
 ### Post-mortem library (the lessons a one-liner can't carry)
 
@@ -805,48 +717,20 @@ rule-based forwards flow into the bot inbox; `token.json` = the bot sends + read
 renewal reads the forwarded OTP code from the bot inbox). The Substack *account* stays jared's — an
 optional end-state flip to the bot is his call (§10). Full history: Session history, 06-19 → 08-03.
 
-### 7.2 Dedicated Windows server — DEPLOYED 2026-07-20 (the requirements it implemented + the rebuild path)
+### 7.2 Dedicated Windows server — DEPLOYED 2026-07-20 and LIVE
 
-**The server is DEPLOYED and LIVE** (cutover 2026-07-20; see §1). The executed deploy/cutover
-step-by-step was `NEXT_STEPS_SPEC §5` (retired 2026-07-21 — in git history; the deploy narrative is
-in WORKLOG 07-20/21). For a rebuild, DEPLOYMENT (steps 1–6, incl. §3a secrets) +
-OPERATOR_GUIDE "Backups & Restore" are the path. Requirements the deploy implemented:
-
-1. **Always-on + headless:** stays powered, awake (no sleep/hibernate), survives reboots. The reply
-   monitor is a continuous process — an always-on server is what makes it reliable.
-2. **Run whether or not anyone is logged in:** `setup_tasks.ps1` registers all four tasks via
-   `Register-ScheduledTask` with S4U run-whether-logged-on + the wake/catch-up/network settings that
-   `schtasks` can't set. Run it **as administrator** on the server.
-3. **Secrets/identity on the server:** install the §4 secret files + `env.bat` at the
-   **machine/system** level so non-interactive tasks see them. **Copy the durable production
-   `token.json`** (minted 2026-07-10; a Testing-mode token dies after 7 days and a headless server
-   can't re-consent). `env.bat` must carry `DIGEST_TO_TEAM` + `SUBSTACK_EMAIL`; copy the fresh
-   `substack_cookie.txt` + `substack_memory.json`.
-4. **Reliability & observability — all code halves DONE:** dated log rotation + 30-day prune (O1);
-   failure alerting (`run_alert.py`, nonzero exit → red alert email with log tail); source-empty
-   content monitor (O3 → the FULL send's ops footer since 2026-07-28, arms after ~6 runs); hung-run watchdog
-   (`run_alert.py digest --check-completed`, its 09:00 task registered by `setup_tasks.ps1`).
-   Sessions still need occasional human care: Substack auto-renews (OTP-code via Gmail); **13D will
-   eventually need a manual re-login** — documented in OPERATOR_GUIDE.md.
-5. **Time zone & schedule:** set the server TZ correctly (digest ~8 AM ET, weekly
-   summary keys off Friday).
-6. **Resources & backups:** the embedding stack + growing `archive/` need ~2 GB disk; O4 backups
-   (`archive/`, `memory.json`, `substack_memory.json`, the two index files, state JSONs, `digests/`)
-   land directly on the box at deploy — no laptop interim (single-copy risk accepted until then).
-
-**Field findings from the 2026-07-06→09 accrual week (the "why" behind the §5 checklist; all code
-fixes DONE):** unattended-consent hang → `DIGEST_UNATTENDED=1` fails fast (SystemExit 3);
-OAuth Testing-mode 7-day token death → published to production + durable token; `schtasks` can't set
-`WakeToRun`/`StartWhenAvailable`/`RunOnlyIfNetworkAvailable` → `setup_tasks.ps1`; network-down
-wake/logon race → `RunOnlyIfNetworkAvailable` + O2 watchdog; PACER seen-state lost on failed runs →
-stash-in-memory + `commit_seen()` only after a successful send; Abnormal AI quarantined the 7/2
-digest as malicious → **IT allowlisted `acorn.research.bot@gmail.com` org-wide for Outlook** (covers
-acohen + jtramontano; re-verify only if a non-Outlook recipient is added). WILTW posts after 8 AM
-Thursdays → picked up by the next scheduled run (no fix needed).
-
-**Cutover rule (from §5):** exactly ONE reply daemon and ONE digest instance may run anywhere —
-disable jared's machine's tasks AND his reply monitor the same day the server goes live (two pollers
-race on the shared bot inbox; two digests double-send).
+The step-by-step for a rebuild or a new machine is **DEPLOYMENT.md** (which also carries the
+cutover rule: exactly ONE reply daemon + ONE digest instance may run anywhere). What this
+section keeps is the **field findings** — the "why" behind DEPLOYMENT's rules, each learned
+live during the 2026-07-06→09 accrual week (all code fixes DONE): unattended-consent hang →
+`DIGEST_UNATTENDED=1` fails fast (SystemExit 3); OAuth Testing-mode 7-day token death →
+published to production + a durable token; `schtasks` can't set
+`WakeToRun`/`StartWhenAvailable`/`RunOnlyIfNetworkAvailable` → `setup_tasks.ps1` exists;
+network-down wake/logon race → `RunOnlyIfNetworkAvailable` + the O2 watchdog; PACER seen-state
+lost on failed runs → `commit_seen()` only after a successful send; Abnormal AI quarantined the
+7/2 digest as malicious → IT allowlisted the bot org-wide for Outlook (re-verify only if a
+non-Outlook recipient is added); WILTW posts after 8 AM Thursdays → picked up by the next run
+(no fix needed).
 
 ---
 
@@ -979,168 +863,52 @@ What remains is only what a future session might still act on.)*
   attempting it.
 
 ### B. Watch → trigger → fix (implement only if the output says otherwise)
-- **Cross-day "daily delta" (2026-07-23 evening, jared: "it isn't really a daily digest —
-  it repeats yesterday").** Three shipped pieces: (1) **PACER freshness filter**
-  (`pacer._fresh_filing`): discovery previously had NO date filter — old cases (LL Flooring
-  24-11680) resurfaced whenever an amended-petition docket entry appeared; now entries need a
-  since-last-run pub date AND a current-year case number (January accepts prior year; unparseable
-  over-includes; stale hits are marked seen + logged "Freshness filter: dropped N"). (2)
-  **Weekend-aware lookback** (`digest._set_lookback_hours` + `_previous_run_date`): the flat 24h
-  windows meant Monday covered only Sun→Mon, silently SKIPPING Fri 08:00→Sun 08:00 content; now
-  every source window = hours since the last digest file in `digests/` (Monday = 72h; log line
-  "Lookback window: 72h ..."). (3) **PREVIOUS DIGEST prompt block + daily-delta rule**
-  (`digest._previous_digest_block`): the prior run's TEAM digest (Substack-free → shared-prefix
-  safe; ~24k char cap) rides as its own shared content block — deliberately NOT in `prompt`,
-  which feeds alert evaluation (yesterday's text must not re-trigger alerts) — and the
-  SYSTEM_PROMPT rule requires dated framing ("issues stock TODAY after YESTERDAY's bond deal";
-  "after Friday's..." on Mondays) and forbids re-reporting source re-mentions with no development.
-  **Watch — VALIDATED 2026-07-27 (Monday log):** `Lookback window: 72h (previous digest
-  2026-07-24)` logged, weekend content present, PACER showed only fresh filings. Cross-day
-  behavior working.
-- **PACER O3 zero-streak ops-alert — FALSE POSITIVE (diagnosed 2026-07-28), FIXED same day via
-  the raw-count re-point; DEPLOYED + validated 2026-07-30 (the nag stopped on the first
-  post-pull run; `Ch.11 discovery hits` logging 51–140/day through 8/7).** After the freshness
-  filter went live (7/24),
-  `pacer_entries` hit 0 for 3 straight runs and O3 emailed jared a "source dead" ops-alert — but
-  PACER was working correctly: the filter properly dropped old-case docket noise (Terraform `24-`,
-  Purdue `19-`, MF Global `11-`) and the day's only fresh filings were small local businesses the
-  corporate/size filter correctly rejects; large corporate Ch.11s don't file daily, and the
-  monitor's "83% nonzero" baseline came from the noisier pre-filter era (full diagnosis in WORKLOG
-  2026-07-28). **The fix:** O3 now watches PACER's RAW Ch.11 feed-hit count — every Ch.11 keyword
-  match across the court feeds BEFORE the seen/freshness/corporate/size filters
-  (`pacer.raw_ch11_count()`, seen-state-independent so rerun-safe), recorded as `pacer_raw_ch11`;
-  the filtered `pacer_entries` count is no longer recorded. raw>0 = feeds alive, nothing
-  digest-worthy today (no alert); raw=0 = feeds actually dead (a real alert — existing mega-cases
-  alone generate matching docket entries daily). New log line: `Ch.11 discovery hits: N
-  pre-filter`. Mechanics of the switchover: the old false alert stops on the FIRST post-pull run
-  (a key absent from the latest run's counts is never streak-checked), and the new key
-  self-calibrates — it cannot signal until it has `MIN_HISTORY` (3) prior runs plus a 3-run zero
-  streak. Tests: `test_pacer.py` raw-count pair + `test_digest_main.test_o3_counts_use_raw_pacer_signal`.
-  *(That pull became crash-blocking 2026-07-29 — it also carried the BKLN formatter fix
-  `2fc906b` — and was executed + validated 2026-07-30; see the Session history.)*
-  **Residual gaps from the diagnostic:** (1) **txsb (Houston) RSS 404 — ✅ RESOLVED ITSELF
-  2026-07-30. DO NOT send the helpdesk email.** The outage was transient: txsb served filings
-  normally on 7/24, 404'd on 7/27–7/29, and was **back on 7/30** (no `RSS fetch failed` line and
-  ~25 TXSB filings in that run, including the large Republic National Distributing/Young's Market
-  group). Total outage ≈ 3 business days, no announcement, no action taken — consistent with the
-  court's own maintenance. Nothing to fix; the per-court `pacer_rss_txsb` key now makes a repeat
-  visible within 3 runs. Historical detail of the (correct at the time) investigation follows: the feed worked through **7/23** (a txsb filing is in that
-  day's archive; txsb has a full 1,000-entry seen-history like every other court) and 404s since
-  — the court removed its public RSS report sometime 7/23→7/28. The ECF host itself is up (200 on
-  root/login; only `cgi-bin/rss_outside.pl` is gone), there is **no alternate public endpoint**
-  (juriscraper — the library behind CourtListener's RSS ingestion — builds the exact same URL),
-  the other six courts were healthy at probe time (554–2,287 items each), and the court posted no
-  announcement (txsb is on NextGen 1.8.3 vs deb's 1.9 — a mid-upgrade removal is plausible, so it
-  may return). **Mitigation SHIPPED same day: per-court O3 feed-health keys** —
-  `pacer.court_item_counts()` records each court's raw RSS item count as `pacer_rss_<court>`
-  (healthy feeds carry hundreds of docket entries daily, so 0 = that court's feed is dead; a
-  failed fetch reads 0, a court not reached in a mid-scan crash is absent). A future single-court
-  death now gets its own zero-streak alert — the aggregate `pacer_raw_ch11` can't see one court
-  die, which is exactly how txsb went unnoticed. Self-calibration handles the awkward start:
-  txsb begins dead, so its key never qualifies as "normally nonzero" and does NOT nag; it arms
-  only after the feed recovers. **Remaining actions:** (a) email the court's ECF helpdesk
-  (`bankruptcy_ecf_helpdesk@txs.uscourts.gov` / 713-250-5507) asking whether the public RSS feed
-  is permanently gone — human/jared action, ideally before the 7/31 departure; (b) if confirmed
-  permanent, the replacement lane is the **PACER Case Locator API** (once-daily "new Ch.11 in
-  txsb" query ≈ pennies/day but needs a PACER account + a small new module — CourtListener's free
-  API won't help, its txsb data came from the same dead feed); watch `pacer_rss_txsb` in
-  `source_counts.json` for recovery meanwhile. *(All of that is now moot — it recovered on its
-  own 7/30; kept only as the record of what was checked. The PCL-API lane stays a valid option
-  if a court ever removes RSS permanently.)* (2) The diagnostic's second gap —
-  "`pacer.LOOKBACK_HOURS` hardcoded 24 vs the digest's 72h Mondays" — was **STALE/WRONG, no
-  action:** `digest._set_lookback_hours` (2026-07-23) already retunes `pacer.LOOKBACK_HOURS` per
-  run before the fetch phase (pinned by `test_cross_day`); only standalone `python pacer.py` uses
-  the 24h default, which is fine.
-- **Snapshot-table data lag — CLOSED (spec `SNAPSHOT_UPDATE.md` retired 2026-07-27; full
-  investigation in git history).** The 2026-07-23 investigation established the Rates + Corporate
-  Credit OAS rows were **T-2** at the 08:00 run; every free fix SHIPPED 2026-07-23
-  (**Treasury.gov par curves → Rates T-1** with per-series FRED fallback; **NY Fed SOFR direct**;
-  **lag-honest footnotes** via `market_data.as_of_label` majority-date + outlier enumeration;
-  the `Freshness:` log line) and was **live-validated by the 7/24 debut log**, which settled the
-  spec's §2.4 question: same-day rows at 08:00 = VIX, WTI, DXY, BTC, SK Hynix; all US-listed
-  equities = prior session (the §2.7 quote-endpoint idea = unnecessary). The 2026-07-24
-  **freshest-only rule** then superseded honest-labeling for the broad ICE rows: where the same
-  asset appeared at two lags, only the freshest stays (HY/IG ICE rows dropped; HYG/LQD T-1 are
-  the headline spreads; AAA–CCC buckets stay T-2 — no fresher source exists at that granularity,
-  and that residual lag is structural, not fixable free). The spec's one open thread — paid-data
-  lanes — is distilled into §11.A above (TRACE $6k / cheap stack $8k / BBG DL $20k).
-- **Repetition score (REDUCE_REPEATS Bundles 1+2 + second batch, shipped 2026-07-22/23).** Every
-  run logs `Repetition: N strong + M weak signal(s)` and appends to `repetition_scores.json`
-  (server-side). Shipped 2026-07-23 after readers noticed repetition in the first Fable production
-  run: ideas 4+7+14, then a second batch (idea 3 variant (a), idea 6 soft caps, pointer-echo
-  tightening), then the evening "self-contained §1" upgrade (idea 3(a+), **jared-approved
-  2026-07-23**: §1 = complete per-story compilation w/ nested sub-bullets incl. Contrarian:;
-  later sections = bare (→ §1) pointers only; commit `31ca28e`) — three validated test runs
-  to acohen (best score: 0 strong). **Metric recalibrated same day (v2):**
-  the content-mandated sections (SEC Filings, Rating Actions) are excluded like the data tables —
-  structural ticker collisions were inflating STRONG past the old ≥3 threshold on digests with
-  ZERO story-level repetition. Entries carry `"metric": 2` since then; v1 entries (server history
-  ≤7/23 morning) read ~1–3 strong HIGH — not 1:1 comparable. **v2 decision rule:** observed noise
-  floor on repetition-clean digests is 1–3 strong (incidental in-story ticker mentions + numeric
-  coincidences the regex can't distinguish); escalate only on SUSTAINED ≥4 or continued reader
-  complaints — per the escalation plan below. Weak (bare-%) collisions stay ignorable. NOTE:
-  pytest used to append junk zero-score entries to the real `repetition_scores.json` (any test
-  driving `digest.main()`); fixed 2026-07-23 in `tests/conftest.py` — if the server ever ran
-  `check.bat` before pulling that fix, prune the zero entries before reading the series.
-
-  **Escalation plan if a READER ever complains about repetition again (ordered; the trigger is a
-  human perception, never the score — full spec text in git history, retired 2026-07-30).**
-  Context first: the 2026-07-23 dissection showed the PROMPT lever is essentially exhausted — both
-  validated test runs had ZERO story-level repetition; the residual strong signals are incidental
-  in-story mentions and numeric coincidences that more prompt rules cannot remove (and per the
-  spec's G4, stacking more rules risks degrading Fable's output). So the next moves are code and
-  structure, in this order:
-  1. **Idea 11 — deterministic tripwire** ($0, code). After ~1 week of metric-v2 data, set
-     `REPEAT_TRIPWIRE` at the observed clean-day ceiling (likely 4–5 under v2; the spec's 6–8
-     guidance is stale v1 scale). Alone it turns a bad day into a logged/alerted event.
-     **✅ DECIDED 2026-07-30 — DO NOT BUILD THE TRIPWIRE. The metric is a development
-     yardstick, not a production alert.** The full v2 week (8 readings, 7/24–7/30) reads: full
-     3/2/0/2, team 2/2/4/2 → **range 0–4, mean ~2, ceiling 4**, with the lone 4 (team, 7/28)
-     dissecting as pure noise (`$1.0bn`, `$BFB`, `$PNFP`, `$CABO` — incidental §3↔§6
-     ticker/number collisions, zero story-level repetition). So the output is healthy, but the
-     **reason not to wire an alert is structural, not numeric** (operator call, 2026-07-30):
-     an ops notice reading "team digest scored 6 strong signals" would fire at an operator who
-     has no context for the number and no way to act on it. **Repetition is a perception
-     problem — the real trigger is a reader saying "this feels repetitive"** (exactly how this
-     entire workstream started, 2026-07-23 jared). A score can't substitute for that, and
-     alerting on it trains the operator to ignore footer notices.
-     **What remains true:** `repetition_scores.json` keeps accruing for free (log + file, no
-     alert), so IF a future reader complaint arrives, whoever picks up the prompt work has an
-     instrumented baseline to tune against — which is all this metric was ever for. **Idea 10
-     (gated Sonnet dedup) also NOT triggered** — no sustained ≥4, no complaints, recurring spend
-     unjustified. **`REDUCE_REPEATS_SPEC.md` RETIRED 2026-07-30** (decision checklist closed;
-     full text in git history); the escalation ladder below is the distilled version worth
-     keeping.
-  2. **Idea 10 — dedup pass 2.5, gated by the tripwire** (~$0–20/yr gated; ~$75–110/yr ungated —
-     **recurring spend, needs owner sign-off**). A single-objective Sonnet rewrite of the final
-     HTML with hard fall-back-to-input guards (the retired spec, in git history, has the
-     implementation sketch + placement).
-     Highest-value remaining lever: it's the only one that mechanically catches paraphrase/
-     story-level echo, which prompts ask about but can't verify and the regex metric can't see.
-  3. **Structural (jared's sign-off, not an operator call): Idea 15** — merge §4 Themes + §5
-     Contrarian into §1–§3. Empirical support: the 7/23 residual collisions all sat on the
-     §3/§4/§5 boundaries. **⚠ Attempted 2026-07-23 and REVERTED after a failed test run**
-     (truncation at the token cap, §3 bloat, ignored Contrarian markers — full post-mortem in
-     the retired spec's Idea 15 section — git history; retry preconditions listed there). The
-     failure shipped one
-     durable fix: digest passes now run max_tokens=32,000 with a **truncation guard**
-     (`digest._guard_truncation` — WARNING log + "Output truncated" ops-footer notice + pass-2→pass-1
-     fallback; stop_reason was previously never checked and a capped pass silently sent
-     truncated HTML). Alternatively **Idea 3 variant (b)** (§1 → one-line pointer index; full
-     detail lives in body sections) — also jared's, §5/§1 are signature product features.
-  4. **Fallback, not next step: Idea 8 de-prescribe** — swap the whole rule stack for one
-     editorial principle. Run ONLY if the current stack visibly degrades format/quality or scores
-     don't improve; it's a 2-week A/B (one week each arm, metric as judge).
-  If tuning continues past that, the METRIC becomes the bottleneck (regex can't tell "mentioned
-  in passing" from "story retold") — the upgrade is an LLM-judged story-level score, but build it
-  only if Idea 10 ships and disputes persist, since 10 largely fixes what that would measure.
+- **Cross-day "daily delta" (2026-07-23; VALIDATED live 07-27).** Three pieces keep the digest
+  from repeating yesterday: `pacer._fresh_filing` (entries need a since-last-run pub date AND a
+  current-year case number; January accepts prior year; unparseable over-includes),
+  `digest._set_lookback_hours` (every source window = hours since the last digest file —
+  Monday = 72h; also retunes `pacer.LOOKBACK_HOURS` per run), and
+  `digest._previous_digest_block` (the prior TEAM digest rides as a shared content block —
+  **deliberately NOT in `prompt`, which feeds alert evaluation**; the SYSTEM_PROMPT dated-framing
+  rule leans on it).
+- **PACER O3 signal = the RAW Ch.11 count (fixed 07-28, validated 07-30).** O3 watches
+  `pacer_raw_ch11` (`pacer.raw_ch11_count()`, pre-filter, rerun-safe: raw>0 = feeds alive,
+  raw=0 = actually dead) plus per-court `pacer_rss_<court>` keys (the aggregate can't see one
+  court die — the txsb lesson, Post-mortem library). The filtered `pacer_entries` count is
+  legitimately 0 most days — never re-point O3 at it. New keys self-calibrate (need
+  `MIN_HISTORY` 3 runs; a court that starts dead never nags). If a court ever removes RSS
+  permanently, the replacement lane is the PACER Case Locator API (~pennies/day, needs an
+  account + a small module; CourtListener's free API rides the same feeds).
+- **Snapshot-table data lag — CLOSED 2026-07-27** (fixes shipped + debut-validated: Treasury.gov
+  T-1 rates, NY Fed SOFR, lag-honest footnotes, the freshest-only rule in §11.A; same-day rows
+  at 08:00 = VIX/WTI/DXY/BTC/SK Hynix, everything US-listed = prior session — structural, not
+  fixable free). Full investigation: `SNAPSHOT_UPDATE.md` in git history.
+- **Repetition: the metric is a development yardstick, NEVER a production alert (operator
+  ruling 2026-07-30).** Every run logs `Repetition: N strong + M weak` and appends to
+  `repetition_scores.json` (metric v2 since 7/23: content-mandated sections excluded; noise
+  floor 1–3 strong, clean-week ceiling 4; v1 entries ≤7/23 read high and aren't comparable;
+  if the server ever ran `check.bat` before the 7/23 conftest fix, prune zero-score junk
+  entries before reading the series). **The trigger for any future work is a READER saying
+  "this feels repetitive" — never the score** (an unexplained number would train the operator
+  to ignore footers). **Escalation ladder if that complaint ever comes** (the prompt lever is
+  exhausted — residual signals are incidental mentions more rules can't remove; full spec in
+  git history):
+  1. ~~Deterministic tripwire~~ — **decided NO 2026-07-30** (above).
+  2. **Idea 10 — gated Sonnet dedup pass 2.5** (~recurring spend, owner sign-off): the only
+     lever that mechanically catches paraphrase/story-level echo; implementation sketch in the
+     retired spec (git history).
+  3. **Structural, jared's sign-off: Idea 15** (merge §4+§5 into §1–§3 — the residual
+     collisions sit on those boundaries). **⚠ Attempted 2026-07-23 and REVERTED** — see the
+     Post-mortem library (its durable residue is the truncation guard); retry preconditions in
+     the retired spec. Alternative: §1 → pointer index (also jared's — §5/§1 are signature
+     features).
+  4. Fallback only: de-prescribe the rule stack to one editorial principle (2-week A/B).
+  If tuning continues past that, the regex metric itself is the bottleneck — an LLM-judged
+  score, but only if Idea 10 ships and disputes persist.
 - **Ticker-name learned cache (`ticker_names_cache.json`, 2026-07-22).** Self-seeds from each run
   ("Ticker-name cache: learned N" log line; 12 entries after day one). Watch: a wrong issuer name
   appearing in a digest → inspect/delete the bad cache entry (the proper-noun + source-text guards
   should prevent this; one descriptive-phrase class was already caught and guarded in tests).
-- **Fable cost re-baseline — ✅ DONE 2026-07-30, re-confirmed by the 7/31–8/7 logs:** OPERATOR_GUIDE
-  carries the observed **$160–180/mo** ($6.45–8.51 weekdays, ~$12 Fridays); the earlier
-  ~$90–140/mo guess is superseded. Nothing to watch — billing is firm-paid auto-reload.
 - **Paraphrase-level dedup / true MMR** in the reply path. Current dedup is token-Jaccard ≥0.85
   (near-verbatim twins only). Watch: reply answers feel repetitive from reworded same-story chunks.
   Fix: real MMR over candidate vectors (accept the `search()` return-shape change), or lower the
@@ -1152,39 +920,18 @@ What remains is only what a future session might still act on.)*
 - **`source_type` include-filter on `search()`.** Only the exclude side shipped
   (`exclude_source_types`). Watch: query understanding wanting "only filings / only ratings"
   retrieval. Fix: ~5 lines in `search._filter_ids` + a param.
-- **Memory update cap — FIXED 2026-07-27 (`38a2f69`), keep watching the token line.** The 7/24
-  debut truncated the memory-update delta at the 8,000 `max_tokens` cap (`Memory update truncated
-  (stop_reason=max_tokens). Keeping existing memory.`) → `memory.json` froze at 7/23. The 7/27
-  Monday run recovered (`Memory delta applied: 22 updated, 12 new -> 118 active`) but at
-  **7,822/8,000 out (98%)** — a near-miss, since the delta output scales with changed-story count
-  and the store keeps growing (106→118). Fix: **both** update calls in `memory.py` (`update_memory`
-  + the substack one) raised 8,000 → **16,000** (still within Sonnet's safe non-streaming range;
-  the `stop_reason` keep-existing guard remains the safety net). **Ongoing watch:** the
-  `Memory pass tokens: N in + M out` line — if `M` approaches ~14,000, raise the cap again or
-  switch to streaming. *(Healthy through 8/7: weekly peak 9,755 out — see the next bullet.)*
-- **Memory-store growth — ✅ CLOSED 2026-07-30: NO ACTION NEEDED; the built-in 30-day aging
-  activates on its own ~7/31→8/15.** (This corrects the same-day earlier reading that "`0
-  resolved` every run" was a root-cause bug — it isn't; it's the designed ramp.) The facts:
-  `memory._age_stale_stories` (STALE_DAYS=30, code-enforced, boundary unit-tested) runs on every
-  update and resolves any active story not advanced in 30 days; the MODEL-side "resolved" is
-  deliberately strict ("concluded today" only — v1 taught that model-enforced retirement is
-  lossy). The v2 store began accruing early July, so no story COULD be 31 days stale yet — the
-  code comment predicted the first age-outs "~2026-07-30" to the day. Growth observed 106 (7/24)
-  → 138 (7/30) is the ramp, not a leak. **Equilibrium arithmetic:** ~10 new stories/day × ≥31-day
-  minimum lifetime → the store levels off ~300–400 active. At that size the digest-prompt context
-  is already capped (60/45k budget), the update pass's INPUT grows ~25k tokens (≈ +$0.08/run,
-  Sonnet — trivial), and its OUTPUT — the capped side — scales with stories CHANGED per day
-  (~15–25), not store size, so the 16k cap holds. The resolved-ids index tail grows forever but
-  at ~30 chars/story is a 2027 concern (already noted in `_story_index_for_prompt`).
-  **✅ CONFIRMED LIVE (logs read 2026-08-07): the first `Memory: aged N stale story(ies)`
-  fired Fri 7/31** — the opening day of the predicted window — and aging is routine since
-  (8/3 aged 2+1, 8/6 aged 1+1, 8/7 aged 1, across the main + substack stores). Store growth
-  through 8/7: 146→157→166→183→194→**203 active** — the designed ramp toward the ~300–400
-  equilibrium; memory-pass output peaked at 9,755 tokens vs the 16k cap. Watch CLOSED. **Safety line stays:** if
-  `Memory pass tokens ... out` reaches ~14k, raise the cap or switch that call to streaming the
-  same day (the 7/24 8k-cap freeze is the precedent). The ~90-day archive-to-side-file batch is
-  NOT needed on current arithmetic — reconsider only if the aged store level materially exceeds
-  ~400 active or the output line trends toward the cap.
+- **Memory: one live watch line.** If `Memory pass tokens: N in + M out` shows `M` near
+  **~14,000**, raise the 16k `max_tokens` (BOTH update calls in `memory.py`) or switch that call
+  to streaming the same day — precedent: the 7/24 8k-cap truncation froze `memory.json` for a
+  weekend (`stop_reason` keep-existing guard held; fixed `38a2f69`). Everything else about
+  memory growth is **CLOSED and confirmed live 8/7**: the 30-day ager
+  (`memory._age_stale_stories`, code-enforced) fired 7/31 exactly as designed and runs
+  routinely; the store ramps toward a ~300–400-active equilibrium (~10 new/day × ≥31-day
+  lifetime) at which every cost stays bounded — prompt context is budget-capped (60/45k),
+  update INPUT grows ~25k tokens (trivial on Sonnet), and OUTPUT scales with stories *changed*
+  per day, not store size. The ~90-day archive-to-side-file batch is NOT needed — reconsider
+  only if the aged store materially exceeds ~400 active. (The resolved-ids index tail is a
+  2027 concern, noted in `_story_index_for_prompt`.)
 - **Parked retrieval mechanisms (rerank / hybrid)** — see §6. Re-test kit: `tools/eval_retrieval.py`
   + `tools/eval_golden.json` (29 questions; grow the golden set as archive days accrue —
   cadence rule in §2a: grow it whenever you touch the project).
