@@ -52,10 +52,10 @@ retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
 (`tools/eval_results/2026-07-15_post_index_filter.json`). **Operator since 2026-08-03:
 `jtramontano@acorninv.com` (jared)** — built and handed off by `acohen@acorninv.com`, departed
 2026-07-31; **Jared's old dev instance is decommissioned.** **Digest generation runs on Claude Fable 5 since 2026-07-22**
-(`config.FABLE_MODEL` → `digest.CLAUDE_MODEL`; alerts/13D/reply bot stay on Opus) — expect
-**~$5.0–5.5 per FULL 2-pass run since 2026-07-23** (the cross-day PREVIOUS-DIGEST context +
-self-contained-§1 output added ~$1.7/run to the earlier ~$3.5; observed $5.26 validated;
-re-baseline OPERATIONS' monthly estimate after a week). Digest passes STREAM at max_tokens
+(`config.FABLE_MODEL` → `digest.CLAUDE_MODEL`; alerts/13D/reply bot stay on Opus) — observed
+run costs (validated from the 7/31–8/7 logs): **$6.45–8.51 weekdays** (Mondays high — the
+weekend catch-up window), **~$12 Fridays** including both weekly wraps ≈ **$160–180/mo**
+(OPERATIONS re-baselined 2026-07-30). Digest passes STREAM at max_tokens
 48,000 with a truncation guard (stop_reason → WARNING + ops-footer notice + pass-2→pass-1
 fallback). **Ops-signal routing since 2026-07-28 (jared's request — one email, not two):
 operational signals (source degradation, truncation, config guards) render as a grey "⚙️ System
@@ -576,10 +576,10 @@ end of this section._
   "send test output to yourself.")*
 - **External tooling falls into three cost tiers — know which before testing:**
   - **Pay-per-query (the only real per-call cost): the Anthropic/Claude API.** Token-billed across
-    the 2-pass **Fable** digest (~$5.0–5.5/run since 2026-07-23 — cross-day context + §1 redesign;
-    was ~$3.5) plus the **Fable** Friday weekly wrap (shares `digest.CLAUDE_MODEL`), Haiku (news
-    ranking), Sonnet (PACER size-filter, reply query-extract, memory), and Opus (13D summary,
-    alerts, reply answers).
+    the 2-pass **Fable** digest ($6.45–8.51/run observed, 7/31–8/7 logs) plus the **Fable** Friday
+    weekly wraps (~$4.50/Friday extra; share `digest.CLAUDE_MODEL`), Haiku (news ranking), Sonnet
+    (PACER size-filter, reply query-extract, memory), and Opus (13D summary, alerts, reply
+    answers).
     **Ask explicit permission before any test that calls Claude**, run once on a small input, and
     never loop the full digest. *(Standing exception, operator 2026-07-14: $0 `count_tokens` calls
     are pre-authorized; generation calls stay ask-first.)*
@@ -727,7 +727,8 @@ Investigated and confirmed as deliberate. Changing them adds risk for no benefit
   Both lost the 6-day/26-question eval AND the Stage-4 retest — they promote digest/broker/substack
   chunks over primary sources (rerank) or token-flood (hybrid). The mechanisms stay in code for
   re-testing; re-test only if the corpus character changes fundamentally (gate: ≥ default on hit@3
-  AND MRR, no new misses). Detail in §14.
+  AND MRR, no new misses). Detail: §11.B's parked-retrieval bullet + the Post-mortem library's
+  07-09 entry.
 
 ---
 
@@ -749,9 +750,9 @@ SEC/PACER User-Agent contact and the recipient/allow-list point at the bot
 cleanup. The email identity flipped to the bot 2026-06-30 (jared's
 rule-based forwards flow into the bot inbox; `token.json` = the bot sends + reads inbox; Substack
 renewal reads the forwarded OTP code from the bot inbox). The Substack *account* stays jared's — an
-optional end-state flip to the bot is his call (§13). Full history in WORKLOG.
+optional end-state flip to the bot is his call (§10). Full history: Session history, 06-19 → 08-03.
 
-### 7.2 Dedicated Windows server (the end goal — the remaining work)
+### 7.2 Dedicated Windows server — DEPLOYED 2026-07-20 (the requirements it implemented + the rebuild path)
 
 **The server is DEPLOYED and LIVE** (cutover 2026-07-20; see §1). The executed deploy/cutover
 step-by-step was `NEXT_STEPS_SPEC §5` (retired 2026-07-21 — in git history; the deploy narrative is
@@ -943,8 +944,10 @@ What remains is only what a future session might still act on.)*
   **Watch — VALIDATED 2026-07-27 (Monday log):** `Lookback window: 72h (previous digest
   2026-07-24)` logged, weekend content present, PACER showed only fresh filings. Cross-day
   behavior working.
-- **PACER O3 zero-streak ops-alert — FALSE POSITIVE (diagnosed 2026-07-28), FIXED same day via the
-  raw-count re-point; awaiting a server pull.** After the freshness filter went live (7/24),
+- **PACER O3 zero-streak ops-alert — FALSE POSITIVE (diagnosed 2026-07-28), FIXED same day via
+  the raw-count re-point; DEPLOYED + validated 2026-07-30 (the nag stopped on the first
+  post-pull run; `Ch.11 discovery hits` logging 51–140/day through 8/7).** After the freshness
+  filter went live (7/24),
   `pacer_entries` hit 0 for 3 straight runs and O3 emailed jared a "source dead" ops-alert — but
   PACER was working correctly: the filter properly dropped old-case docket noise (Terraform `24-`,
   Purdue `19-`, MF Global `11-`) and the day's only fresh filings were small local businesses the
@@ -960,9 +963,8 @@ What remains is only what a future session might still act on.)*
   (a key absent from the latest run's counts is never streak-checked), and the new key
   self-calibrates — it cannot signal until it has `MIN_HISTORY` (3) prior runs plus a 3-run zero
   streak. Tests: `test_pacer.py` raw-count pair + `test_digest_main.test_o3_counts_use_raw_pacer_signal`.
-  **Server: needs a pull** (digest.py + pacer.py — digest-run path only, no ReplyMonitor restart
-  needed); until then the false alert nags daily. *(2026-07-29: this pull became CRASH-BLOCKING —
-  it also carries the BKLN formatter fix `2fc906b`; see §1's IMMEDIATE note.)*
+  *(That pull became crash-blocking 2026-07-29 — it also carried the BKLN formatter fix
+  `2fc906b` — and was executed + validated 2026-07-30; see the Session history.)*
   **Residual gaps from the diagnostic:** (1) **txsb (Houston) RSS 404 — ✅ RESOLVED ITSELF
   2026-07-30. DO NOT send the helpdesk email.** The outage was transient: txsb served filings
   normally on 7/24, 404'd on 7/27–7/29, and was **back on 7/30** (no `RSS fetch failed` line and
@@ -1083,9 +1085,9 @@ What remains is only what a future session might still act on.)*
   ("Ticker-name cache: learned N" log line; 12 entries after day one). Watch: a wrong issuer name
   appearing in a digest → inspect/delete the bad cache entry (the proper-noun + source-text guards
   should prevent this; one descriptive-phrase class was already caught and guarded in tests).
-- **First production Fable run (2026-07-23) cost re-baseline.** Expect roughly 2x Opus per-run cost
-  in the daily cost summary; after a week, update OPERATIONS' monthly burn estimate from observed
-  numbers (it was pre-updated to a ~$90–140/mo guess).
+- **Fable cost re-baseline — ✅ DONE 2026-07-30, re-confirmed by the 7/31–8/7 logs:** OPERATIONS
+  carries the observed **$160–180/mo** ($6.45–8.51 weekdays, ~$12 Fridays); the earlier
+  ~$90–140/mo guess is superseded. Nothing to watch — billing is firm-paid auto-reload.
 - **Paraphrase-level dedup / true MMR** in the reply path. Current dedup is token-Jaccard ≥0.85
   (near-verbatim twins only). Watch: reply answers feel repetitive from reworded same-story chunks.
   Fix: real MMR over candidate vectors (accept the `search()` return-shape change), or lower the
@@ -1105,10 +1107,8 @@ What remains is only what a future session might still act on.)*
   and the store keeps growing (106→118). Fix: **both** update calls in `memory.py` (`update_memory`
   + the substack one) raised 8,000 → **16,000** (still within Sonnet's safe non-streaming range;
   the `stop_reason` keep-existing guard remains the safety net). **Ongoing watch:** the
-  `Memory pass tokens: N in + M out` line — if `M` approaches 16,000, raise again or switch to
-  streaming. This also informs the **~7/30 memory-aging decision**: a store whose delta keeps
-  growing toward the cap is the concrete signal to start the ~90-day archive-to-side-file batch
-  (see the next bullet) rather than just lifting the ceiling forever.
+  `Memory pass tokens: N in + M out` line — if `M` approaches ~14,000, raise the cap again or
+  switch to streaming. *(Healthy through 8/7: weekly peak 9,755 out — see the next bullet.)*
 - **Memory-store growth — ✅ CLOSED 2026-07-30: NO ACTION NEEDED; the built-in 30-day aging
   activates on its own ~7/31→8/15.** (This corrects the same-day earlier reading that "`0
   resolved` every run" was a root-cause bug — it isn't; it's the designed ramp.) The facts:
