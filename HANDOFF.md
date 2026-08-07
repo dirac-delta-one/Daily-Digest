@@ -61,8 +61,8 @@ emails (`run_alert.py`) remain separate emails — a failed run has no digest to
 
 **Branch: work on `main`.** `ava-updates` existed only to keep refactor work off `main` while Jared
 ran production from `main`; that's retired, the server tracks `main`, so **`main` is now the
-working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
-be deleted at will.
+working/authoritative branch** — commit and deploy from it. `ava-updates` was deleted from the
+remote 2026-08-07 (tip `e576f7b`, fully merged into `main`, no local copy existed — nothing lost).
 
 **Key operational facts (standing):**
 - **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box
