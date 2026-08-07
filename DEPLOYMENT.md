@@ -190,9 +190,9 @@ is a fresh process).
 
 ## 9 — Restoring from backup (if the current server dies)
 
-The system's data is copied to OneDrive every weekday (`…\OneDrive - Acorn Investment\
-DailyDigest-Backup\` — what's in it and how it syncs: `OPERATOR_GUIDE.md` → "Backups &
-Restore"). To resurrect on a new machine:
+The system's data is copied to OneDrive every weekday into
+`…\OneDrive - Acorn Investment\DailyDigest-Backup\` (what's in it and how it syncs:
+`OPERATOR_GUIDE.md` → "Backups & Restore"). To resurrect on a new machine:
 
 1. Do steps 1–6 above (clone, venv, secrets, tasks).
 2. The secrets were **not** backed up, on purpose — re-supply them per 3a/3b (copy from the
