@@ -16,8 +16,8 @@ DEPLOYMENT STATE + PICKUP blocks below, then §2 (constraints), before making ch
 ("do NOT fix") exists because several blunt-looking pieces of code are intentional and
 battle-tested — constraints, not bugs._
 
-_**Companion docs:** `OPERATOR_GUIDE.md` = the operator runbook + monitoring/failure handling;
-`DEPLOYMENT.md` = machine setup + scheduling only; `README.md` = the repo TLDR.
+_**Companion docs:** `OPERATOR_GUIDE.md` = the operator runbook (emails, How-Tos, every
+failure's fix); `DEPLOYMENT.md` = machine setup + scheduling only; `README.md` = the repo TLDR.
 **Active spec:** `JPM_SPEC.md` (the one parked workstream — JPM dealer research; Phase 1 login
 succeeded 2026-07-29 but the portal is JPM's file-transfer service, not Markets research;
 awaiting jared's re-scope-or-drop call — read its top section first). **Retired docs (all →
@@ -143,9 +143,11 @@ end of this section._
   fixed 7 stale spots (`533cfa5`). README rewritten as a true repo TLDR (~65 lines). The final
   step renamed the companion docs to the reference set's names and shapes: `OPERATIONS.md` →
   **`OPERATOR_GUIDE.md`** (TLDR header + How-To/Question sections; gained the rerun-a-missed-
-  digest and pull-code-updates How-Tos; later the same day it also absorbed Monitoring &
-  Failure Handling + the maintenance calendar — operator's call: DEPLOYMENT stays slim,
-  deploy-only) and `MAINTENANCE.md` → **`DEPLOYMENT.md`** (numbered steps 1–8); MAINTENANCE's
+  digest and pull-code-updates How-Tos; later the same day the failure-handling content merged
+  INTO its email-meanings section + How-Tos and the maintenance calendar was deleted as
+  redundant — operator's calls: DEPLOYMENT stays deploy-only, one failure list not two; the
+  developer-recovery facts moved to §4 "State recovery") and `MAINTENANCE.md` →
+  **`DEPLOYMENT.md`** (numbered steps 1–8); MAINTENANCE's
   "changing the code safely" became §2a here, its "if you're stuck" dropped as redundant with
   this doc's charter; this doc's blocks reordered to the reference layout (STANDING RULES →
   PICKUP → Session history → §1 What it is); the ops footer in `digest.py` now names
@@ -691,7 +693,12 @@ notice in the FULL send's ops footer + digest chunks un-indexed + memory frozen;
 `repetition_scores.json`, `wiltw_cache.json`, and — email-managed, self-seeding from
 `alert_commands.py` defaults if absent — `alerts_config.json` + `watchlist.json`).
 All caches/state self-seed if absent (no manual copy needed); the *secrets* above must be
-installed. *(`credentials_JARED.json`, a pre-2026-06-30-flip OAuth-client dev backup, was deleted
+installed. **State recovery:** each `archive/<date>/` snapshots that day's `memory.json` /
+`substack_memory.json` — if the live one is ever corrupted, copy the last good snapshot back
+(the resolved-story revert lever is named in `memory._story_index_for_prompt`).
+`alerts_config.json`/`watchlist.json` are written atomically; a corrupted one makes the code
+run on built-in defaults WITHOUT overwriting the damaged file — restore it from the O4 backup,
+or delete it to accept a fresh default seed. *(`credentials_JARED.json`, a pre-2026-06-30-flip OAuth-client dev backup, was deleted
 2026-07-27 — obsolete since the bot-identity flip; the live client is `credentials.json`.)*
 **⚠ Since 2026-08-03 the SERVER holds the only live copy of every secret:** the dev machine's
 copies (all six files above, plus the `jpm_recon/` dumps) were deliberately deleted at the
@@ -1180,7 +1187,7 @@ What remains is only what a future session might still act on.)*
   ~400 active or the output line trends toward the cap.
 - **Parked retrieval mechanisms (rerank / hybrid)** — see §6. Re-test kit: `tools/eval_retrieval.py`
   + `tools/eval_golden.json` (29 questions; grow the golden set as archive days accrue —
-  cadence in OPERATOR_GUIDE's maintenance calendar).
+  cadence rule in §2a: grow it whenever you touch the project).
 
 ### C. Declined at the 2026-07-15 second-pass review (recorded so they aren't re-derived)
 - **F7 weekly-wrap token diet** (~$35/yr EV): DEFERRED — quantify first with the free `count_tokens`

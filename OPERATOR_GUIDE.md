@@ -1,16 +1,14 @@
-# Operator Guide — Daily Research Digest
+# Daily Digest — Operator Guide
 
 **TLDR:** what the automated digest emails mean, the few manual actions you may ever need, and
-every known failure case with its fix. The scheduled runs normally do everything (digest
-Mon–Fri 08:00 · watchdog 09:00 · off-box backup 09:45 · the reply bot always on) — you only
+every known failure case with its fix. The scheduled runs normally do everything — you only
 need this page when an alert email arrives, a run was missed, or you want to change what the
-digest watches. Written for the person who receives the alerts (jared); the Monitoring &
-Failure Handling section is the more technical half. For code changes see `HANDOFF.md`; for
-setting up a machine see `DEPLOYMENT.md`.
+digest watches. Written for the person who receives the alerts (jtramontano@acorninv.com as of
+8/7/2026). For code changes see `HANDOFF.md`; for setting up a machine see `DEPLOYMENT.md`.
 
 | Task | When | What it does |
 |---|---|---|
-| MorningDigest | Mon–Fri 08:00 | Builds + emails the Daily Research Digest (your FULL version and the team version; Fridays add the weekly wraps) |
+| MorningDigest | Mon–Fri 08:00 | Builds + emails the Daily Research Digest |
 | Watchdog | Mon–Fri 09:00 | Emails an alert if the morning digest never completed |
 | Backup | Mon–Fri 09:45 | Copies the day's data off-box to OneDrive (see "Backups & restore") |
 | ReplyMonitor | at startup, always on | Answers questions you email as replies to a digest |
@@ -51,11 +49,8 @@ The bot understands things like:
 You'll get a confirmation reply within ~5 minutes stating exactly what changed; the change
 takes effect on the next morning's digest. Anyone who receives a digest can do this. Items
 with a time limit expire on their own: on the last active day the digest shows a **"Watch item
-expiring"** advance warning (renew by reply before coverage lapses), and the first digest after
-the end date shows a one-line **"Watch item expired"** notice — reply to renew if you still
-want it. If the bot isn't sure what you meant, it replies asking you to rephrase instead of
-guessing (and a reply that's just a question is answered normally — asking questions is the
-same channel).
+expiring"** advance warning (renew by email reply), and the first digest after
+the end date shows a one-line **"Watch item expired"** notice. If the bot isn't sure what you meant, it replies asking you to rephrase instead of guessing.
 
 ---
 
@@ -71,10 +66,9 @@ Two things worth knowing:
   rerun still covers everything since the last successful digest.
 - **You can also just wait**: the next morning's run automatically widens its window to cover
   the gap (a Monday digest covers the whole weekend the same way). Skipping a rerun loses
-  nothing except that day's delivery — on the one live crash so far (2026-07-29) the operator
-  deliberately let Thursday absorb it.
+  nothing except that day's delivery.
 
-## How To: re-login to 13D (when the WILTW session expires — weeks/months)
+## How To: re-login to 13D (when the WILTW session expires)
 
 13D Research's weekly "What I Learned This Week" (WILTW) report is one of the digest's paid
 sources, scraped from client.13d.com under a saved login session. When that session expires:
@@ -86,81 +80,68 @@ still sends).
 *Note:* WILTW publishes on Thursdays and takes occasional multi-week breaks. A
 `Report not found` line in the log on a non-publishing week is NORMAL — the session is fine,
 there just isn't a report yet. Only a `Session expired — re-login required` line means the
-login actually died. If you know a report is due, you can refresh the session ahead of time
-with the same `--login` command.
+login actually died. You can't tell staleness from the session file (it's a server-side
+session with no visible expiry) — only a live request shows it, so if you know a report is
+due, refresh the session ahead of time with the same `--login` command. Two monitoring
+caveats: after a multi-week break the degradation notice can't arm until WILTW logs one
+nonzero week again (a long break looks "normally zero" to the monitor), so confirm the first
+post-break report arrived yourself.
 
 **Who can do this:** the login uses 13D's PAID subscription account (Jared's). Only someone
 with those credentials can refresh the session — there is no free or alternative account, and
 a new signup would have no access to WILTW. If the session dies and Jared is unavailable,
-WILTW simply stays skipped until he re-logs in; the digest is otherwise unaffected.
+WILTW simply stays skipped until he logs in again; the digest is otherwise unaffected.
+(Long-term account ownership — keep it Jared's vs. transfer under the bot — is a billing
+decision for Acorn, not a code task.)
 
 ## How To: paste a fresh Substack cookie (only if auto-renewal fails)
 
-It renews itself via a login code emailed to the owner's gmail and auto-forwarded to the bot —
-this manual fallback is only for when the degradation notice names `substack`: log in to
-substack.com in a browser **as Jared's Substack account** (the subscriptions are his), copy the
-`substack.sid` cookie value (browser dev tools → Application → Cookies), paste it as the only
-contents of `substack_cookie.txt` in the project folder.
+It renews itself via a login code Substack emails to Jared's gmail, auto-forwarded to the bot
+(this depends on his `no-reply@substack.com` auto-forward staying live). This manual fallback
+is only for when a degradation notice names `substack`, or `[preview only…]` markers appear
+where full article text used to be: log in to substack.com in a browser **as Jared's Substack
+account**, copy the `substack.sid` cookie value (browser dev tools → Application → Cookies),
+and paste it as the only contents of `substack_cookie.txt` in the project folder.
 
-## How To: fix API billing (only if the auto-reload card dies)
-
-The Anthropic account is **firm-paid with auto-reload ON** (confirmed 2026-08-03), so there is
-**no manual monthly top-up** — the only failure mode is the auto-reload payment itself failing
-(e.g. an expired card), which shows up as run-FAILED alerts mentioning credit/quota. Fix at
-console.anthropic.com (the bot account's login). Expected burn: roughly **$160–180/month**
-(re-baselined 2026-07-30 from real cost lines): weekdays run **$6.5–8.5** (the high end is a
-Monday covering the weekend), plus roughly **$4–4.50** extra on Fridays for the two weekly
-wraps; reply questions add a little on top.
-
-## How To: bring in code that was updated elsewhere
-
-Routine code updates are a plain pull between runs:
-
-```powershell
-git pull
-```
-
-**One rule:** if the pull touched `reply_monitor.py` or `alert_commands.py` (or you changed
-recipients in `env.bat`), restart the reply daemon — it holds old code until restarted:
-
-```powershell
-schtasks /End /TN \DailyDigest\ReplyMonitor; schtasks /Run /TN \DailyDigest\ReplyMonitor
-```
-
-Pulls touching only the morning-digest code need no restart (each morning run is a fresh
-process). Reinstall dependencies only if `requirements.txt` changed
-(`.venv\Scripts\pip install -r requirements.txt`).
+*Note:* 9 of the 17 publications live on custom domains the cookie can't reach — they get full
+text through a Substack side door that could close someday. If it does, those pubs degrade to
+previews permanently (visible via the markers) — a developer decision, not a cookie problem.
 
 ---
 
 ## Question: what does each email mean?
 
 - **🚨 Daily Digest run FAILED — …** — the morning run crashed; the email body shows the last
-  log lines. Usually transient (network); if it repeats two days running, get a developer to
-  read `logs\digest_<date>.log`.
+  ~40 log lines. Usually transient (network); if it repeats two days running, get a developer
+  to read `logs\digest_<date>.log`. If the body mentions **credit/quota**, the billing
+  auto-reload card failed → the billing How-To above.
 - **🚨 Daily Digest MISSING — no completed run — …** — the 9 AM watchdog: the run hung or never
-  started (machine off/asleep, or a login prompt is blocking). Check the machine is on; rerun
-  by hand (How To above) or let tomorrow absorb it.
-- **Red "⚠️ ALERTS" box at the top of a digest** — market/content alerts only (your configured
-  alert triggers, Fed stress signals, and "Watch item expiring"/"expired" notices — reply to
-  renew those). Nothing in the red box is a system problem.
-- **Grey "⚙️ System notices" footer at the BOTTOM of your [FULL] digest** (since 2026-07-28;
-  replaces the old separate ⚙️ email — you asked for one email, not two) — system-health
+  started (machine off/asleep, network down at wake, or a login/consent prompt is blocking —
+  DEPLOYMENT §3b). Check the machine is on, then rerun by hand (How-To above) or let tomorrow's
+  run absorb the gap.
+- **Grey "⚙️ System notices" footer at the BOTTOM of your [FULL] digest** — system-health
   notices, visible only on the FULL digest, never the team's. The ones to know:
   - **"Source degradation: <source>: 0 items for 3 straight runs…"** — a data source silently
     died. `substack` → the cookie How-To. `wiltw` → the 13D How-To. `pacer_rss_<court>` → that
-    court's RSS feed died (court-side; nothing to fix locally — a developer can check for a
-    replacement). Anything else → developer.
+    court's RSS feed died court-side; nothing to fix locally, and worth ~a week of watching
+    before calling it permanent (a 2026-07 outage self-healed in 3 days). Anything else →
+    developer (likely a feed/endpoint change).
   - **"Output truncated"** — a generation pass hit its token cap; the digest may be missing
     trailing sections. One-off is fine; recurring → developer.
   - **"Team config missing"** — the server lost the `DIGEST_TO_TEAM` setting in `env.bat`; the
     team digest isn't going out and memory/search updates are paused as a privacy guard.
-    Restore the line in `env.bat` (sample in `DEPLOYMENT.md`) or get a developer.
+    Restore the line in `env.bat` (sample in `DEPLOYMENT.md`); the next run self-heals.
 
-  No footer = nothing to report (the normal state).
 - **"backup FAILED"** — the 09:45 off-box copy couldn't find its OneDrive folder; see
   "Backups & restore" below.
-- **"(TEST drill)" anywhere in a subject** — it's a drill, not a real failure.
+- **No digest AND no failure email** — check the machine; if it ran fine (log ends clean), the
+  email may be **quarantined by mail security**: Abnormal AI flagged a digest once; IT
+  allowlisted `acorn.research.bot@gmail.com` org-wide for Outlook. A newly-added **non-Outlook**
+  recipient needs their own allowlisting — and note the failure alerts share the same sender,
+  so quarantine can silence both signals at once.
+- **The reply bot answered the same question twice** — two daemon instances are running
+  somewhere (they race on the shared inbox). Exactly ONE may exist anywhere; find and kill the
+  extra (e.g. an old machine that was never decommissioned).
 
 ## Question: is it safe to rerun the digest multiple times?
 
@@ -173,142 +154,23 @@ over silently losing one).
 
 ## Question: who gets each email?
 
-- **Your [FULL] digest** goes to the owner address (`DIGEST_TO`, default jtramontano) — it
-  includes Substack content and your personal alert box, plus the grey system-notices footer
+- **[FULL]** goes to the owner address (`DIGEST_TO`, default jtramontano) — it
+  includes Substack content and the grey system-notices footer
   when there's something to report.
-- **The team digest** goes to everyone in `DIGEST_TO_TEAM` (in the server's `env.bat`) — same
+- **[TEAM]** goes to everyone in `DIGEST_TO_TEAM` (in the server's `env.bat`) — same
   digest minus Substack, each copy with that person's own alert box.
-- **🚨 failure/watchdog alerts** go to the operator (you).
+- **🚨 failure/watchdog alerts** go to the operator.
 - Weekly wraps follow the same FULL/team split every Friday.
 
-## Question: where do things live on the server?
+## Question: where do things live?
 
-- Sent digests: `digests\<date>.html` (and `…_team.html`); everything the system read that
-  day: `archive\<date>\`; logs: `logs\` (30-day rotation).
-- Asking questions: **reply to any digest email** from your work address — the bot answers
-  in-thread within ~5 minutes. (Replies also manage the alerts and watchlist — see above.)
+- Sent digests: `digests\<date>.html` (and `…_team.html`)
+- Everything the system read that day: `archive\<date>\`
+- Logs: `logs\` (30-day rotation).
 - **Bot-account security emails live in a "Gmail Alerts" folder**, not the inbox: Google's
-  account emails about MFA/2-Step Verification and sign-in alerts for
-  `acorn.research.bot@gmail.com` are auto-filtered there (filter added 2026-07-17 — they were
-  being read into the digest as "source emails"). Because they skip the inbox, the digest will
-  NOT surface them — so if you ever suspect something is off with the bot account (an
-  unexpected sign-in, a recovery-info change), log into the bot's Gmail and check the **Gmail
-  Alerts** label directly. The filter lives on the Google account itself — just don't delete it.
-- Known slow burn (developer item, NOT urgent — **nothing is due in August**): the search index
-  grows daily (~1,000–1,400 entries/weekday; 20,157 on 2026-07-30) and in theory gets slower as
-  it does. A benchmark run 2026-07-30 showed the slowdown is negligible for years: search stays
-  well under a tenth of a second even at 10x today's size, and the reply bot's answer time is
-  dominated by the AI call, not the search. **Do nothing unless reply answers actually start to
-  feel slow (or the server runs low on memory) — realistically not before late 2027.** If that
-  ever happens, a developer (or a Claude Code session pointed at HANDOFF §5) has the fix recipe
-  ready. Not an outage risk; answers never become wrong, only slower.
-
-## Question: what happens if something breaks beyond this page?
-
-Any developer can pick the project up cold: everything they need is in the project folder —
-start with `HANDOFF.md` (state + constraints at the top, then the condensed Session history for
-the "why" behind any decision; the full dated narrative is in git history). Nothing about the
-system lives only in someone's head.
-
----
-
-## Monitoring & Failure Handling
-
-Observability is built in: dated log rotation with a 30-day prune (O1), the 09:00 hung-run
-watchdog (O2), the per-source zero-streak content monitor (O3 → the grey "System notices"
-footer on FULL sends), and the 09:45 off-box backup with its own failure alert (O4). Every
-failure below announces itself; **symptom → cause → fix**, ordered roughly by frequency:
-
-**Run FAILED alert (red email, log tail attached).** The run crashed (nonzero exit). Usually a
-transient network blip — check `logs\digest_<date>.log`. If it repeats two days running, debug
-the traceback. The alert email itself contains the last 40 log lines.
-
-**Run MISSING alert (9 AM watchdog).** The morning run hung or never started — machine
-off/asleep, network was down at wake, or a login prompt is blocking. Confirm the machine is on
-and awake, check for a blocking consent (DEPLOYMENT §3b), rerun `run_digest.bat` by hand.
-
-**"Source degradation: <source>: 0 items for 3 straight runs" (System-notices footer).** A
-normally-populated source silently died. `substack` → renew the cookie (How-To above).
-`wiltw` → 13D re-login (How-To above). `pacer_rss_<court>` → that court's RSS feed died
-(court-side; a ~week of watching before calling it permanent — the txsb lesson). Anything
-else → read that fetcher's log block; likely a feed/endpoint change.
-
-**Substack dead / degraded.** Symptom: `substack` degradation notice, or `[preview only…]`
-markers where full text used to be. It auto-renews via the OTP code Substack emails (read from
-the bot inbox — requires jared's `no-reply@substack.com` auto-forward to be live and
-`SUBSTACK_EMAIL` set). **Manual fallback:** the cookie How-To above. *Note:* the 9
-custom-domain pubs get full text only via Substack's unauthenticated per-post API (the auth
-cookie is `.substack.com`-scoped); if Substack closes that, they degrade to previews —
-accepted, visible via the markers.
-
-**13D / WILTW missing.** Two distinct causes — read the log to tell them apart:
-- `Report not found` = the session is **authenticated** but no report exists at that date.
-  WILTW publishes Thursdays and takes **periodic multi-week breaks** (e.g. the Q2 2026 break —
-  the 7/02 report's own footnote announced the next as 7/16). Normal; the digest skips
-  gracefully.
-- `Session expired — re-login required` (a redirect to the login page) = the session actually
-  died. No auto-renewal — the re-login How-To above (Jared's credentials required; there is no
-  free tier, so this is not a fix a developer can do alone; WILTW stays skipped — non-fatal,
-  1 of ~17 sources — until he re-logs in. Long-term ownership, keep-it-Jared's vs.
-  transfer/re-purchase under the bot, is a billing decision for Acorn, not a code task).
-
-Session note: 13D auth is a **server-side session** (`thirteen_d_session.json` holds a `user`
-session-cookie with no client-visible expiry), so you can't tell staleness from the file — only
-a live request shows it. To de-risk a known-upcoming report, run `--login` proactively.
-**O3 caveat:** the content monitor will NOT alert on a WILTW outage if `wiltw` has been 0
-across the whole recorded window (a long break makes it look "normally zero"), so after a break
-ends, manually confirm WILTW returns (`source_counts.json` → `wiltw > 0`) rather than trusting
-the degradation alert. Once it logs one nonzero day, O3 can catch future zero-streaks.
-
-**"Team config missing" notice.** The environment lost `DIGEST_TO_TEAM` (DEPLOYMENT §3d). That
-run skipped indexing + memory on purpose (a privacy guard so Substack prose can't leak to team
-askers). Restore the line in `env.bat`; the next run self-heals. If the team variant is ever
-deliberately retired, set `config.TEAM_ACTIVATION_DATE = None` (otherwise the guard freezes
-indexing forever).
-
-**Digest not delivered / quarantined.** A mail-security product (Abnormal AI) flagged the
-digest as malicious once (new sender + emoji subject + link-dense HTML). IT allowlisted
-`acorn.research.bot@gmail.com` org-wide for Outlook. If a **non-Outlook** recipient is added
-and doesn't receive digests, get their mail security to allowlist the bot — the failure alerts
-share the sender, so quarantine can silence both signal paths at once.
-
-**API credit exhausted.** "run FAILED" alerts mentioning credit/quota. Billing is firm-paid
-with auto-reload ON (2026-08-03), so this should only happen if the reload payment itself fails
-(e.g. card expired) — the billing How-To above.
-
-**Reply bot double-answering / racing.** Exactly ONE reply daemon may run anywhere — two poll
-the same inbox and race (mark-as-read isn't atomic). This only happens if a second instance was
-left running (e.g. an old machine wasn't decommissioned at cutover). Kill the extra.
-
-**Reply answers feel repetitive / slow.** Repetitive → paraphrase-level dedup may be needed
-(`HANDOFF.md §11.B`). Slow → the FAISS index has grown; see the index-growth ladder
-(`HANDOFF.md §5` — benchmarked 2026-07-30, no action expected before ~late 2027).
-
-**Memory anomalies.** If a "new" story is actually a resolved story restated (the
-resolved-story re-creation watch, `HANDOFF.md §11.B`), the revert lever is named in
-`memory._story_index_for_prompt`. If `memory.json` is ever corrupted, each `archive/<date>/`
-directory snapshots that day's `memory.json` / `substack_memory.json` for recovery — copy the
-last good one back.
-
-**Corrupted alerts/watchlist state file.** `alerts_config.json` / `watchlist.json` are written
-atomically and seeded from `alert_commands.py` defaults when missing; if one is ever corrupted,
-the code runs on built-in defaults **without overwriting the damaged file** — restore it from
-the O4 backup (or delete it to accept a fresh default seed).
-
-**PACER duplicates.** After a crashed run, previously-seen court entries can re-appear next run
-(by design — `commit_seen()` only fires after a successful send, choosing duplication over
-silent loss). Harmless; no action.
-
-### Routine maintenance calendar
-
-| Cadence | Task |
-|---|---|
-| Continuous (automatic) | Failure/watchdog/degradation alerts; log rotation (30-day); the O4 off-box backup (glance at the OneDrive web folder every few weeks to confirm it's uploading). |
-| Every few weeks (reactive) | Substack cookie — usually auto-renews; paste manually if the degradation notice fires. |
-| Weeks–months (reactive) | 13D re-login when the WILTW session actually expires. |
-| Occasionally | Glance at the Anthropic billing page — auto-reload is ON, so the only thing to catch is a failing reload card (a credit/quota run-FAILED alert is the active signal). |
-| When you touch the project | Add a few golden-set questions for new archive days, incl. cross-day ones — the retrieval eval only stays meaningful if it compounds. |
-| At ~200k index vectors (~late 2027), or when replies actually feel slow | Work the index-growth ladder (`HANDOFF.md §5`): (1) vectorized subset scan ✅ done → (2) date-windowed retrieval default (⚠ eval-gate it) → (3) prune old days → (4) IVF. *(Benchmarked 2026-07-30: flat search is milliseconds even at 10x the old tripwire — no action expected in 2026.)* |
+  account emails about MFA/2-Step Verification are auto-filtered out of the inbox.
+- **Reply answers feel slow or repetitive?** Developer item, not urgent — `HANDOFF.md §5`
+  (index growth, benchmarked: nothing expected before ~late 2027) / `§11.B` (dedup).
 
 ---
 

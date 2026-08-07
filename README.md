@@ -9,7 +9,7 @@ with a question — or manage alerts and the SEC watchlist in plain English). Fr
 |---|---|
 | `HANDOFF.md` | Engineering continuity — current state, constraints, do-NOT-touch list, risks, condensed session history + post-mortems. **Start here for any code change.** |
 | `DEPLOYMENT.md` | Setting up the automated digest on a machine (secrets, env, scheduled tasks). |
-| `OPERATOR_GUIDE.md` | Running things by hand, managing alerts/watchlist by email, and monitoring + every known failure case with its fix. |
+| `OPERATOR_GUIDE.md` | Running things by hand, managing alerts/watchlist by email, and every known failure case with its fix. |
 | `JPM_SPEC.md` | The one parked workstream (JPM dealer research) — awaiting the owner's re-scope-or-drop decision. |
 
 ## Repo layout
