@@ -118,8 +118,7 @@ set DIGEST_TO=you@acorninv.com
 
 All caches/state self-seed when missing — a fresh machine needs **no** state copy. When
 **restoring** a failed server, copy the OneDrive backup's contents back in (`archive\`, `digests\`,
-the memory files, caches, the search index) — the restore procedure is
-`OPERATOR_GUIDE.md` → "Backups & Restore".
+the memory files, caches, the search index) — the full restore procedure is §9 below.
 
 ## 4 — Sanity check
 
@@ -188,3 +187,17 @@ Reinstall dependencies only when `requirements.txt` changed
 daemon:** `schtasks /End /TN \DailyDigest\ReplyMonitor; schtasks /Run /TN \DailyDigest\ReplyMonitor`
 — it holds old code until restarted. Digest-path-only pulls need no restart (each morning run
 is a fresh process).
+
+## 9 — Restoring from backup (if the current server dies)
+
+The system's data is copied to OneDrive every weekday (`…\OneDrive - Acorn Investment\
+DailyDigest-Backup\` — what's in it and how it syncs: `OPERATOR_GUIDE.md` → "Backups &
+Restore"). To resurrect on a new machine:
+
+1. Do steps 1–6 above (clone, venv, secrets, tasks).
+2. The secrets were **not** backed up, on purpose — re-supply them per 3a/3b (copy from the
+   old server if its disk survives, else regenerate).
+3. Copy the contents of `DailyDigest-Backup\` (from OneDrive) into the project folder.
+
+The archive, memory files, and search index all come back, and the system continues from the
+last backup. Remember the cutover rule (step 6) if the old machine is still partly alive.

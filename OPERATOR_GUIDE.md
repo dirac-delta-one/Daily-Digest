@@ -209,11 +209,6 @@ OneDrive (the web site, or the cloud icon in the system tray) and check the
 `DailyDigest-Backup` folder is there and recently updated. If OneDrive shows a sync error, sort
 that out (a standard OneDrive issue) — the data is safe on the server in the meantime.
 
-**How to restore (if the server's disk fails):**
-1. Set the project up fresh on a machine per `DEPLOYMENT.md`.
-2. Re-supply the secrets — they were **not** backed up, on purpose: the Gmail login, Substack
-   cookie, 13D session, and `env.bat`. See `DEPLOYMENT.md` step 3.
-3. Copy the contents of `DailyDigest-Backup\` (from OneDrive) back into the project folder.
-
-The archive, memory, and search index all come back, and the system continues from the last
-backup.
+**How to restore (if the server's disk fails):** follow `DEPLOYMENT.md` §9 — the normal
+machine setup plus copying this backup back in. (The secrets were **not** backed up, on
+purpose; DEPLOYMENT covers re-supplying them.)
