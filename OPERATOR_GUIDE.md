@@ -1,10 +1,11 @@
 # Operator Guide — Daily Research Digest
 
-**TLDR:** what the automated digest emails mean and the few manual actions you may ever need —
-no code knowledge assumed. The scheduled runs normally do everything (digest Mon–Fri 08:00 ·
-watchdog 09:00 · off-box backup 09:45 · the reply bot always on) — you only need this page when
-an alert email arrives, a run was missed, or you want to change what the digest watches.
-Written for the person who receives the alerts (jared). For code changes see `HANDOFF.md`; for
+**TLDR:** what the automated digest emails mean, the few manual actions you may ever need, and
+every known failure case with its fix. The scheduled runs normally do everything (digest
+Mon–Fri 08:00 · watchdog 09:00 · off-box backup 09:45 · the reply bot always on) — you only
+need this page when an alert email arrives, a run was missed, or you want to change what the
+digest watches. Written for the person who receives the alerts (jared); the Monitoring &
+Failure Handling section is the more technical half. For code changes see `HANDOFF.md`; for
 setting up a machine see `DEPLOYMENT.md`.
 
 | Task | When | What it does |
@@ -200,6 +201,106 @@ Any developer can pick the project up cold: everything they need is in the proje
 start with `HANDOFF.md` (state + constraints at the top, then the condensed Session history for
 the "why" behind any decision; the full dated narrative is in git history). Nothing about the
 system lives only in someone's head.
+
+---
+
+## Monitoring & Failure Handling
+
+Observability is built in: dated log rotation with a 30-day prune (O1), the 09:00 hung-run
+watchdog (O2), the per-source zero-streak content monitor (O3 → the grey "System notices"
+footer on FULL sends), and the 09:45 off-box backup with its own failure alert (O4). Every
+failure below announces itself; **symptom → cause → fix**, ordered roughly by frequency:
+
+**Run FAILED alert (red email, log tail attached).** The run crashed (nonzero exit). Usually a
+transient network blip — check `logs\digest_<date>.log`. If it repeats two days running, debug
+the traceback. The alert email itself contains the last 40 log lines.
+
+**Run MISSING alert (9 AM watchdog).** The morning run hung or never started — machine
+off/asleep, network was down at wake, or a login prompt is blocking. Confirm the machine is on
+and awake, check for a blocking consent (DEPLOYMENT §3b), rerun `run_digest.bat` by hand.
+
+**"Source degradation: <source>: 0 items for 3 straight runs" (System-notices footer).** A
+normally-populated source silently died. `substack` → renew the cookie (How-To above).
+`wiltw` → 13D re-login (How-To above). `pacer_rss_<court>` → that court's RSS feed died
+(court-side; a ~week of watching before calling it permanent — the txsb lesson). Anything
+else → read that fetcher's log block; likely a feed/endpoint change.
+
+**Substack dead / degraded.** Symptom: `substack` degradation notice, or `[preview only…]`
+markers where full text used to be. It auto-renews via the OTP code Substack emails (read from
+the bot inbox — requires jared's `no-reply@substack.com` auto-forward to be live and
+`SUBSTACK_EMAIL` set). **Manual fallback:** the cookie How-To above. *Note:* the 9
+custom-domain pubs get full text only via Substack's unauthenticated per-post API (the auth
+cookie is `.substack.com`-scoped); if Substack closes that, they degrade to previews —
+accepted, visible via the markers.
+
+**13D / WILTW missing.** Two distinct causes — read the log to tell them apart:
+- `Report not found` = the session is **authenticated** but no report exists at that date.
+  WILTW publishes Thursdays and takes **periodic multi-week breaks** (e.g. the Q2 2026 break —
+  the 7/02 report's own footnote announced the next as 7/16). Normal; the digest skips
+  gracefully.
+- `Session expired — re-login required` (a redirect to the login page) = the session actually
+  died. No auto-renewal — the re-login How-To above (Jared's credentials required; there is no
+  free tier, so this is not a fix a developer can do alone; WILTW stays skipped — non-fatal,
+  1 of ~17 sources — until he re-logs in. Long-term ownership, keep-it-Jared's vs.
+  transfer/re-purchase under the bot, is a billing decision for Acorn, not a code task).
+
+Session note: 13D auth is a **server-side session** (`thirteen_d_session.json` holds a `user`
+session-cookie with no client-visible expiry), so you can't tell staleness from the file — only
+a live request shows it. To de-risk a known-upcoming report, run `--login` proactively.
+**O3 caveat:** the content monitor will NOT alert on a WILTW outage if `wiltw` has been 0
+across the whole recorded window (a long break makes it look "normally zero"), so after a break
+ends, manually confirm WILTW returns (`source_counts.json` → `wiltw > 0`) rather than trusting
+the degradation alert. Once it logs one nonzero day, O3 can catch future zero-streaks.
+
+**"Team config missing" notice.** The environment lost `DIGEST_TO_TEAM` (DEPLOYMENT §3d). That
+run skipped indexing + memory on purpose (a privacy guard so Substack prose can't leak to team
+askers). Restore the line in `env.bat`; the next run self-heals. If the team variant is ever
+deliberately retired, set `config.TEAM_ACTIVATION_DATE = None` (otherwise the guard freezes
+indexing forever).
+
+**Digest not delivered / quarantined.** A mail-security product (Abnormal AI) flagged the
+digest as malicious once (new sender + emoji subject + link-dense HTML). IT allowlisted
+`acorn.research.bot@gmail.com` org-wide for Outlook. If a **non-Outlook** recipient is added
+and doesn't receive digests, get their mail security to allowlist the bot — the failure alerts
+share the sender, so quarantine can silence both signal paths at once.
+
+**API credit exhausted.** "run FAILED" alerts mentioning credit/quota. Billing is firm-paid
+with auto-reload ON (2026-08-03), so this should only happen if the reload payment itself fails
+(e.g. card expired) — the billing How-To above.
+
+**Reply bot double-answering / racing.** Exactly ONE reply daemon may run anywhere — two poll
+the same inbox and race (mark-as-read isn't atomic). This only happens if a second instance was
+left running (e.g. an old machine wasn't decommissioned at cutover). Kill the extra.
+
+**Reply answers feel repetitive / slow.** Repetitive → paraphrase-level dedup may be needed
+(`HANDOFF.md §11.B`). Slow → the FAISS index has grown; see the index-growth ladder
+(`HANDOFF.md §5` — benchmarked 2026-07-30, no action expected before ~late 2027).
+
+**Memory anomalies.** If a "new" story is actually a resolved story restated (the
+resolved-story re-creation watch, `HANDOFF.md §11.B`), the revert lever is named in
+`memory._story_index_for_prompt`. If `memory.json` is ever corrupted, each `archive/<date>/`
+directory snapshots that day's `memory.json` / `substack_memory.json` for recovery — copy the
+last good one back.
+
+**Corrupted alerts/watchlist state file.** `alerts_config.json` / `watchlist.json` are written
+atomically and seeded from `alert_commands.py` defaults when missing; if one is ever corrupted,
+the code runs on built-in defaults **without overwriting the damaged file** — restore it from
+the O4 backup (or delete it to accept a fresh default seed).
+
+**PACER duplicates.** After a crashed run, previously-seen court entries can re-appear next run
+(by design — `commit_seen()` only fires after a successful send, choosing duplication over
+silent loss). Harmless; no action.
+
+### Routine maintenance calendar
+
+| Cadence | Task |
+|---|---|
+| Continuous (automatic) | Failure/watchdog/degradation alerts; log rotation (30-day); the O4 off-box backup (glance at the OneDrive web folder every few weeks to confirm it's uploading). |
+| Every few weeks (reactive) | Substack cookie — usually auto-renews; paste manually if the degradation notice fires. |
+| Weeks–months (reactive) | 13D re-login when the WILTW session actually expires. |
+| Occasionally | Glance at the Anthropic billing page — auto-reload is ON, so the only thing to catch is a failing reload card (a credit/quota run-FAILED alert is the active signal). |
+| When you touch the project | Add a few golden-set questions for new archive days, incl. cross-day ones — the retrieval eval only stays meaningful if it compounds. |
+| At ~200k index vectors (~late 2027), or when replies actually feel slow | Work the index-growth ladder (`HANDOFF.md §5`): (1) vectorized subset scan ✅ done → (2) date-windowed retrieval default (⚠ eval-gate it) → (3) prune old days → (4) IVF. *(Benchmarked 2026-07-30: flat search is milliseconds even at 10x the old tripwire — no action expected in 2026.)* |
 
 ---
 

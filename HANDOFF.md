@@ -16,9 +16,8 @@ DEPLOYMENT STATE + PICKUP blocks below, then §2 (constraints), before making ch
 ("do NOT fix") exists because several blunt-looking pieces of code are intentional and
 battle-tested — constraints, not bugs._
 
-_**Companion docs:** `OPERATOR_GUIDE.md` = the operator-facing (non-technical) runbook;
-`DEPLOYMENT.md` = machine setup + scheduling + monitoring/failure handling;
-`README.md` = the repo TLDR.
+_**Companion docs:** `OPERATOR_GUIDE.md` = the operator runbook + monitoring/failure handling;
+`DEPLOYMENT.md` = machine setup + scheduling only; `README.md` = the repo TLDR.
 **Active spec:** `JPM_SPEC.md` (the one parked workstream — JPM dealer research; Phase 1 login
 succeeded 2026-07-29 but the portal is JPM's file-transfer service, not Markets research;
 awaiting jared's re-scope-or-drop call — read its top section first). **Retired docs (all →
@@ -69,9 +68,10 @@ be deleted at will.
   password) is the working path. Re-register that way, never the bare S4U default.
 - **The server's Gmail token is the dev laptop's copied token pair (Plan B)** — the MFA lockout was
   never resolved, just routed around; refresh-token auth works through it. (The dev laptop's copy
-  was deleted 2026-08-03 — the server's is now the only one.) MFA is team-owned (backup codes in
-  the vault AND emailed to jared on the thread where `acorn.research.bot@gmail.com` was created;
-  recovery phone = a teammate staying past 7/31).
+  was deleted 2026-08-03 — the server's is now the only one.) MFA is team-owned: the MFA email is
+  `sarmstrong@acorninv.com` and the phone is Jared's cell (recorded by the operator 2026-08-07);
+  backup codes are in the vault AND emailed to jared on the thread where
+  `acorn.research.bot@gmail.com` was created.
 - **O4 backup = state-only `robocopy` into `%OneDriveCommercial%\DailyDigest-Backup`** (weekday
   09:45), which OneDrive syncs off-box; works because the server is kept logged-in-and-locked.
 - **Durable pull rule: any pull touching `reply_monitor.py`/`alert_commands.py` (or changing
@@ -143,8 +143,9 @@ end of this section._
   fixed 7 stale spots (`533cfa5`). README rewritten as a true repo TLDR (~65 lines). The final
   step renamed the companion docs to the reference set's names and shapes: `OPERATIONS.md` →
   **`OPERATOR_GUIDE.md`** (TLDR header + How-To/Question sections; gained the rerun-a-missed-
-  digest and pull-code-updates How-Tos) and `MAINTENANCE.md` → **`DEPLOYMENT.md`** (numbered
-  steps 1–8 + Monitoring & Failure Handling + the maintenance calendar); MAINTENANCE's
+  digest and pull-code-updates How-Tos; later the same day it also absorbed Monitoring &
+  Failure Handling + the maintenance calendar — operator's call: DEPLOYMENT stays slim,
+  deploy-only) and `MAINTENANCE.md` → **`DEPLOYMENT.md`** (numbered steps 1–8); MAINTENANCE's
   "changing the code safely" became §2a here, its "if you're stuck" dropped as redundant with
   this doc's charter; this doc's blocks reordered to the reference layout (STANDING RULES →
   PICKUP → Session history → §1 What it is); the ops footer in `digest.py` now names
@@ -1179,7 +1180,7 @@ What remains is only what a future session might still act on.)*
   ~400 active or the output line trends toward the cap.
 - **Parked retrieval mechanisms (rerank / hybrid)** — see §6. Re-test kit: `tools/eval_retrieval.py`
   + `tools/eval_golden.json` (29 questions; grow the golden set as archive days accrue —
-  cadence in DEPLOYMENT's maintenance calendar).
+  cadence in OPERATOR_GUIDE's maintenance calendar).
 
 ### C. Declined at the 2026-07-15 second-pass review (recorded so they aren't re-derived)
 - **F7 weekly-wrap token diet** (~$35/yr EV): DEFERRED — quantify first with the free `count_tokens`
