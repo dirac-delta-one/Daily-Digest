@@ -71,12 +71,12 @@ and paste it as the only contents of `substack_cookie.txt` in the project folder
 
 ## Question: what does each email mean?
 
-- **🚨 Daily Digest run FAILED — …** — the morning run crashed; the email body shows the last
+- **🚨 Daily Digest run FAILED** — the morning run crashed; the email body shows the last
   ~40 log lines. Usually transient (network); if it repeats two days running, get a developer
   to read `logs\digest_<date>.log`. If the body mentions **credit/quota**, the firm-paid
   auto-reload card failed — fix the payment method at console.anthropic.com (the bot
   account's login).
-- **🚨 Daily Digest MISSING — no completed run — …** — the 9 AM watchdog: the run hung or never
+- **🚨 Daily Digest MISSING — no completed run** — the 9 AM watchdog: the run hung or never
   started (machine off/asleep, network down at wake, or a login/consent prompt is blocking —
   DEPLOYMENT §3b). Check the machine is on.
 - **Grey "⚙️ System notices" footer at the BOTTOM of your [FULL] digest** — system-health
