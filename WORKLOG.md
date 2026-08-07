@@ -145,6 +145,13 @@ open observation is now closed, and every one came back healthy:**
 re-scope-or-drop decision.** Remaining passive self-announcing watches: the gap-note fix's
 first armed Friday, the memory-pass ~14k line, the F13 ~200k-vector horizon (~late 2027).
 
+**Same day: README de-staled** (the last doc untouched since deploy week): dropped the
+"intraday materiality alert" claim from the intro (the MiddayAlert task was removed 2026-07-21),
+cost section $45–55/mo → the validated **$160–180/mo** ($6.5–8.5 weekdays, ~$12 Fridays,
+auto-reload noted), status paragraph rewritten to the closed-out unattended state (was "only a
+multi-day soak remains"), docs table gained `JPM_SPEC.md`, secrets list gained
+`jpm_session.json`, and `HOURS_LOOKBACK` now notes the per-run weekend-aware retune.
+
 **Same day, later: `REORG_CHECKLIST.md` RETIRED** (operator call — a root-level runbook for
 indefinitely-parked work reads like a pending TODO to a future developer, and no live doc even
 referenced it). Standard retire-and-distill: the surviving essentials (Phase 0 / `REPO_ROOT` is

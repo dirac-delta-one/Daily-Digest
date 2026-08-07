@@ -2,8 +2,9 @@
 
 An automated daily research briefing for a credit/distressed investment desk. Once a day it gathers
 ~17 financial/market sources, summarizes them with Claude in a two-pass flow, and emails a
-structured HTML digest. It also archives everything it reads into a local search index that powers
-an **email-reply Q&A bot**, and sends an intraday materiality alert when something important breaks.
+structured HTML digest with configurable plain-English alerts (managed by replying to the digest in
+plain English). It also archives everything it reads into a local search index that powers an
+**email-reply Q&A bot**.
 
 Runs unattended on a Windows machine via Task Scheduler. Single-operator tool; Python 3.12.
 
@@ -125,16 +126,20 @@ Verify with `Get-ScheduledTask -TaskPath "\DailyDigest\"`.
 
 ## Configuration
 
-Top of `digest.py`: `HOURS_LOOKBACK` (24), `MAX_EMAILS` (50), `MAX_PDF_SIZE_MB` (5), the email-body
-prompt budgets, `MAX_FETCH_WORKERS` (6). Recipients are env-driven (`DIGEST_TO` / `DIGEST_TO_TEAM`).
+Top of `digest.py`: `HOURS_LOOKBACK` (24 — the base; each run auto-extends it to cover the gap
+since the last digest, e.g. 72h on Mondays), `MAX_EMAILS` (50), `MAX_PDF_SIZE_MB` (5), the
+email-body prompt budgets, `MAX_FETCH_WORKERS` (6). Recipients are env-driven (`DIGEST_TO` / `DIGEST_TO_TEAM`).
 Model IDs and pricing are centralized in `config.py`. Top of `substack.py`: `MAX_ARTICLES_PER_PUB`,
 `MAX_ARTICLE_CHARS`, and the `SUBSCRIPTIONS` list.
 
 ## Cost
 
-Roughly **$45–55/month** in steady state (two digest variants + Friday wraps + answered reply
-questions); individual daily runs land around **$1.50–$2.00** depending on PDF/article volume. Every
-entry point prints a per-call cost summary at the end of its run. Monitor at
+Roughly **$160–180/month** in steady state (re-baselined 2026-07-30 from production cost lines,
+and confirmed by the first unattended week: two digest variants on Claude Fable 5 + Friday wraps
++ answered reply questions). Individual weekday runs land around **$6.50–8.50** (Mondays at the
+high end — the weekend catch-up window), Fridays ~**$12** including both weekly wraps. Every
+entry point prints a per-call cost summary at the end of its run. Billing is firm-paid with
+auto-reload ON (no manual top-ups); monitor at
 [console.anthropic.com](https://console.anthropic.com).
 
 ---
@@ -147,6 +152,7 @@ Account-bound — must exist on the machine; copy from a working install or rege
 - `token.json` — Gmail auth token (the durable **production** token; see setup step 2)
 - `substack_cookie.txt` — Substack session (auto-renews; manual paste is the fallback)
 - `thirteen_d_session.json` — 13D login session (manual re-login when it expires)
+- `jpm_session.json` — JPM portal session (only if the parked JPM workstream is revived — `JPM_SPEC.md`)
 - `env.bat` — environment variables (above)
 - State/caches: `memory.json`, `substack_memory.json`, `*_cache.json`, `pacer_seen.json`,
   `source_counts.json`, and the `archive/` tree (raw content + the FAISS index).
@@ -160,9 +166,12 @@ Account-bound — must exist on the machine; copy from a working install or rege
 | `README.md` | anyone | this file — what it is, setup, scheduling |
 | `HANDOFF.md` | developer | current state, constraints, "do NOT touch," risks, remaining work |
 | `MAINTENANCE.md` | developer | keeping it running: secrets, rotation, failure cases & fixes |
-| `OPERATIONS.md` | operator (non-technical) | what each email means + the three manual fixes |
+| `OPERATIONS.md` | operator (non-technical) | what each email means + the manual fixes |
 | `WORKLOG.md` | developer | the full dated history of every change and why |
+| `JPM_SPEC.md` | developer | the one parked workstream (JPM dealer research) — awaiting the owner's re-scope-or-drop decision; read its top section first |
 
-**Project status:** DEPLOYED & LIVE — running unattended on the dedicated Windows server since
-2026-07-20; first unattended run GREEN 2026-07-21, and all post-deploy rollout (O4 backups, operator
-handoff, cleanups) is done. Work happens on the `main` branch. Only a multi-day soak remains.
+**Project status:** DEPLOYED, LIVE & FULLY UNATTENDED — running on the dedicated Windows server
+since 2026-07-20. The build/soak/handoff cycle closed 2026-08-07 with the first fully-unattended
+week validated green from the logs; the original developer has departed and the system requires no
+scheduled human care (billing auto-reloads; alerts announce anything that needs a hand — see
+`OPERATIONS.md`). Work happens on the `main` branch. New developers start with `HANDOFF.md` §1.
