@@ -98,10 +98,11 @@ streaming weeklies complete (10.6–15.9k out vs the 32k cap), costs $6.45–8.5
 Fridays ≈ the **$160–180/mo** baseline. The 7/31 "FOMC day" weekly-wrap confabulation was fixed
 code-side 2026-08-03 (`digest._weekly_digest_text` injects factual NO-DIGEST gap notes; full
 weeks byte-identical, test-pinned; inert until a weekday digest is missing) and is **DEPLOYED**
-(live from the Mon 8/10 run). **The server is fully current with `main`** (final sync
-2026-08-07 after the doc-set realignment; the only code delta in that batch was the ops-footer
-string naming OPERATOR_GUIDE.md) — **nothing is pending anywhere: no unpushed commits, no
-unpulled commits, no restarts owed.** Post-departure facts: **operator = jared**
+(live from the Mon 8/10 run). **The server last synced 2026-08-07 (`b200285`)** — every
+behavioral change through the gap-note fix + the ops-footer string is on-box, with **no
+restarts owed**. Docs-only commits made after that sync may trail on the server harmlessly
+(pull whenever); if anything BEHAVIORAL is ever pending a pull, this PICKUP will say so
+explicitly. Post-departure facts: **operator = jared**
 (receives the failure alerts); **Anthropic billing = firm-paid, auto-reload ON** (no manual
 top-ups); FRED key on the bot Gmail (operator recollection, unverified); Gmail backup codes in
 the vault AND with jared on the bot-creation email thread; **the dev machine holds NO secrets**
