@@ -1628,7 +1628,7 @@ def _build_ops_footer_html(ops_alerts):
         'margin: 24px auto 0; color: #888; font-size: 12px; line-height: 1.5; '
         'border-top: 1px solid #ddd; padding-top: 10px;">\n'
         '<p style="margin: 0 0 6px;">⚙️ System notices — fix guidance in '
-        'OPERATIONS.md</p>\n'
+        'OPERATOR_GUIDE.md</p>\n'
         f'<ul style="padding-left: 18px; margin: 0;">\n{items}</ul>\n'
         '</div>\n'
     )

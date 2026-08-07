@@ -9,13 +9,16 @@ the condensed digest is the **Session history** section below. **Pointer convent
 historical pointer into that file at `3965f7e`; code comments citing "HANDOFF §13"/"§14"/"§14.F"
 use pre-2026-07-15 section numbers (§13 → today's §10 coverage gaps; §14/§14.F → §6 + §11.B
 parked-retrieval items) — treat all doc citations as historical pointers and grep by topic when
-in doubt. Read §1 (state) and §2 (constraints) before making changes; §6 ("do NOT fix") exists
-because several blunt-looking pieces of code are intentional and battle-tested — constraints,
-not bugs._
+in doubt. **Doc renames (2026-08-07 realignment):** `OPERATIONS.md` → `OPERATOR_GUIDE.md` and
+`MAINTENANCE.md` → `DEPLOYMENT.md` (+ its "changing the code safely" content → §2a here) —
+old-name mentions in the Session history digests refer to those files' git history. Read the
+DEPLOYMENT STATE + PICKUP blocks below, then §2 (constraints), before making changes; §6
+("do NOT fix") exists because several blunt-looking pieces of code are intentional and
+battle-tested — constraints, not bugs._
 
-_**Companion docs:** `OPERATIONS.md` = the operator-facing (non-technical) runbook;
-`MAINTENANCE.md` = the developer keep-it-running guide (incl. machine bring-up: setup +
-scheduling); `README.md` = the repo TLDR.
+_**Companion docs:** `OPERATOR_GUIDE.md` = the operator-facing (non-technical) runbook;
+`DEPLOYMENT.md` = machine setup + scheduling + monitoring/failure handling;
+`README.md` = the repo TLDR.
 **Active spec:** `JPM_SPEC.md` (the one parked workstream — JPM dealer research; Phase 1 login
 succeeded 2026-07-29 but the portal is JPM's file-transfer service, not Markets research;
 awaiting jared's re-scope-or-drop call — read its top section first). **Retired docs (all →
@@ -24,25 +27,14 @@ Phase 0/`REPO_ROOT` done and load-bearing, Phase 1 parked → §11.A); `REDUCE_R
 (2026-07-30 — anti-repetition all built; NO score-wired alert, a reader complaint is the
 trigger; ladder → §11.B); `SNAPSHOT_UPDATE.md` (2026-07-27 — freshness work shipped; paid-data
 lanes → §11.A); `ALERT_COMMANDS_SPEC.md` (2026-07-22 — email-managed alerts/watchlist, all
-shipped; how-it-works → §4 + OPERATIONS); `DEPLOY_PROGRESS.md` + `NEXT_STEPS_SPEC.md` (2026-07-21
+shipped; how-it-works → §4 + OPERATOR_GUIDE); `DEPLOY_PROGRESS.md` + `NEXT_STEPS_SPEC.md` (2026-07-21
 — deploy executed); `CLEANUP_SPEC.md` / `CLEANUP_REFACTOR_SPEC.md` / `TEAM_DIGEST_SPEC.md`
 (2026-07-21 — intent distilled into §1a/§9/Session history). This file was first condensed
 2026-07-15 (F22 pass)._
 
 ---
 
-## 1. Objective & current state
-
-**What it is:** A solo-operator Python automation that runs daily on a schedule. It gathers ~17
-financial/market data sources (Gmail inbox + forwarded research PDFs, paid Substack subs, SEC
-EDGAR, FRED macro, Fed balance sheet, Yahoo Finance, earnings calendar, PACER, 13F filings, rating
-actions, central-bank research, Treasury auctions, CFTC COT, FDIC, WSJ/FT RSS, 13D WILTW),
-summarizes them with Claude in a **two-pass** flow (draft → review/enhance), emails an HTML "Daily
-Research Digest" (that's the in-email H1; the *subject line* is "📬 Daily Inbox Digest" =
-`config.DIGEST_SUBJECT_PREFIX`, which the reply bot's Gmail query anchors on — search sent mail by
-the latter), archives all raw content to disk, and indexes it into a local FAISS vector store
-that powers an **email-reply Q&A bot**. Since 2026-07-13 each run produces **two variants** — a
-FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
+**DEPLOYMENT STATE + STANDING RULES:**
 
 **Current state — DEPLOYED & LIVE (server cutover completed 2026-07-20).** The dedicated Windows
 server (`ShawnArmstrong`) is the SOLE instance, running unattended: four scheduled tasks Ready under
@@ -56,7 +48,7 @@ retrieval eval baseline **hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses**
 (`config.FABLE_MODEL` → `digest.CLAUDE_MODEL`; alerts/13D/reply bot stay on Opus) — observed
 run costs (validated from the 7/31–8/7 logs): **$6.45–8.51 weekdays** (Mondays high — the
 weekend catch-up window), **~$12 Fridays** including both weekly wraps ≈ **$160–180/mo**
-(OPERATIONS re-baselined 2026-07-30). Digest passes STREAM at max_tokens
+(re-baselined 2026-07-30; OPERATOR_GUIDE carries the operator-facing numbers). Digest passes STREAM at max_tokens
 48,000 with a truncation guard (stop_reason → WARNING + ops-footer notice + pass-2→pass-1
 fallback). **Ops-signal routing since 2026-07-28 (jared's request — one email, not two):
 operational signals (source degradation, truncation, config guards) render as a grey "⚙️ System
@@ -70,6 +62,24 @@ emails (`run_alert.py`) remain separate emails — a failed run has no digest to
 ran production from `main`; that's retired, the server tracks `main`, so **`main` is now the
 working/authoritative branch** — commit and deploy from it. `ava-updates` is frozen/behind and can
 be deleted at will.
+
+**Key operational facts (standing):**
+- **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box
+  silently refused to *launch* the tasks; `setup_tasks.ps1 -StoredPassword` (needs Shawn's Windows
+  password) is the working path. Re-register that way, never the bare S4U default.
+- **The server's Gmail token is the dev laptop's copied token pair (Plan B)** — the MFA lockout was
+  never resolved, just routed around; refresh-token auth works through it. (The dev laptop's copy
+  was deleted 2026-08-03 — the server's is now the only one.) MFA is team-owned (backup codes in
+  the vault AND emailed to jared on the thread where `acorn.research.bot@gmail.com` was created;
+  recovery phone = a teammate staying past 7/31).
+- **O4 backup = state-only `robocopy` into `%OneDriveCommercial%\DailyDigest-Backup`** (weekday
+  09:45), which OneDrive syncs off-box; works because the server is kept logged-in-and-locked.
+- **Durable pull rule: any pull touching `reply_monitor.py`/`alert_commands.py` (or changing
+  recipients in `env.bat`) needs `schtasks /End` + `/Run` on `\DailyDigest\ReplyMonitor`** —
+  the daemon holds old code/config until restarted. Pulls touching only the digest-run path
+  (e.g. `digest.py`) need no restart: each morning run is a fresh process.
+
+---
 
 **PICKUP (2026-08-07 — START HERE). The build/soak/handoff cycle is 100% CLOSED**: the original
 developer (`acohen`) departed 2026-07-31; the first fully-unattended week (7/31–8/7) was
@@ -97,43 +107,6 @@ nearing ~14k (raise the 16k cap or stream — §11.B); the TEAM weekly's output 
 8/7; revisit the 32k cap only if a log shows ~28k); a READER complaining about repetition
 (§11.B ladder — never the score); the F13 index at ~200k vectors / felt reply slowness
 (~late 2027 — §5).
-
-**Key operational facts a fresh session needs:**
-- **Scheduled tasks run under a STORED PASSWORD, not S4U.** S4U registered fine but the AzureAD box
-  silently refused to *launch* the tasks; `setup_tasks.ps1 -StoredPassword` (needs Shawn's Windows
-  password) is the working path. Re-register that way, never the bare S4U default.
-- **The server's Gmail token is the dev laptop's copied token pair (Plan B)** — the MFA lockout was
-  never resolved, just routed around; refresh-token auth works through it. (The dev laptop's copy
-  was deleted 2026-08-03 — the server's is now the only one.) MFA is team-owned (backup codes in
-  the vault AND emailed to jared on the thread where `acorn.research.bot@gmail.com` was created;
-  recovery phone = a teammate staying past 7/31).
-- **O4 backup = state-only `robocopy` into `%OneDriveCommercial%\DailyDigest-Backup`** (weekday
-  09:45), which OneDrive syncs off-box; works because the server is kept logged-in-and-locked.
-- **Durable pull rule: any pull touching `reply_monitor.py`/`alert_commands.py` (or changing
-  recipients in `env.bat`) needs `schtasks /End` + `/Run` on `\DailyDigest\ReplyMonitor`** —
-  the daemon holds old code/config until restarted. Pulls touching only the digest-run path
-  (e.g. `digest.py`) need no restart: each morning run is a fresh process.
-
-**Module convention:** nearly every source module exposes `fetch_X()` (gather),
-`format_X_for_prompt()` (text for the Opus prompt), and `build_X_html()` (pre-rendered HTML
-section). `digest.py` orchestrates: fetch all → build prompt → 2-pass Claude → assemble HTML →
-send → archive → index → update memory → (Fridays) weekly summary.
-
-### 1a. FULL vs TEAM variants (TEAM_DIGEST_SPEC, activated 2026-07-13)
-
-Substack content is personal to jared. Each run generates two digests:
-- **FULL** → `DIGEST_TO` (default `jtramontano@acorninv.com`): Substack + a `substack_memory.json`
-  layer; subject carries a `[FULL] ` marker.
-- **TEAM** (Substack-free) → `DIGEST_TO_TEAM` (**empty ⇒ team generation skipped entirely**).
-
-The TEAM prompt is a byte-identical cache prefix of the FULL prompt (team runs first; FULL reads
-the cache). **The TEAM digest is the indexed one** and the one that feeds the shared `memory.json`
-(so team askers' reply-bot retrieval never sees Substack). The reply bot answers each asker at
-their tier: `FULL_ACCESS_SENDERS` (jtramontano only) get Substack; everyone else gets the team
-view. **Deploy-critical:** the server's `env.bat` **must** carry `DIGEST_TO_TEAM` — a
-post-activation run without it is code-treated as misconfigured (warn + a "Team config missing"
-notice in the FULL send's ops footer + digest chunks un-indexed + memory frozen; escape hatch = set
-`config.TEAM_ACTIVATION_DATE` back to `None` if the team variant is ever deliberately retired).
 
 ---
 
@@ -167,9 +140,15 @@ end of this section._
 - **08-07 (later — the doc-set realignment to the user's cross-project format):** `WORKLOG.md`
   merged into this doc and both pruned (4,764 → ~1,150 lines; full text preserved at
   `3965f7e`); cross-reference conventions declared in the header; a cold-read review pass then
-  fixed 7 stale spots (`533cfa5`). README rewritten as a true repo TLDR (~65 lines); its
-  setup/scheduling content moved to MAINTENANCE's new "Machine bring-up" section (the rebuild
-  path pointer in §7.2 updated).
+  fixed 7 stale spots (`533cfa5`). README rewritten as a true repo TLDR (~65 lines). The final
+  step renamed the companion docs to the reference set's names and shapes: `OPERATIONS.md` →
+  **`OPERATOR_GUIDE.md`** (TLDR header + How-To/Question sections; gained the rerun-a-missed-
+  digest and pull-code-updates How-Tos) and `MAINTENANCE.md` → **`DEPLOYMENT.md`** (numbered
+  steps 1–8 + Monitoring & Failure Handling + the maintenance calendar); MAINTENANCE's
+  "changing the code safely" became §2a here, its "if you're stuck" dropped as redundant with
+  this doc's charter; this doc's blocks reordered to the reference layout (STANDING RULES →
+  PICKUP → Session history → §1 What it is); the ops footer in `digest.py` now names
+  OPERATOR_GUIDE.md (the one code touch, string-only).
 - **08-07 (`f731d73`):** Server pull to `f731d73` confirmed (weekly-wrap gap-note fix, armed
   from Mon 8/10) and the full 7/31–8/7 log set read, closing every remaining observation: the
   30-day memory ager is live (first firing Fri 7/31 `aged 2`; store 146→157→166→183→194→**203
@@ -554,6 +533,42 @@ end of this section._
 
 ---
 
+## 1. What it is
+
+A solo-operator Python automation that runs daily on a schedule. It gathers ~17
+financial/market data sources (Gmail inbox + forwarded research PDFs, paid Substack subs, SEC
+EDGAR, FRED macro, Fed balance sheet, Yahoo Finance, earnings calendar, PACER, 13F filings, rating
+actions, central-bank research, Treasury auctions, CFTC COT, FDIC, WSJ/FT RSS, 13D WILTW),
+summarizes them with Claude in a **two-pass** flow (draft → review/enhance), emails an HTML "Daily
+Research Digest" (that's the in-email H1; the *subject line* is "📬 Daily Inbox Digest" =
+`config.DIGEST_SUBJECT_PREFIX`, which the reply bot's Gmail query anchors on — search sent mail by
+the latter), archives all raw content to disk, and indexes it into a local FAISS vector store
+that powers an **email-reply Q&A bot**. Since 2026-07-13 each run produces **two variants** — a
+FULL digest (with Substack) and a Substack-free TEAM digest (see §1a).
+
+**Module convention:** nearly every source module exposes `fetch_X()` (gather),
+`format_X_for_prompt()` (text for the Opus prompt), and `build_X_html()` (pre-rendered HTML
+section). `digest.py` orchestrates: fetch all → build prompt → 2-pass Claude → assemble HTML →
+send → archive → index → update memory → (Fridays) weekly summary.
+
+### 1a. FULL vs TEAM variants (TEAM_DIGEST_SPEC, activated 2026-07-13)
+
+Substack content is personal to jared. Each run generates two digests:
+- **FULL** → `DIGEST_TO` (default `jtramontano@acorninv.com`): Substack + a `substack_memory.json`
+  layer; subject carries a `[FULL] ` marker.
+- **TEAM** (Substack-free) → `DIGEST_TO_TEAM` (**empty ⇒ team generation skipped entirely**).
+
+The TEAM prompt is a byte-identical cache prefix of the FULL prompt (team runs first; FULL reads
+the cache). **The TEAM digest is the indexed one** and the one that feeds the shared `memory.json`
+(so team askers' reply-bot retrieval never sees Substack). The reply bot answers each asker at
+their tier: `FULL_ACCESS_SENDERS` (jtramontano only) get Substack; everyone else gets the team
+view. **Deploy-critical:** the server's `env.bat` **must** carry `DIGEST_TO_TEAM` — a
+post-activation run without it is code-treated as misconfigured (warn + a "Team config missing"
+notice in the FULL send's ops footer + digest chunks un-indexed + memory frozen; escape hatch = set
+`config.TEAM_ACTIVATION_DATE` back to `None` if the team variant is ever deliberately retired).
+
+---
+
 ## 2. Key constraints
 
 - **Digest generation is `claude-fable-5` (FABLE_MODEL, since 2026-07-22); everything else Opus-tier
@@ -597,6 +612,31 @@ end of this section._
     sentence-transformer embeddings). Also free but key/auth-gated: **Gmail API** (quota-limited,
     never billed) and **FRED** (free key). "Needs a key" ≠ "costs money": only the Claude key maps
     to per-use billing.
+
+### 2a. Engineering conventions (absorbed from the retired MAINTENANCE.md, 2026-08-07)
+
+- **The gate:** `check.bat` = `ruff check` + `pytest` (**502** tests as of 2026-08-03). Both must
+  pass before commit.
+- **The eval harness:** `tools/eval_retrieval.py` + `tools/eval_golden.json` measure retrieval
+  quality (current baseline: hit@1 0.897 / hit@3 1.0 / MRR 0.937, zero misses,
+  `tools/eval_results/2026-07-15_post_index_filter.json`). Re-run and compare after ANY change to
+  chunking, embedding, indexing, or the reply path. Rebuild the index with
+  `python search.py --rebuild` after extraction/chunking changes. Grow the golden set as archive
+  days accrue — it only stays meaningful if it compounds.
+- **A new source** is one module in the §1 fetch/format/build shape plus a row in `digest.py`'s
+  fetch registry (pinned by `tests/test_source_registry.py` / `test_digest_prompt.py`).
+- **Alerts & the watchlist — two separate levers.** The top-of-digest alert *triggers* live in
+  `alerts_config.json` (email-managed runtime state — no code). The *ticker universe* is
+  `WATCHLIST` in `sec_filings.py` (a Python list — a **code** edit) and is the single source of
+  truth for SEC filings, earnings, entity tagging, **and** (since 2026-07-21) the scoping of the
+  two "watchlist"-referencing alerts (Insider selling, Rating downgrade) — editing that one list
+  updates all four at once. Event-based triggers (Large Chapter 11, HY spread blowout, Fed
+  surprise, Bank failure, Distressed exchange) are watchlist-independent. Alerts are evaluated
+  **per variant** (FULL sees Substack; TEAM doesn't) — a Substack-sourced alert appears only in
+  the owner's box, by design.
+- **Commits:** work on `main` (the server tracks it); short-lived feature branches only for risky
+  in-progress work. Keep the change-log habit — a dated digest in the Session history explaining
+  what changed and *why* is how the next person (or you, in six months) stays oriented.
 
 ---
 
@@ -655,7 +695,7 @@ installed. *(`credentials_JARED.json`, a pre-2026-06-30-flip OAuth-client dev ba
 **⚠ Since 2026-08-03 the SERVER holds the only live copy of every secret:** the dev machine's
 copies (all six files above, plus the `jpm_recon/` dumps) were deliberately deleted at the
 operator's departure. Standing up a new dev environment = copy from the server or regenerate
-per MAINTENANCE §2.
+per DEPLOYMENT §3a.
 
 **Env vars:** `ANTHROPIC_API_KEY` (required), `FRED_API_KEY` (macro + fed balance sheet),
 `SUBSTACK_EMAIL` (Substack OTP-code renewal), `DIGEST_TO` (full-digest recipient override — leave
@@ -706,7 +746,7 @@ TEAM digest's recipients — **must be set on the server**; empty = team generat
   retrieval default → prune-and-archive old days → IVF. ⚠ The date-window step is a
   RETRIEVAL-BEHAVIOR change — eval-gate it like rerank/hybrid (`tools/eval_retrieval.py`,
   ≥ default on hit@3 AND MRR, no new misses); this project has parked two retrieval
-  "improvements" that lost that eval. Also noted in OPERATIONS.md for the post-handoff owner.
+  "improvements" that lost that eval. Also noted in OPERATOR_GUIDE.md for the post-handoff owner.
 
 ---
 
@@ -746,7 +786,7 @@ Investigated and confirmed as deliberate. Changing them adds risk for no benefit
 and the `jpm_recon/` dumps were deleted 2026-08-03 (operator-authorized; no secrets were in
 Windows env vars). The checkout, `.venv`, caches/state, and Claude session memory remain, but
 nothing authenticated can run from this box until secrets are re-installed (copy from the
-server or regenerate per MAINTENANCE §2). The server is unaffected and self-sufficient.
+server or regenerate per DEPLOYMENT §3a). The server is unaffected and self-sufficient.
 
 Historical record of the de-hardcoding (completed earlier): `.bat`/`setup_tasks.ps1` use `%~dp0`
 + project `.venv` + `PYTHONUTF8=1`; recipients are `DIGEST_TO`/`DIGEST_TO_TEAM`-env-driven; the
@@ -761,8 +801,8 @@ optional end-state flip to the bot is his call (§10). Full history: Session his
 
 **The server is DEPLOYED and LIVE** (cutover 2026-07-20; see §1). The executed deploy/cutover
 step-by-step was `NEXT_STEPS_SPEC §5` (retired 2026-07-21 — in git history; the deploy narrative is
-in WORKLOG 07-20/21). For a rebuild, MAINTENANCE "Machine bring-up" (setup + scheduling) +
-MAINTENANCE §2 (secrets) + OPERATIONS "Backups & restore" are the path. Requirements the deploy implemented:
+in WORKLOG 07-20/21). For a rebuild, DEPLOYMENT (steps 1–6, incl. §3a secrets) +
+OPERATOR_GUIDE "Backups & restore" are the path. Requirements the deploy implemented:
 
 1. **Always-on + headless:** stays powered, awake (no sleep/hibernate), survives reboots. The reply
    monitor is a continuous process — an always-on server is what makes it reliable.
@@ -779,7 +819,7 @@ MAINTENANCE §2 (secrets) + OPERATIONS "Backups & restore" are the path. Require
    content monitor (O3 → the FULL send's ops footer since 2026-07-28, arms after ~6 runs); hung-run watchdog
    (`run_alert.py digest --check-completed`, its 09:00 task registered by `setup_tasks.ps1`).
    Sessions still need occasional human care: Substack auto-renews (OTP-code via Gmail); **13D will
-   eventually need a manual re-login** — documented in OPERATIONS.md.
+   eventually need a manual re-login** — documented in OPERATOR_GUIDE.md.
 5. **Time zone & schedule:** set the server TZ correctly (digest ~8 AM ET, weekly
    summary keys off Friday).
 6. **Resources & backups:** the embedding stack + growing `archive/` need ~2 GB disk; O4 backups
@@ -844,7 +884,7 @@ comments cite §10/§11 by number.)*
 The 2026-06-30 → 07-14 source-coverage audit is closed. What remains:
 
 - **13D session** will expire and need a **manual re-login** (interactive; unattended runs skip
-  gracefully via the R8 guard and O3 flags the WILTW zero-streak). Procedure in OPERATIONS.md.
+  gracefully via the R8 guard and O3 flags the WILTW zero-streak). Procedure in OPERATOR_GUIDE.md.
 - **Custom-domain Substack pubs ride the unauthenticated per-post API** (see §5) — accepted;
   degrades visibly if Substack ever closes the hole.
 - **Substack account-email flip to the bot** — optional end-state that would remove the last
@@ -1090,7 +1130,7 @@ What remains is only what a future session might still act on.)*
   ("Ticker-name cache: learned N" log line; 12 entries after day one). Watch: a wrong issuer name
   appearing in a digest → inspect/delete the bad cache entry (the proper-noun + source-text guards
   should prevent this; one descriptive-phrase class was already caught and guarded in tests).
-- **Fable cost re-baseline — ✅ DONE 2026-07-30, re-confirmed by the 7/31–8/7 logs:** OPERATIONS
+- **Fable cost re-baseline — ✅ DONE 2026-07-30, re-confirmed by the 7/31–8/7 logs:** OPERATOR_GUIDE
   carries the observed **$160–180/mo** ($6.45–8.51 weekdays, ~$12 Fridays); the earlier
   ~$90–140/mo guess is superseded. Nothing to watch — billing is firm-paid auto-reload.
 - **Paraphrase-level dedup / true MMR** in the reply path. Current dedup is token-Jaccard ≥0.85
@@ -1139,7 +1179,7 @@ What remains is only what a future session might still act on.)*
   ~400 active or the output line trends toward the cap.
 - **Parked retrieval mechanisms (rerank / hybrid)** — see §6. Re-test kit: `tools/eval_retrieval.py`
   + `tools/eval_golden.json` (29 questions; grow the golden set as archive days accrue —
-  cadence in `MAINTENANCE.md §5`).
+  cadence in DEPLOYMENT's maintenance calendar).
 
 ### C. Declined at the 2026-07-15 second-pass review (recorded so they aren't re-derived)
 - **F7 weekly-wrap token diet** (~$35/yr EV): DEFERRED — quantify first with the free `count_tokens`
