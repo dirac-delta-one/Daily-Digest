@@ -209,6 +209,6 @@ OneDrive (the web site, or the cloud icon in the system tray) and check the
 `DailyDigest-Backup` folder is there and recently updated. If OneDrive shows a sync error, sort
 that out (a standard OneDrive issue) — the data is safe on the server in the meantime.
 
-**How to restore (if the server's disk fails):** follow `DEPLOYMENT.md` §9 — the normal
+**How to restore (if the server's disk fails):** follow `DEPLOYMENT.md` §8 — the normal
 machine setup plus copying this backup back in. (The secrets were **not** backed up, on
 purpose; DEPLOYMENT covers re-supplying them.)
