@@ -92,26 +92,23 @@ firm-paid, auto-reload ON** (no manual top-ups — OPERATIONS/MAINTENANCE update
 the bot Gmail (per the operator, unverified); Gmail backup codes in the vault AND with jared on
 the bot-creation email thread; **dev machine de-credentialed** (§7.1 — server holds the only
 secrets).
-- **Fri 7/31 run — EMAIL SIDE VERIFIED same day** (read-only sent-mail pull; WORKLOG
-  2026-07-31): **5 digest sends + 5 weeklies, acohen absent from both** (the recipient drop
-  live), **the first production STREAMING weekly COMPLETE** — all sections + proper reply
-  footer, ~13k chars, nowhere near 32k, no mid-bullet cutoff (the 7/24 truncation mode is
-  gone) — no ops footer, no alert emails, §1/(→ §1)/Contrarian format intact, fresh
-  bankruptcies only. **Log side UNREAD (server access ended before the log could be pulled) —
-  optional, jared or a future server session:** the weekly `log-only` repetition lines, run
-  cost, and possibly the first `Memory: aged N stale story(ies)` line (the 30-day ager's
-  designed activation window opens ~7/31–8/15 — a POSITIVE signal, see §11.B; if it didn't
-  fire 7/31 it will in the following ~2 weeks, and nothing depends on catching the first one).
-  One cosmetic nit found — both weeklies explained the missing Wednesday digest as "FOMC day",
-  a model-invented rationale (the real cause was the 7/29 BKLN crash) — and **FIXED code-side
-  2026-08-03** (operator judged the confabulation class worth closing): `_get_week_digests`
+- **Fri 7/31 run — FULLY CLOSED 2026-08-07 (email side verified 7/31; LOG SIDE READ 8/7** when
+  the operator regained server access — full week's numbers in WORKLOG 2026-08-07): 5 digests +
+  5 weeklies, acohen absent (recipient drop live); **the first production STREAMING weekly
+  COMPLETE** (10,584/12,181 out vs the 32k cap — the 7/24 both-capped-at-exactly-10,000
+  truncation mode is gone); weekly `log-only` repetition lines present; **the first
+  `Memory: aged N stale story(ies)` fired 7/31 itself** — the very first day of the ager's
+  predicted ~7/31–8/15 window — and is routine by 8/6–8/7 (§11.B watch CLOSED). Friday run
+  cost $12.02 all-in.
+  The one nit found — both 7/31 weeklies explained the crash-missing Wednesday as "FOMC day",
+  a model-invented rationale — was **FIXED code-side 2026-08-03**: `_get_week_digests`
   silently skips absent days, leaving the wrap model an information vacuum; now
   `digest._weekly_digest_text` injects a factual gap note in the missing day's slot ("no digest
   exists... do NOT infer or invent a reason"). Full weeks are byte-identical to the old prompt
-  (pinned by test), so only the armed path changed; the armed state is unit-test-constructed
-  per §2's warm-up rule (pytest 496→502). **⚠ Needs a server pull** (digest.py only — no
-  ReplyMonitor restart); live validation = the first Friday wrap after a missing weekday,
-  which is rare by construction.
+  (pinned by test); the armed state is unit-test-constructed per §2's warm-up rule (pytest
+  496→502). **Server pulled to `f731d73` on 2026-08-07 — the fix is DEPLOYED** (post-8:00, so
+  live from the Mon 8/10 run); residual live validation = the first Friday wrap after a
+  missing weekday, rare by construction and self-announcing.
 - **JPM** — awaiting jared's re-scope-or-drop call; **he was told 2026-08-03 it's waiting on
   him**, and the departing operator's lead is that **the share link he originally sent may have
   been the wrong one** (which would explain the SCDP file-transfer dead end) — details + re-run
@@ -838,10 +835,11 @@ What remains is only what a future session might still act on.)*
   Sonnet — trivial), and its OUTPUT — the capped side — scales with stories CHANGED per day
   (~15–25), not store size, so the 16k cap holds. The resolved-ids index tail grows forever but
   at ~30 chars/story is a 2027 concern (already noted in `_story_index_for_prompt`).
-  **Watch (positive signal): the first `Memory: aged N stale story(ies)` log line** — its
-  appearance confirms the whole mechanism live. *(The 7/31 log went unread — operator access
-  ended first; the window runs ~7/31–8/15, so ANY early-August log read shows it. Nothing
-  depends on catching the first firing.)* **Safety line stays:** if
+  **✅ CONFIRMED LIVE (logs read 2026-08-07): the first `Memory: aged N stale story(ies)`
+  fired Fri 7/31** — the opening day of the predicted window — and aging is routine since
+  (8/3 aged 2+1, 8/6 aged 1+1, 8/7 aged 1, across the main + substack stores). Store growth
+  through 8/7: 146→157→166→183→194→**203 active** — the designed ramp toward the ~300–400
+  equilibrium; memory-pass output peaked at 9,755 tokens vs the 16k cap. Watch CLOSED. **Safety line stays:** if
   `Memory pass tokens ... out` reaches ~14k, raise the cap or switch that call to streaming the
   same day (the 7/24 8k-cap freeze is the precedent). The ~90-day archive-to-side-file batch is
   NOT needed on current arithmetic — reconsider only if the aged store level materially exceeds

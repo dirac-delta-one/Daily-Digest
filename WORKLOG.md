@@ -5,13 +5,16 @@ Companion to `HANDOFF.md` (the plan/spec) and its §11 "Needs Testing" (deferred
 
 ---
 
-## Current state (2026-08-03 — OPERATOR DEPARTED: final wrap-up done, system fully unattended and green)
+## Current state (2026-08-07 — HANDOFF 100% CLOSED: server current, all logs read, every observation validated)
 
-**Fresh-session orientation:** the system is LIVE and green; `pytest` **502**, ruff clean.
-**⚠ The server is ONE PULL BEHIND `main`** since the 2026-08-03 weekly-wrap gap-note fix
-(digest.py only — pull needs NO ReplyMonitor restart; until pulled, a crash-missing weekday can
-still be confabulated about in that week's wrap, the 7/31 "FOMC day" mode — nothing else is
-affected). **⚠ The DEV machine (`KimCohen`) holds NO secrets since 2026-08-03** —
+**Fresh-session orientation:** the system is LIVE and green; `pytest` **502**, ruff clean;
+**server current with `main` (`f731d73`, pulled 2026-08-07)** — the weekly-wrap gap-note fix is
+deployed (live from Mon 8/10; pulled post-8:00 Friday). **The full first unattended week's logs
+(7/31–8/7) were read 2026-08-07** — every open observation CLOSED, all numbers healthy (entry
+below): the memory ager fired 7/31 exactly on schedule, streaming weeklies complete both
+Fridays, costs $6.45–8.51 weekdays / ~$12 Fridays ≈ the $160–180/mo baseline, zero WARNINGs,
+5 sends every day. **The ONLY remaining open item anywhere is jared's JPM decision.**
+**⚠ The DEV machine (`KimCohen`) holds NO secrets since 2026-08-03** —
 all credential/session files deleted at departure (entry below), so nothing authenticated
 (including the read-only sent-mail checks used for validation) can run from this box until
 secrets are re-installed per MAINTENANCE §2; the server is self-sufficient and unaffected.
@@ -105,6 +108,42 @@ the **memory update 8k→16k** cap raise. **Tue 7/28's log READ (see today's log
   (JPM_SPEC).
 - **7/31 operator departure** — drop `acohen` from `DIGEST_TO_TEAM`; the REDUCE_REPEATS metric-v2
   tripwire decision; the ~7/30 memory-aging call (store at 118 and growing).
+
+---
+
+## 2026-08-07 — Server pulled + full week's logs read: EVERY open observation CLOSED, first unattended week 5/5 green
+
+The operator regained remote server access (Fri 8/7, post-run): confirmed the pull to `f731d73`
+(gap-note fix deployed, live from Mon 8/10), verified all four tasks healthy (MorningDigest/
+Watchdog/Backup Ready → next fire Mon 8/10; ReplyMonitor Running), and carried out the complete
+`logs\` folder. The 7/31–8/7 digest logs were read against the outstanding checklist — **every
+open observation is now closed, and every one came back healthy:**
+
+- **The 30-day memory ager is CONFIRMED LIVE — first firing Fri 7/31**, the opening day of the
+  code comment's predicted ~7/31–8/15 window, and routine since: 7/31 `aged 2` (substack
+  store), 8/3 `aged 2` main + `aged 1` substack, 8/6 `aged 1+1`, 8/7 `aged 1`. Store growth
+  146→157→166→183→194→**203 active** across the week = the designed ramp toward ~300–400
+  equilibrium. Memory-pass output peaked at **9,755** tokens (8/5) vs the 16k cap and the ~14k
+  raise-the-cap watch line — comfortable. §11.B watch CLOSED.
+- **Both production streaming weeklies COMPLETE** (the 7/24 truncation mode is dead): 7/31 =
+  10,584 out FULL / 12,181 team; 8/7 = 12,893 / 15,938 — all far under the 32k cap, zero
+  truncation WARNINGs anywhere in the week. Weekly `log-only` repetition lines present as
+  designed (FULL 2–3 strong; team 9 on 7/31, 4 on 8/7 — weekly scores run hotter than dailies
+  since a wrap synthesizes five days into one document; they are log-only, not part of the v2
+  daily decision series, and trigger nothing). Note the team weekly's output trend
+  (12,181→15,938): still 2x headroom, but if a future log shows it near ~28k, revisit the cap.
+- **Cross-day machinery green:** 8/3 logged `Lookback window: 72h (previous digest
+  2026-07-31)` with weekend content; PACER freshness filter dropping 2–10 stale entries/day;
+  `Ch.11 discovery hits` (the O3 raw feeds-alive signal) 51–140/day; real large filings
+  surfacing (6 large Ch.11s on 8/6).
+- **Costs match the $160–180/mo re-baseline:** weekdays $6.45 / $6.46 / $7.01 / $8.51 (Monday
+  catch-up, the high end), Fridays $12.02 and $12.18 all-in with both weeklies.
+- **5 sends every day, no failure alerts, no ops footers, repetition dailies 0–3 strong**
+  (inside the 0–4 noise floor).
+
+**With this, the handoff is 100% closed: the only open item anywhere is jared's JPM
+re-scope-or-drop decision.** Remaining passive self-announcing watches: the gap-note fix's
+first armed Friday, the memory-pass ~14k line, the F13 ~200k-vector horizon (~late 2027).
 
 ---
 
