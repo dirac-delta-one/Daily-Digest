@@ -730,7 +730,7 @@ optional end-state flip to the bot is his call (§10). Full history: Session his
 ### 7.2 Dedicated Windows server — DEPLOYED 2026-07-20 and LIVE
 
 The step-by-step for a rebuild or a new machine is **DEPLOYMENT.md** (steps 1–6 to stand up,
-§8 to restore from the OneDrive backup; it also carries the cutover rule: exactly ONE reply
+§9 to restore from the OneDrive backup; it also carries the cutover rule: exactly ONE reply
 daemon + ONE digest instance may run anywhere). What this
 section keeps is the **field findings** — the "why" behind DEPLOYMENT's rules, each learned
 live during the 2026-07-06→09 accrual week (all code fixes DONE): unattended-consent hang →

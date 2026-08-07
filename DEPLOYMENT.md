@@ -115,7 +115,7 @@ set DIGEST_TO=you@acorninv.com
 
 All caches/state self-seed when missing — a fresh machine needs **no** state copy. When
 **restoring** a failed server, copy the OneDrive backup's contents back in (`archive\`, `digests\`,
-the memory files, caches, the search index) — the full restore procedure is §8 below.
+the memory files, caches, the search index) — the full restore procedure is §9 below.
 
 ## 4 — Sanity Check
 
@@ -167,7 +167,17 @@ task.
 
 The box must stay powered, awake, and **logged-in** as the run user. Sessions still need occasional human care: Substack auto-renews via OTP; **13D eventually needs a manual re-login** (`OPERATOR_GUIDE.md` How-To).
 
-## 8 — Restoring from Backup (if the current server dies)
+## 8 — Updating the Code (git pull)
+
+Routine updates are a plain `git pull` between runs. Reinstall dependencies only when
+`requirements.txt` changed. **If the pull touched `reply_monitor.py`/`alert_commands.py` (or
+recipients changed in `env.bat`), restart the daemon** — it holds old code until restarted:
+
+```powershell
+schtasks /End /TN \DailyDigest\ReplyMonitor; schtasks /Run /TN \DailyDigest\ReplyMonitor
+```
+
+## 9 — Restoring from Backup (if the current server dies)
 
 The system's data is copied to OneDrive every weekday into
 `…\OneDrive - Acorn Investment\DailyDigest-Backup\` (what's in it and how it syncs:
