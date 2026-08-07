@@ -810,7 +810,7 @@ optional end-state flip to the bot is his call (§10). Full history: Session his
 **The server is DEPLOYED and LIVE** (cutover 2026-07-20; see §1). The executed deploy/cutover
 step-by-step was `NEXT_STEPS_SPEC §5` (retired 2026-07-21 — in git history; the deploy narrative is
 in WORKLOG 07-20/21). For a rebuild, DEPLOYMENT (steps 1–6, incl. §3a secrets) +
-OPERATOR_GUIDE "Backups & restore" are the path. Requirements the deploy implemented:
+OPERATOR_GUIDE "Backups & Restore" are the path. Requirements the deploy implemented:
 
 1. **Always-on + headless:** stays powered, awake (no sleep/hibernate), survives reboots. The reply
    monitor is a continuous process — an always-on server is what makes it reliable.

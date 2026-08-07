@@ -117,7 +117,7 @@ set DIGEST_TO=you@acorninv.com
 All caches/state self-seed when missing — a fresh machine needs **no** state copy. When
 **restoring** a failed server, copy the OneDrive backup's contents back in (`archive\`, `digests\`,
 the memory files, caches, the search index) — the restore procedure is
-`OPERATOR_GUIDE.md` → "Backups & restore".
+`OPERATOR_GUIDE.md` → "Backups & Restore".
 
 ## 4 — Sanity check
 

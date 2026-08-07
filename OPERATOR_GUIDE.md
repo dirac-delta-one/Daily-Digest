@@ -10,7 +10,7 @@ digest watches. Written for the person who receives the alerts (jtramontano@acor
 |---|---|---|
 | MorningDigest | Mon–Fri 08:00 | Builds + emails the Daily Research Digest |
 | Watchdog | Mon–Fri 09:00 | Emails an alert if the morning digest never completed |
-| Backup | Mon–Fri 09:45 | Copies the day's data off-box to OneDrive (see "Backups & restore") |
+| Backup | Mon–Fri 09:45 | Copies the day's data off-box to OneDrive (see "Backups & Restore") |
 | ReplyMonitor | at startup, always on | Answers questions you email as replies to a digest |
 
 To check they're registered/running (PowerShell): `Get-ScheduledTask -TaskPath "\DailyDigest\"`
@@ -82,8 +82,8 @@ still sends).
 there just isn't a report yet. Only a `Session expired — re-login required` line means the
 login actually died. You can't tell staleness from the session file (it's a server-side
 session with no visible expiry) — only a live request shows it, so if you know a report is
-due, refresh the session ahead of time with the same `--login` command. Two monitoring
-caveats: after a multi-week break the degradation notice can't arm until WILTW logs one
+due, refresh the session ahead of time with the same `--login` command. One monitoring
+caveat: after a multi-week break the degradation notice can't arm until WILTW logs one
 nonzero week again (a long break looks "normally zero" to the monitor), so confirm the first
 post-break report arrived yourself.
 
@@ -133,7 +133,7 @@ previews permanently (visible via the markers) — a developer decision, not a c
     Restore the line in `env.bat` (sample in `DEPLOYMENT.md`); the next run self-heals.
 
 - **"backup FAILED"** — the 09:45 off-box copy couldn't find its OneDrive folder; see
-  "Backups & restore" below.
+  "Backups & Restore" below.
 - **No digest AND no failure email** — check the machine; if it ran fine (log ends clean), the
   email may be **quarantined by mail security**: Abnormal AI flagged a digest once; IT
   allowlisted `acorn.research.bot@gmail.com` org-wide for Outlook. A newly-added **non-Outlook**
@@ -174,7 +174,7 @@ over silently losing one).
 
 ---
 
-## Backups & restore
+## Backups & Restore
 
 **What's backed up, and where.** Every weekday at ~09:45 (just after the morning digest) a
 scheduled task (`Backup`) copies the system's DATA to OneDrive — into
@@ -209,5 +209,4 @@ that out (a standard OneDrive issue) — the data is safe on the server in the m
 3. Copy the contents of `DailyDigest-Backup\` (from OneDrive) back into the project folder.
 
 The archive, memory, and search index all come back, and the system continues from the last
-backup. *(Developer detail — the copy mechanism, what's included, and the safety flags — is in
-`run_backup.bat`'s comments and HANDOFF's Session history, 07-20 entry.)*
+backup.
